@@ -1,46 +1,28 @@
-# Getting Started with Create React App
+# 🧠 AdaptBuddy - Neuro-Inclusive Learning Platform
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+> AI-powered personalized education with real-time emotional wellbeing support for neurodiverse learners.
 
-## Available Scripts
+[![React](https://img.shields.io/badge/React-18.2-blue)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
+[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.3-blue)](https://tailwindcss.com/)
+[![License](https://img.shields.io/badge/License-Proprietary-red)](LICENSE)
 
-In the project directory, you can run:
+## Mission
+To empower neurodivergent children (Autism, ADHD, Dyslexia, Dyspraxia, etc.) through personalized learning tools and real-time emotional safeguarding in a safe, accessible digital environment.
 
-### `npm start`
+## Features
+- **Neuro-Profile Selection** - Multi-condition support (8+ neurotypes)
+- **Adaptive Dashboard** - Personalized learning paths based on profile
+- **Feelings Journal** - AI-powered emotional check-ins with safeguarding alerts
+- **Parent Hub** - Real-time progress tracking & wellbeing monitoring
+- **Accessibility First** - Dyslexia fonts, color overlays, text-to-speech, focus tools
+- **Mobile-Optimized** - Responsive design for tablets & phones
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Tech Stack
+- **Frontend**: React 18 + TypeScript + Tailwind CSS
+- **UI Libraries**: Lucide React Icons, Framer Motion
+- **Build Tool**: Vite
+- **Deployment**: Vercel (Live demo available)
+- **Planned Backend**: Node.js + PostgreSQL + Firebase Auth
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
-
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Project Structure

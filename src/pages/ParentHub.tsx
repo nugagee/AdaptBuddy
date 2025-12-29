@@ -1,11 +1,7 @@
 import React from 'react';
 import { Bell, TrendingUp, Users, Shield, MessageSquare, Download, Settings } from 'lucide-react';
 
-interface ParentHubProps {
-  onBack?: () => void;
-}
-
-const ParentHub: React.FC<ParentHubProps> = ({ onBack }) => {
+const ParentHub: React.FC = () => {
   const alerts = [
     { type: 'success', title: 'Daily Check-In Complete', time: '2 hours ago', desc: 'Alex completed feelings journal. Emotion: 😊 Happy' },
     { type: 'warning', title: 'Focus Difficulty', time: '5 hours ago', desc: 'Math lesson took 25% longer. Suggested break taken.' },

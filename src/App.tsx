@@ -1,25 +1,21 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { useState } from 'react';
+import NeuroSelector from './components/NeuroSelector/NeuroSelector';
+import Dashboard from './pages/Dashboard';
+import ParentHub from './pages/ParentHub';
 
 function App() {
+  const [currentPage, setCurrentPage] = useState<'neuro' | 'dashboard' | 'parent'>('neuro');
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <>
+      {currentPage === 'neuro' ? (
+        <NeuroSelector onContinue={() => setCurrentPage('dashboard')} />
+      ) : currentPage === 'dashboard' ? (
+        <Dashboard />
+      ) : (
+        <ParentHub />
+      )}
+    </>
   );
 }
 

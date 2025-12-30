@@ -60,11 +60,11 @@ export class EmotionDetector {
     return {
       emotion,
       confidence,
-      keywords: [...new Set(words.filter(w => 
-        this.positiveWords.includes(w) || 
-        this.negativeWords.includes(w) || 
+      keywords: Array.from(new Set(words.filter(w =>
+        this.positiveWords.includes(w) ||
+        this.negativeWords.includes(w) ||
         this.riskWords.includes(w)
-      ))],
+      ))),
       riskLevel,
       sentimentScore,
       timestamp: new Date()

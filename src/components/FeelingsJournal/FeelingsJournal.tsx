@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { X, Smile, Meh, Frown, Angry, Moon, Mic, Keyboard, Lock } from 'lucide-react';
+import { EmotionDetector } from '../../services/nlpEmotionDetector';
+
 
 interface FeelingsJournalProps {
   onClose: () => void;
@@ -23,6 +25,12 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose }) => {
       onClose();
     }
   };
+
+  // Inside your component, after text input:
+const analyzeFeeling = () => {
+  const analysis = EmotionDetector.analyze(textInput);
+  alert(`AI Detected: ${analysis.emotion} (${(analysis.confidence * 100).toFixed(0)}% confidence)`);
+};
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

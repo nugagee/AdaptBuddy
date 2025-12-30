@@ -21,16 +21,23 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose }) => {
 
   const handleSave = () => {
     if (selectedFeeling) {
-      alert(`💖 Feeling saved: ${selectedFeeling.charAt(0).toUpperCase() + selectedFeeling.slice(1)}`);
+      // If user entered extra text, run a quick emotion analysis
+      if (note && note.trim().length > 0) {
+        try {
+          const analysis = EmotionDetector.analyze(note);
+          // show a lightweight message about detected emotion
+          // keep the save UX simple while providing feedback
+          alert(`💖 Feeling saved: ${selectedFeeling.charAt(0).toUpperCase() + selectedFeeling.slice(1)}\nAI detected: ${analysis.emotion} (${(analysis.confidence * 100).toFixed(0)}% confidence)`);
+        } catch (e) {
+          // fallback to normal save if analysis fails
+          alert(`💖 Feeling saved: ${selectedFeeling.charAt(0).toUpperCase() + selectedFeeling.slice(1)}`);
+        }
+      } else {
+        alert(`💖 Feeling saved: ${selectedFeeling.charAt(0).toUpperCase() + selectedFeeling.slice(1)}`);
+      }
       onClose();
     }
   };
-
-  // Inside your component, after text input:
-const analyzeFeeling = () => {
-  const analysis = EmotionDetector.analyze(textInput);
-  alert(`AI Detected: ${analysis.emotion} (${(analysis.confidence * 100).toFixed(0)}% confidence)`);
-};
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

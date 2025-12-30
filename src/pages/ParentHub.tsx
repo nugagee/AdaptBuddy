@@ -1,5 +1,7 @@
 import React from 'react';
 import { Bell, TrendingUp, Users, Shield, MessageSquare, Download, Settings } from 'lucide-react';
+import EmotionAnalysisCard from '../components/AIInsights/EmotionAnalysisCard';
+import SentimentTrendChart from '../components/Analytics/SentimentTrendChart';
 
 const ParentHub: React.FC = () => {
   const alerts = [
@@ -65,6 +67,31 @@ const ParentHub: React.FC = () => {
             <p className="text-sm text-gray-500">New this week</p>
           </div>
         </div>
+
+        // Add this section in ParentHub:
+<div className="mt-8">
+  <h2 className="text-xl font-bold mb-4">🧠 AI Emotional Insights</h2>
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <EmotionAnalysisCard 
+      analysis={{
+        emotion: 'calm',
+        confidence: 0.82,
+        keywords: ['happy', 'good'],
+        riskLevel: 'low',
+        sentimentScore: 0.6,
+        timestamp: new Date()
+      }}
+    />
+    <SentimentTrendChart 
+      data={[
+        { date: '2024-12-25', moodScore: 7, engagement: 80, focusDuration: 45, activitiesCompleted: 3 },
+        { date: '2024-12-26', moodScore: 8, engagement: 85, focusDuration: 50, activitiesCompleted: 4 },
+        { date: '2024-12-27', moodScore: 6, engagement: 70, focusDuration: 30, activitiesCompleted: 2 },
+        { date: '2024-12-28', moodScore: 9, engagement: 90, focusDuration: 60, activitiesCompleted: 5 },
+      ]}
+    />
+  </div>
+</div>
 
         {/* Alerts */}
         <div className="bg-white rounded-2xl p-6 shadow-sm mb-8">

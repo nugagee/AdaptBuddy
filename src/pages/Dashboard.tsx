@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { BookOpen, Heart, Clock, Trophy, Settings, Bell, Sun, Volume2, Type, Music } from 'lucide-react';
 import FeelingsJournal from '../components/FeelingsJournal/FeelingsJournal';
+// Recommendation engine service
+import { RecommendationEngine } from '../services/recommendationEngine';
 
 const Dashboard: React.FC = () => {
   const [showJournal, setShowJournal] = useState(false);
@@ -110,6 +112,27 @@ const Dashboard: React.FC = () => {
         <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-2xl p-6 shadow-sm">
           <h2 className="text-xl font-bold mb-4">Recommended For You</h2>
           <div className="space-y-4">
+            {/* AI-Powered Recommendations */}
+            <div className="mt-2 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-4">
+              <h3 className="text-lg font-semibold mb-3">🤖 AI-Powered Picks</h3>
+              <div className="space-y-3">
+                {RecommendationEngine.recommend(['autism', 'adhd'], 0.7, 'calm', []).map((rec, idx) => (
+                  <div key={idx} className="bg-white p-4 rounded-xl flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold">{rec.title}</h4>
+                      <p className="text-sm text-gray-600">{rec.description}</p>
+                      <div className="flex gap-2 mt-2">
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{rec.learningStyle}</span>
+                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">AI Confidence: {(rec.aiConfidence * 100).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                    <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold">Try It</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Manual Recommendations */}
             <div className="bg-white p-4 rounded-xl flex items-center gap-4">
               <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center">
                 <BookOpen className="w-7 h-7 text-blue-600" />
@@ -120,6 +143,7 @@ const Dashboard: React.FC = () => {
               </div>
               <button className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg font-bold">Start</button>
             </div>
+
             <div className="bg-white p-4 rounded-xl flex items-center gap-4">
               <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center">
                 <Heart className="w-7 h-7 text-green-600" />

@@ -1,8 +1,20 @@
+import type { ComponentType, SVGProps } from 'react';
+
 export interface NeuroOption {
   id: string;
   name: string;
   description: string;
   colorClass: string;
+  longDescription?: string;
+  icon?: ComponentType<SVGProps<SVGSVGElement>>;
+  theme?: {
+    primary?: string;
+    secondary?: string;
+    background?: string;
+    cardBg?: string;
+    accent?: string;
+  };
+  learningStyle?: string;
 }
 
 export interface UserProfile {

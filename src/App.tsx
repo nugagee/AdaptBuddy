@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { ThemeProvider } from './context/ThemeContext';
+import ThemeToggle from './components/ThemeToggle';
 import NeuroSelector from './components/NeuroSelector/NeuroSelector';
 import Dashboard from './pages/Dashboard';
 import ParentHub from './pages/ParentHub';
@@ -7,9 +9,12 @@ function App() {
   const [currentPage, setCurrentPage] = useState<'neuro' | 'dashboard' | 'parent'>('neuro');
 
   return (
-    <>
-      {/* FLOATING NAVIGATION - SIMPLE & CLEAR */}
-      <div className="fixed bottom-4 right-4 z-50 bg-white p-3 rounded-2xl shadow-2xl border-2 border-blue-200">
+    <ThemeProvider>
+      <div className="min-h-screen bg-white dark:bg-gray-900 sepia:bg-sepia-50 transition-colors duration-300">
+        <ThemeToggle />
+
+        {/* FLOATING NAVIGATION - SIMPLE & CLEAR */}
+        <div className="fixed bottom-4 right-4 z-50 bg-white p-3 rounded-2xl shadow-2xl border-2 border-blue-200">
         <div className="flex flex-col gap-2">
           <button 
             onClick={() => setCurrentPage('neuro')}
@@ -32,11 +37,12 @@ function App() {
         </div>
       </div>
 
-      {/* SHOW CURRENT PAGE */}
-      {currentPage === 'neuro' && <NeuroSelector onContinue={() => setCurrentPage('dashboard')} />}
-      {currentPage === 'dashboard' && <Dashboard />}
-      {currentPage === 'parent' && <ParentHub />}
-    </>
+        {/* SHOW CURRENT PAGE */}
+        {currentPage === 'neuro' && <NeuroSelector onContinue={() => setCurrentPage('dashboard')} />}
+        {currentPage === 'dashboard' && <Dashboard />}
+        {currentPage === 'parent' && <ParentHub />}
+      </div>
+    </ThemeProvider>
   );
 }
 

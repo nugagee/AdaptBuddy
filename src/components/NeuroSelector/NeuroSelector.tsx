@@ -199,6 +199,25 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({ onContinue }) => {
     );
   };
 
+  // ✅ NEW: Handle continue with localStorage save
+  const handleContinue = () => {
+    // Save selected neurotypes to localStorage
+    localStorage.setItem('userNeurotypes', JSON.stringify(selected));
+    
+    // Check if dysgraphia is selected for special tutorial
+    if (selected.includes('dysgraphia')) {
+      localStorage.setItem('showWritingPadTour', 'true');
+    }
+    
+    // Check if SPD is selected for calming music suggestion
+    if (selected.includes('spd')) {
+      localStorage.setItem('showMusicSuggestion', 'true');
+    }
+    
+    // Navigate to dashboard
+    onContinue();
+  };
+
   return (
     <div className={`min-h-screen p-4 md:p-8 transition-colors duration-300 ${
       theme === 'light' ? 'bg-gradient-to-br from-blue-50 to-green-50' :
@@ -225,7 +244,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({ onContinue }) => {
           </div>
         </header>
 
-        {/* Theme Preview Buttons - ADD THIS */}
+        {/* Theme Preview Buttons */}
         <div className="flex justify-center gap-3 mb-6">
           <button 
             onClick={() => setTheme('light')} 
@@ -252,9 +271,6 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({ onContinue }) => {
             title="Comfort Mode"
           />
         </div>
-
-        // In your NeuroSelector, make cards taller:
-         className="p-6 rounded-2xl border-2 flex flex-col items-center min-h-[280px]" // Add min-height
 
         {/* ENHANCED Main Card */}
         <div className={`${
@@ -358,8 +374,9 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({ onContinue }) => {
                 </div>
               </div>
               
+              {/* ✅ UPDATED: Button now calls handleContinue instead of onContinue directly */}
               <button 
-                onClick={onContinue}
+                onClick={handleContinue}
                 className="bg-gradient-to-r from-neuro-blue to-neuro-green text-white px-10 py-4 rounded-xl font-bold text-lg hover:scale-105 transition-all duration-300 shadow-xl hover:shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 group"
                 disabled={selected.length === 0}
               >

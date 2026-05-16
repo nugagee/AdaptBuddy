@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
-import { MusicPlayerProvider } from 'contexts/MusicPlayerContext';
+import { MusicPlayerProvider } from 'contexts/MusicPlayerProvider';
+import GlobalMusicPlayer from 'components/media/GlobalMusicPlayer';
 import StoreInitializer from 'store/StoreInitializer';
 
 interface AppProvidersProps {
@@ -10,7 +11,10 @@ interface AppProvidersProps {
 const AppProviders: React.FC<AppProvidersProps> = ({ children }) => (
   <BrowserRouter>
     <StoreInitializer />
-    <MusicPlayerProvider>{children}</MusicPlayerProvider>
+    <MusicPlayerProvider>
+      {children}
+      <GlobalMusicPlayer />
+    </MusicPlayerProvider>
   </BrowserRouter>
 );
 

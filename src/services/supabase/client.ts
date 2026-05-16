@@ -42,15 +42,6 @@ export function getSupabaseClient(): SupabaseClient {
   return supabaseInstance;
 }
 
-/** @deprecated Prefer getSupabaseClient() after checking isSupabaseConfigured */
-export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
-  get(_target, prop) {
-    const client = getSupabaseClient() as unknown as Record<string | symbol, unknown>;
-    const value = client[prop];
-    return typeof value === 'function' ? value.bind(client) : value;
-  },
-});
-
 export const getCurrentUser = async () => {
   if (!isSupabaseConfigured) return null;
   const { data: { user } } = await getSupabaseClient().auth.getUser();

@@ -8,9 +8,9 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { LOFI_STREAM_VIDEO_ID, useMusicPlayer } from 'contexts/MusicPlayerContext';
+import { useMusicPlayer } from 'contexts/musicPlayerContext';
 
-const STREAM_URL = `https://youtu.be/${LOFI_STREAM_VIDEO_ID}`;
+const STREAM_URL = 'https://youtu.be/jfKfPfyJRdk';
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';

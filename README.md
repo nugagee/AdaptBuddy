@@ -19,10 +19,35 @@ To empower neurodivergent children (Autism, ADHD, Dyslexia, Dyspraxia, etc.) thr
 - **Mobile-Optimized** - Responsive design for tablets & phones
 
 ## Tech Stack
-- **Frontend**: React 18 + TypeScript + Tailwind CSS
-- **UI Libraries**: Lucide React Icons, Framer Motion
-- **Build Tool**: Vite
-- **Deployment**: Vercel (Live demo available)
-- **Planned Backend**: Node.js + PostgreSQL + Firebase Auth
+- **Frontend**: React 18 + TypeScript + Tailwind CSS (Create React App)
+- **Auth**: Supabase (user management)
+- **Data**: Firebase Firestore (planned — see `src/services/firebase`)
+- **UI**: Lucide React Icons
+- **State**: Zustand (auth, theme, accessibility preferences)
 
 ## Project Structure
+
+```text
+src/
+├── app/              # App providers
+├── routes/           # Route definitions
+├── layouts/          # MainLayout, AuthenticatedLayout
+├── features/
+│   ├── auth/         # Login, AuthContext, ProtectedRoute
+│   ├── child/        # Dashboard, journal, neuro-selector
+│   ├── parent/       # Parent hub
+│   ├── teacher/      # School / teacher portal
+│   ├── ai/           # Emotion analysis UI
+│   └── analytics/    # Charts & insights
+├── services/
+│   ├── supabase/     # Auth & profiles
+│   ├── firebase/     # Firestore config (data layer)
+│   └── ai/           # Emotion & recommendation engines
+├── store/            # Zustand stores (authStore, uiStore)
+├── hooks/            # useAuth, useTheme, useAccessibility
+├── components/       # Shared UI (accessibility, animations)
+├── constants/        # Route paths
+├── types/
+├── hooks/
+└── assets/
+```

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
+import { MusicPlayerProvider } from 'contexts/MusicPlayerContext';
 import StoreInitializer from 'store/StoreInitializer';
 
 interface AppProvidersProps {
@@ -9,7 +10,7 @@ interface AppProvidersProps {
 const AppProviders: React.FC<AppProvidersProps> = ({ children }) => (
   <BrowserRouter>
     <StoreInitializer />
-    {children}
+    <MusicPlayerProvider>{children}</MusicPlayerProvider>
   </BrowserRouter>
 );
 

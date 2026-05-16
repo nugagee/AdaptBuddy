@@ -12,7 +12,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const isMarketing = pathname === ROUTES.HOME;
 
   return (
-    <div className={`min-h-screen ${isMarketing ? '' : 'bg-white dark:bg-gray-900 sepia:bg-sepia-50'} transition-colors duration-300`}>
+    <div
+      className={`min-h-screen pb-[var(--music-player-offset,0px)] ${isMarketing ? '' : 'bg-white dark:bg-gray-900 sepia:bg-sepia-50'} transition-colors duration-300`}
+    >
       {!isMarketing && <ThemeToggle variant="floating" />}
       {children}
     </div>

@@ -8,6 +8,15 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        adapt: {
+          navy: '#2D2654',
+          purple: '#5B4FD9',
+          indigo: '#6366F1',
+          teal: '#14B8A6',
+          cyan: '#22D3EE',
+          mist: '#F0F4FF',
+          cloud: '#F8FAFC',
+        },
         'neuro-blue': '#3B82F6',
         'neuro-green': '#10B981',
         'neuro-yellow': '#FFD166',
@@ -27,7 +36,17 @@ module.exports = {
         }
       },
       fontFamily: {
-        'dyslexic': ['Open Dyslexic', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        dyslexic: ['Open Dyslexic', 'sans-serif'],
+      },
+      borderRadius: {
+        '4xl': '2rem',
+        '5xl': '2.5rem',
+      },
+      boxShadow: {
+        soft: '0 4px 24px -4px rgba(45, 38, 84, 0.08)',
+        card: '0 8px 40px -12px rgba(45, 38, 84, 0.12)',
+        glow: '0 0 60px -12px rgba(99, 102, 241, 0.35)',
       },
       animation: {
         'ping': 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite',

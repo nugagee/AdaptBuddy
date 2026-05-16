@@ -13,7 +13,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   return (
     <div className={`min-h-screen ${isMarketing ? '' : 'bg-white dark:bg-gray-900 sepia:bg-sepia-50'} transition-colors duration-300`}>
-      {!isMarketing && <ThemeToggle />}
+      {!isMarketing && <ThemeToggle variant="floating" />}
       {children}
     </div>
   );

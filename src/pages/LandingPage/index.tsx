@@ -17,7 +17,7 @@ const LandingPage: React.FC = () => (
       </span>
 
       <LandingNavbar />
-      <main>
+      <main className="relative z-0">
         <HeroSection />
         <FeaturesSection />
         <AnalyticsSection />

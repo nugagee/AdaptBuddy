@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useYouTubePlayer } from 'hooks/useYouTubePlayer';
+import { useAudioPlayer } from 'hooks/useAudioPlayer';
 import {
-  LOFI_STREAM_VIDEO_ID,
   MusicPlayerContext,
   type MusicPlayerContextValue,
 } from 'contexts/musicPlayerContext';
@@ -17,8 +16,7 @@ export const MusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({ childr
   const [expanded, setExpanded] = useState(true);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const player = useYouTubePlayer({
-    videoId: LOFI_STREAM_VIDEO_ID,
+  const player = useAudioPlayer({
     seekStep: 10,
     autoPlayDelayMs: 2000,
     initialVolume: 35,

@@ -18,6 +18,28 @@ To empower neurodivergent children (Autism, ADHD, Dyslexia, Dyspraxia, etc.) thr
 - **Accessibility First** - Dyslexia fonts, color overlays, text-to-speech, focus tools
 - **Mobile-Optimized** - Responsive design for tablets & phones
 
+## Supabase setup (auth + profiles)
+
+1. Create a project at [supabase.com](https://supabase.com) and copy the URL + anon key into `.env.local` (see `.env.example`).
+
+2. Run the migration in **SQL Editor** (or Supabase CLI):
+
+   `supabase/migrations/001_create_profiles.sql`
+
+   This creates the `profiles` table with role, first/last name, child name (parents), and RLS policies.
+
+3. **Configure the email template for OTP** (required — default sends a link, not a code):
+
+   - **Authentication → Email Templates → Magic Link**
+   - Set subject to e.g. `Your AdaptBuddy verification code`
+   - Replace the body with `supabase/email-templates/magic-link-otp.html`
+   - **Remove** any `{{ .ConfirmationURL }}` or “Confirm your mail” link — only `{{ .Token }}` sends the 6-digit code
+   - See `supabase/email-templates/README.md` for full steps
+
+4. Optional: **Authentication → Providers → Email** — you can turn **Confirm email** off; OTP verification in the app replaces it.
+
+5. After signup, users enter the code in the OTP modal; verified accounts are saved to `profiles` and routed by role.
+
 ## Tech Stack
 - **Frontend**: React 18 + TypeScript + Tailwind CSS (Create React App)
 - **Auth**: Supabase (user management)

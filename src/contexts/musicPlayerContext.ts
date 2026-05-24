@@ -1,10 +1,7 @@
 import { createContext, useContext } from 'react';
-import type { useYouTubePlayer } from 'hooks/useYouTubePlayer';
+import type { useAudioPlayer } from 'hooks/useAudioPlayer';
 
-/** Lofi hip hop radio — https://youtu.be/jfKfPfyJRdk */
-export const LOFI_STREAM_VIDEO_ID = 'jfKfPfyJRdk';
-
-export type YouTubePlayerApi = ReturnType<typeof useYouTubePlayer>;
+export type YouTubePlayerApi = ReturnType<typeof useAudioPlayer>;
 
 export interface MusicPlayerContextValue extends YouTubePlayerApi {
   expanded: boolean;

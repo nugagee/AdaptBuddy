@@ -74,7 +74,7 @@ const LandingNavbar: React.FC = () => {
             Sign in
           </Link>
           <Link
-            to={ROUTES.LOGIN}
+            to={ROUTES.SIGNUP}
             className="inline-flex items-center gap-2 rounded-full bg-adapt-navy px-4 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:bg-adapt-purple sm:px-5"
           >
             Get started
@@ -142,7 +142,7 @@ const LandingNavbar: React.FC = () => {
               Sign in
             </Link>
             <Link
-              to={ROUTES.LOGIN}
+              to={ROUTES.SIGNUP}
               onClick={closeMenu}
               className="inline-flex items-center justify-center gap-2 rounded-full bg-adapt-navy px-5 py-3.5 text-base font-semibold text-white shadow-soft transition hover:bg-adapt-purple"
             >

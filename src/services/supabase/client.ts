@@ -7,9 +7,14 @@ export interface Profile {
   id: string;
   email: string;
   role: UserRole;
+  first_name: string;
+  last_name: string;
   full_name: string;
-  avatar_url?: string;
+  child_name?: string | null;
+  avatar_url?: string | null;
+  email_verified_at?: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 function resolveSupabaseEnv(): { url: string; key: string } | null {

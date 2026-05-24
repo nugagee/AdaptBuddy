@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, isGuest, loading } = useAuth();
+  const { user, session, isGuest, loading } = useAuth();
 
   if (loading) {
     return (
@@ -18,7 +18,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  if (!user && !isGuest) {
+  if (!user && !session && !isGuest) {
     return <Navigate to={ROUTES.HOME} replace />;
   }
 

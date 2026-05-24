@@ -8,9 +8,8 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { YOUTUBE_LOFI_URL } from 'constants/musicStreams';
 import { useMusicPlayer } from 'contexts/musicPlayerContext';
-
-const STREAM_URL = 'https://youtu.be/jfKfPfyJRdk';
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -32,6 +31,11 @@ const MusicPlayerBar: React.FC = () => {
     muted,
     error,
     progress,
+    currentStream,
+    isLive,
+    autoplayBlocked,
+    isMobile,
+    retryStream,
     togglePlay,
     rewind,
     fastForward,
@@ -42,17 +46,18 @@ const MusicPlayerBar: React.FC = () => {
   } = useMusicPlayer();
 
   const displayVolume = muted ? 0 : volume;
-  const canSeek = duration > 0;
+  const canSeek = !isLive && duration > 0;
   const [showAutoplayHint, setShowAutoplayHint] = useState(false);
 
   useEffect(() => {
-    if (!ready || playing) {
+    if (!ready || playing || error) {
       setShowAutoplayHint(false);
       return undefined;
     }
-    const t = setTimeout(() => setShowAutoplayHint(true), 4500);
+    const delay = autoplayBlocked && isMobile ? 500 : 4500;
+    const t = setTimeout(() => setShowAutoplayHint(true), delay);
     return () => clearTimeout(t);
-  }, [ready, playing]);
+  }, [ready, playing, error, autoplayBlocked, isMobile]);
 
   return (
     <div
@@ -64,7 +69,7 @@ const MusicPlayerBar: React.FC = () => {
       <div className="mx-auto flex max-w-6xl flex-col gap-2">
         <div className="flex items-center gap-2 sm:gap-3">
           <span className="hidden w-10 shrink-0 text-right text-[10px] tabular-nums text-slate-500 sm:block dark:text-gray-400">
-            {formatTime(currentTime)}
+            {isLive ? '●' : formatTime(currentTime)}
           </span>
           <input
             id={progressId}
@@ -87,7 +92,7 @@ const MusicPlayerBar: React.FC = () => {
             aria-valuenow={currentTime}
           />
           <span className="hidden w-10 shrink-0 text-[10px] tabular-nums text-slate-500 sm:block dark:text-gray-400">
-            {canSeek ? formatTime(duration) : 'LIVE'}
+            {isLive ? 'LIVE' : canSeek ? formatTime(duration) : '--:--'}
           </span>
         </div>
 
@@ -98,15 +103,15 @@ const MusicPlayerBar: React.FC = () => {
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-adapt-navy dark:text-gray-100 sepia:text-amber-950">
-                Lofi focus radio
+                {currentStream.title}
               </p>
               <a
-                href={STREAM_URL}
+                href={currentStream.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="truncate text-xs text-slate-500 transition-colors duration-300 hover:text-neuro-blue dark:text-gray-400 dark:hover:text-adapt-cyan"
               >
-                Stream on YouTube
+                {currentStream.sourceLabel}
               </a>
             </div>
           </div>
@@ -115,7 +120,7 @@ const MusicPlayerBar: React.FC = () => {
             <button
               type="button"
               onClick={rewind}
-              disabled={!ready}
+              disabled={!ready || isLive}
               className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition-colors duration-300 hover:bg-adapt-mist hover:text-neuro-blue disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-adapt-cyan"
               aria-label="Rewind 10 seconds"
             >
@@ -124,7 +129,7 @@ const MusicPlayerBar: React.FC = () => {
             <button
               type="button"
               onClick={togglePlay}
-              disabled={!ready || !!error}
+              disabled={!ready}
               className="flex h-11 w-11 items-center justify-center rounded-full bg-adapt-navy text-white shadow-soft transition hover:bg-adapt-purple disabled:opacity-50 dark:bg-adapt-indigo dark:hover:bg-adapt-purple"
               aria-label={playing ? 'Pause' : 'Play'}
             >
@@ -137,7 +142,7 @@ const MusicPlayerBar: React.FC = () => {
             <button
               type="button"
               onClick={fastForward}
-              disabled={!ready}
+              disabled={!ready || isLive}
               className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-600 transition-colors duration-300 hover:bg-adapt-mist hover:text-neuro-blue disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-adapt-cyan"
               aria-label="Fast forward 10 seconds"
             >
@@ -181,14 +186,34 @@ const MusicPlayerBar: React.FC = () => {
         </div>
 
         {error && (
-          <p className="text-center text-xs text-red-600 dark:text-red-400" role="alert">
-            {error}
-          </p>
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-center text-xs text-red-600 dark:text-red-400" role="alert">
+              {error}
+            </p>
+            <button
+              type="button"
+              onClick={() => retryStream()}
+              className="text-xs font-semibold text-neuro-blue transition-colors hover:text-adapt-purple dark:text-adapt-cyan"
+            >
+              Try again
+            </button>
+          </div>
         )}
 
         {showAutoplayHint && !playing && ready && !error && (
           <p className="text-center text-[11px] text-slate-500 dark:text-gray-400">
-            Tap play if music did not start — some browsers block autoplay.
+            {autoplayBlocked && isMobile
+              ? 'Tap anywhere on the page or press play to start focus music.'
+              : 'Tap play if music did not start — some browsers block autoplay.'}
+            {' '}
+            <a
+              href={YOUTUBE_LOFI_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-neuro-blue hover:underline dark:text-adapt-cyan"
+            >
+              Lofi on YouTube
+            </a>
           </p>
         )}
       </div>

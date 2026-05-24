@@ -1,20 +1,38 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Brain, Heart, Shield, Mail, Lock, User, Eye, EyeOff, Apple, Chrome } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react';
 import { useAuth } from 'hooks/useAuth';
 import { UserRole } from 'services/supabase/client';
 import { ROUTES } from 'constants/routes';
-import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
+import AuthBackground, { AuthLogo, authGlassPanelClass } from 'pages/auth/AuthBackground';
+import {
+  AuthField,
+  PasswordField,
+  authCardClass,
+  authErrorClass,
+  authPrimaryBtnClass,
+} from 'pages/auth/authForm';
+
+const demoRoles: { role: UserRole; label: string }[] = [
+  { role: 'child', label: 'Child' },
+  { role: 'parent', label: 'Parent' },
+  { role: 'teacher', label: 'Teacher' },
+];
+
+const demoRoutes: Record<UserRole, string> = {
+  child: ROUTES.NEURO_SELECTOR,
+  parent: ROUTES.PARENT_HUB,
+  teacher: ROUTES.TEACHER_DASHBOARD,
+};
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { signIn, signUp, signInWithGoogle, signInWithApple, setGuestMode } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const location = useLocation();
+  const signupMessage = (location.state as { message?: string } | null)?.message;
+  const { signIn, setGuestMode } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [role, setRole] = useState<UserRole>('parent');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -25,168 +43,116 @@ const LoginPage: React.FC = () => {
     try {
       await signIn(email.trim(), password);
       navigate(ROUTES.NEURO_SELECTOR);
-    } catch (err: any) {
-      const errorText = err.error_description || err.message || JSON.stringify(err) || 'Invalid email or password';
-      setError(errorText);
-      console.error('Login error:', err);
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message?: string }).message)
+          : 'Invalid email or password';
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      await signUp(email.trim(), password, name.trim(), role);
-      alert('Account created! Please check your email to verify.');
-      setIsLogin(true);
-    } catch (err: any) {
-      const errorText = err.error_description || err.message || JSON.stringify(err) || 'Failed to create account';
-      setError(errorText);
-      console.error('Signup error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGuest = () => {
+  const handleDemoRole = (role: UserRole) => {
     setGuestMode();
-    window.location.href = ROUTES.NEURO_SELECTOR;
+    navigate(demoRoutes[role]);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
-      <div className="max-w-6xl w-full mx-auto">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <img
-              src={adaptbuddyLogo}
-              alt="AdaptBuddy"
-              className="h-24 w-auto object-contain drop-shadow-md"
-            />
-          </div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            AdaptBuddy
-          </h1>
-          <p className="text-gray-600 mt-2">Neuro-inclusive learning with emotional safeguarding</p>
-        </div>
+    <AuthBackground variant="login">
+      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-8 sm:px-6 lg:px-8">
+        <AuthLogo />
 
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          <div className="space-y-6">
-            <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl">
-              <h2 className="text-3xl font-bold mb-4">Your brain is unique.</h2>
-              <p className="text-gray-600 text-lg">Your learning should be too.</p>
-              <div className="mt-6 space-y-3">
-                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl">
-                  <Brain className="w-5 h-5 text-blue-600" />
-                  <span>10+ Neurotypes supported</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl">
-                  <Heart className="w-5 h-5 text-green-600" />
-                  <span>AI-powered Worry Diary</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl">
-                  <Shield className="w-5 h-5 text-purple-600" />
-                  <span>Real-time safeguarding alerts</span>
-                </div>
-              </div>
+        <div className="mt-10 flex flex-1 flex-col items-center justify-center gap-12 lg:mt-16 lg:flex-row lg:items-center lg:gap-16">
+          {/* Welcome panel */}
+          <div className={`w-full max-w-lg lg:flex-1`}>
+          {/* <div className={`w-full max-w-lg lg:flex-1 ${authGlassPanelClass}`}> */}
+            <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-adapt-navy sm:text-4xl lg:text-[2.75rem] lg:leading-[1.15] dark:text-gray-100 sepia:text-amber-950">
+              Welcome back to a calmer space.
+            </h1>
+            <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-gray-300 sepia:text-amber-900/80">
+              Sign in to your AdaptBuddy account. Choose a demo role to explore everything
+              instantly — no setup required.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              {demoRoles.map(({ role, label }) => (
+                <button
+                  key={role}
+                  type="button"
+                  // onClick={() => handleDemoRole(role)}
+                  className="rounded-full border border-white/60 bg-white/60 px-5 py-2.5 text-sm font-semibold text-adapt-navy shadow-soft backdrop-blur-sm transition hover:border-adapt-indigo/50 hover:bg-white/80 hover:shadow-[0_0_20px_-4px_rgba(99,102,241,0.35)] dark:border-white/10 dark:bg-gray-800/50 dark:text-gray-100 dark:hover:bg-gray-800/70 sepia:border-amber-200/70 sepia:bg-amber-50/60"
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl shadow-2xl p-8">
-            <div className="flex gap-2 p-1 bg-gray-100 rounded-xl mb-8">
-              <button
-                onClick={() => setIsLogin(true)}
-                className={`flex-1 py-3 rounded-lg font-semibold transition ${isLogin ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600'}`}
-              >
-                Login
-              </button>
-              <button
-                onClick={() => setIsLogin(false)}
-                className={`flex-1 py-3 rounded-lg font-semibold transition ${!isLogin ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600'}`}
-              >
-                Sign Up
-              </button>
-            </div>
+          {/* Sign-in card */}
+          <div className={`w-full max-w-md lg:max-w-lg ${authCardClass}`}>
+            <p className="text-xs font-semibold uppercase tracking-widest text-adapt-indigo">
+              Sign in
+            </p>
+            <h2 className="mt-3 text-2xl font-bold text-adapt-navy dark:text-gray-100 sepia:text-amber-950">
+              Hello again 👋
+            </h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
+              A gentle return to your dashboard.
+            </p>
 
-            {error && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-sm">{error}</div>}
-
-            {isLogin ? (
-              <form onSubmit={handleLogin} className="space-y-6">
-                <div>
-                  <label className="block font-medium mb-2">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-12 pr-4 py-3 border rounded-xl focus:border-blue-400 outline-none" required />
-                  </div>
-                </div>
-                <div>
-                  <label className="block font-medium mb-2">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-12 pr-12 py-3 border rounded-xl focus:border-blue-400 outline-none" required />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-                <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-semibold disabled:opacity-50">
-                  {loading ? 'Logging in...' : 'Login'}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleSignup} className="space-y-6">
-                <div>
-                  <label className="block font-medium mb-2">Full Name</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full pl-12 pr-4 py-3 border rounded-xl focus:border-blue-400 outline-none" required />
-                  </div>
-                </div>
-                <div>
-                  <label className="block font-medium mb-2">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-12 pr-4 py-3 border rounded-xl focus:border-blue-400 outline-none" required />
-                  </div>
-                </div>
-                <div>
-                  <label className="block font-medium mb-2">I am a...</label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {(['parent', 'teacher', 'child'] as UserRole[]).map(r => (
-                      <button key={r} type="button" onClick={() => setRole(r)} className={`py-2 rounded-lg font-medium ${role === r ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>
-                        {r.charAt(0).toUpperCase() + r.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block font-medium mb-2">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-12 pr-12 py-3 border rounded-xl focus:border-blue-400 outline-none" required />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
-                <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-semibold disabled:opacity-50">
-                  {loading ? 'Creating...' : 'Create Account'}
-                </button>
-              </form>
+            {signupMessage && (
+              <p className="mt-6 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                {signupMessage}
+              </p>
             )}
 
-            <div className="mt-6 text-center">
-              <button onClick={handleGuest} className="text-gray-500 hover:text-blue-600 transition">
-                Continue as Guest →
+            {error && (
+              <p className={`mt-6 ${authErrorClass}`} role="alert">
+                {error}
+              </p>
+            )}
+
+            <form onSubmit={handleLogin} className={`space-y-5 ${error ? 'mt-4' : 'mt-8'}`}>
+              <AuthField
+                id="login-email"
+                label="Email"
+                type="email"
+                value={email}
+                onChange={setEmail}
+                placeholder="you@adaptbuddy.com"
+                required
+                autoComplete="email"
+              />
+              <PasswordField
+                id="login-password"
+                label="Password"
+                value={password}
+                onChange={setPassword}
+                showPassword={showPassword}
+                onToggleShow={() => setShowPassword((v) => !v)}
+                required
+                autoComplete="current-password"
+              />
+              <button type="submit" disabled={loading} className={authPrimaryBtnClass}>
+                {loading ? 'Signing in…' : 'Sign in'}
+                {!loading && <ArrowRight className="h-4 w-4" aria-hidden />}
               </button>
-            </div>
+            </form>
+
+            <p className="mt-8 text-center text-sm text-slate-600 dark:text-gray-400">
+              New to AdaptBuddy?{' '}
+              <Link
+                to={ROUTES.SIGNUP}
+                className="font-semibold text-adapt-indigo transition-colors hover:text-adapt-purple dark:text-adapt-cyan"
+              >
+                Create an account
+              </Link>
+            </p>
           </div>
         </div>
       </div>
-    </div>
+    </AuthBackground>
   );
 };
 

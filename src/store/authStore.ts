@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Session, User } from '@supabase/supabase-js';
+import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import type { AuthSessionState } from 'types/auth';
 import {
   getProfile,
@@ -8,7 +8,6 @@ import {
   type Profile,
   type UserRole,
 } from 'services/supabase/client';
-import { toAuthSessionState } from 'services/supabase/sessionUtils';
 import {
   requestSignupOtp,
   resendSignupOtp,
@@ -16,11 +15,13 @@ import {
   verifySignupOtp,
   setSignupPassword,
   buildFallbackProfile,
+  buildFallbackProfileFromUser,
   type SignupDetails,
 } from 'services/supabase/authService';
+import { toAuthSessionState } from 'services/supabase/sessionUtils';
 
-/** Prevents onAuthStateChange from clearing auth mid-signup verify */
-let completingSignupVerification = false;
+/** Prevents onAuthStateChange from clearing auth mid-signup verify / sign-in */
+let completingAuthFlow = false;
 
 interface AuthState {
   user: User | null;
@@ -30,7 +31,7 @@ interface AuthState {
   isGuest: boolean;
   initialized: boolean;
 
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<User>;
   signUp: (email: string, password: string, fullName: string, role: UserRole) => Promise<void>;
   requestSignupVerification: (details: SignupDetails) => Promise<{ needsOtpVerification: boolean; userId: string | null }>;
   verifySignupAndCreateProfile: (details: SignupDetails, otp: string) => Promise<void>;
@@ -41,6 +42,8 @@ interface AuthState {
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   setGuestMode: () => void;
+  setProfile: (profile: Profile) => void;
+  refreshProfile: () => Promise<Profile | null>;
   initialize: () => () => void;
 }
 
@@ -53,14 +56,10 @@ const loadProfile = async (userId: string) => {
   }
 };
 
-const applyAuthSession = async (session: Session | null) => {
-  if (!session?.user) {
-    if (completingSignupVerification) return;
-    useAuthStore.setState({ user: null, profile: null, session: null, loading: false });
-    return;
-  }
+const applyAuthSession = async (session: Session) => {
+  const profile =
+    (await loadProfile(session.user.id)) ?? buildFallbackProfileFromUser(session.user);
 
-  const profile = await loadProfile(session.user.id);
   useAuthStore.setState({
     user: session.user,
     profile,
@@ -68,6 +67,30 @@ const applyAuthSession = async (session: Session | null) => {
     loading: false,
     isGuest: false,
   });
+};
+
+const handleAuthStateChange = async (event: AuthChangeEvent, session: Session | null) => {
+  if (event === 'SIGNED_OUT') {
+    useAuthStore.setState({
+      user: null,
+      profile: null,
+      session: null,
+      loading: false,
+      isGuest: false,
+    });
+    return;
+  }
+
+  if (completingAuthFlow) return;
+
+  if (session?.user) {
+    await applyAuthSession(session);
+    return;
+  }
+
+  if (event === 'INITIAL_SESSION') {
+    useAuthStore.setState({ loading: false });
+  }
 };
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -80,10 +103,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signIn: async (email, password) => {
     if (!isSupabaseConfigured) throw new Error('Authentication is not configured on this deployment.');
-    const { data, error } = await getSupabaseClient().auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    if (data.session) {
-      await applyAuthSession(data.session);
+
+    completingAuthFlow = true;
+    try {
+      const client = getSupabaseClient();
+      const { data, error } = await client.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+
+      const session = data.session;
+      const user = data.user ?? session?.user;
+
+      if (!user) {
+        throw new Error('Sign in succeeded but no user was returned.');
+      }
+
+      set({
+        user,
+        profile: buildFallbackProfileFromUser(user),
+        session: session ? toAuthSessionState(session) : null,
+        isGuest: false,
+        loading: false,
+      });
+
+      void loadProfile(user.id).then((profile) => {
+        if (profile) set({ profile });
+      });
+
+      return user;
+    } finally {
+      window.setTimeout(() => {
+        completingAuthFlow = false;
+      }, 300);
     }
   },
 
@@ -110,7 +160,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('Authentication is not configured on this deployment.');
     }
 
-    completingSignupVerification = true;
+    completingAuthFlow = true;
     try {
       const { session, user } = await verifySignupOtp(details.email, otp);
       const authUser = user ?? session?.user;
@@ -153,7 +203,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Password must not block routing — set after auth state is saved
       void setSignupPassword(details.password);
     } finally {
-      completingSignupVerification = false;
+      window.setTimeout(() => {
+        completingAuthFlow = false;
+      }, 300);
     }
   },
 
@@ -222,6 +274,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isGuest: true, user: null, profile: null, session: null, loading: false });
   },
 
+  setProfile: (profile) => {
+    set({ profile });
+  },
+
+  refreshProfile: async () => {
+    const userId = get().user?.id;
+    if (!userId || !isSupabaseConfigured) return null;
+
+    try {
+      const profile = await getProfile(userId);
+      set({ profile });
+      return profile;
+    } catch {
+      return get().profile;
+    }
+  },
+
   initialize: () => {
     if (!isSupabaseConfigured) {
       set({ initialized: true, loading: false, user: null, profile: null, session: null });
@@ -233,12 +302,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ initialized: true, loading: true });
 
     getSupabaseClient().auth.getSession().then(({ data: { session } }) => {
-      applyAuthSession(session);
+      if (session?.user) {
+        applyAuthSession(session);
+      } else {
+        set({ loading: false });
+      }
     });
 
     const { data: { subscription } } = getSupabaseClient().auth.onAuthStateChange(
-      async (_event, session) => {
-        await applyAuthSession(session);
+      (event, session) => {
+        void handleAuthStateChange(event, session);
       },
     );
 

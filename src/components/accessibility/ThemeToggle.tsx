@@ -81,7 +81,7 @@ const ThemeToggle: React.FC<ThemeToggleProps> = ({ variant = 'floating' }) => {
 
   const wrapperClass = isInline
     ? 'relative'
-    : 'fixed right-4 top-4 z-[100]';
+    : 'fixed right-4 top-[5.25rem] z-[45] md:top-4 md:z-[100]';
 
   const tooltipClass = isInline
     ? 'absolute top-full right-0 z-[110] mt-2 w-[min(17rem,calc(100vw-2.5rem))]'

@@ -21,6 +21,15 @@ export interface Profile {
   updated_at: string;
 }
 
+/** Ensures neuro onboarding fields are always defined after a DB read. */
+export function normalizeProfile(raw: Profile): Profile {
+  return {
+    ...raw,
+    neuro_types: Array.isArray(raw.neuro_types) ? raw.neuro_types : [],
+    onboarding_completed: raw.onboarding_completed === true,
+  };
+}
+
 function resolveSupabaseEnv(): { url: string; key: string } | null {
   const url = process.env.REACT_APP_SUPABASE_URL?.trim();
   const key = process.env.REACT_APP_SUPABASE_ANON_KEY?.trim();
@@ -65,7 +74,7 @@ export const getProfile = async (userId: string) => {
     .single();
 
   if (error) throw error;
-  return data as Profile;
+  return normalizeProfile(data as Profile);
 };
 
 export const signOut = async () => {

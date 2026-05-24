@@ -1,164 +1,210 @@
-import React, { useState } from 'react';
-import { BookOpen, Heart, Clock, Trophy, Settings, Bell, Sun, Volume2, Type, Music } from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Layers, Rocket } from 'lucide-react';
+import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import FeelingsJournal from 'features/child/components/journal/FeelingsJournal';
-import { RecommendationEngine } from 'services/ai/recommendationEngine';
+import DashboardHero from 'features/child/components/dashboard/DashboardHero';
+import DailyOrbitProgress from 'features/child/components/dashboard/DailyOrbitProgress';
+import NeuroZoneCard from 'features/child/components/dashboard/NeuroZoneCard';
+import MetricsConstellation from 'features/child/components/dashboard/MetricsConstellation';
+import AccessibilityDock from 'features/child/components/dashboard/AccessibilityDock';
+import SmartRecommendationsPanel from 'features/child/components/dashboard/SmartRecommendationsPanel';
+import FocusTimerModal from 'features/child/components/dashboard/FocusTimerModal';
+import ActivitySessionModal from 'features/child/components/dashboard/ActivitySessionModal';
+import AuthSuccessBanner from 'components/auth/AuthSuccessBanner';
+import {
+  getActivitiesForNeuros,
+  getDailyActivitiesForNeuro,
+  type NeuroActivity,
+} from 'features/child/data/neuroDashboardContent';
+import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { useAuth } from 'hooks/useAuth';
+import { ROUTES } from 'constants/routes';
+import '../components/dashboard/child-dashboard.css';
 
 const ChildDashboardPage: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { profile } = useAuth();
+
   const [showJournal, setShowJournal] = useState(false);
+  const [activeActivity, setActiveActivity] = useState<NeuroActivity | null>(null);
+  const [showFocusTimer, setShowFocusTimer] = useState(false);
+  const [celebration, setCelebration] = useState<string | null>(null);
 
-  const quickActions = [
-    { icon: <BookOpen className="w-8 h-8" />, label: "Today's Lesson", desc: "Math • 15 min", color: "bg-blue-100 text-blue-800" },
-    { icon: <Heart className="w-8 h-8" />, label: "My Feelings", desc: "Check in", color: "bg-green-100 text-green-800" },
-    { icon: <Clock className="w-8 h-8" />, label: "Focus Timer", desc: "Pomodoro", color: "bg-yellow-100 text-yellow-800" },
-    { icon: <Trophy className="w-8 h-8" />, label: "My Rewards", desc: "Stars & badges", color: "bg-purple-100 text-purple-800" },
-  ];
+  const completeActivity = useChildProgressStore((s) => s.completeActivity);
+  const setTodayMood = useChildProgressStore((s) => s.setTodayMood);
+  const completions = useChildProgressStore((s) => s.completions);
 
-  const accessibilityTools = [
-    { icon: <Sun className="w-6 h-6" />, label: "Color Overlay", desc: "Yellow/Blue/Green" },
-    { icon: <Type className="w-6 h-6" />, label: "Big Text", desc: "Easier reading" },
-    { icon: <Volume2 className="w-6 h-6" />, label: "Read Aloud", desc: "Text-to-speech" },
-    { icon: <Music className="w-6 h-6" />, label: "Calm Sounds", desc: "Lo-fi, nature" },
-  ];
+  const firstName = profile?.first_name || 'Friend';
+  const neuroTypes = profile?.neuro_types?.length ? profile.neuro_types : ['autism', 'adhd'];
+  const dailyActivities = useMemo(() => getActivitiesForNeuros(neuroTypes), [neuroTypes]);
+  const welcomeMessage = (location.state as { message?: string } | null)?.message;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayCompletedCount = completions.filter((c) => c.completedAt.startsWith(today)).length;
+  const todayProgress =
+    dailyActivities.length > 0
+      ? Math.min(100, Math.round((todayCompletedCount / dailyActivities.length) * 100))
+      : 0;
+
+  const handleStartActivity = useCallback(
+    (activity: NeuroActivity) => {
+      if (activity.action === 'journal') {
+        setShowJournal(true);
+        return;
+      }
+      if (activity.action === 'focus-timer') {
+        setShowFocusTimer(true);
+        return;
+      }
+      if (activity.route) {
+        navigate(activity.route);
+        return;
+      }
+      if (activity.action === 'music') {
+        navigate(ROUTES.MUSIC);
+        return;
+      }
+      if (activity.action === 'writing') {
+        navigate(ROUTES.WRITING_PAD);
+        return;
+      }
+      setActiveActivity(activity);
+    },
+    [navigate],
+  );
+
+  const handleActivityComplete = useCallback(() => {
+    if (!activeActivity) return;
+    completeActivity(
+      activeActivity.id,
+      activeActivity.neuroId,
+      activeActivity.starsReward,
+      activeActivity.durationMinutes,
+    );
+    setCelebration(`+${activeActivity.starsReward} stars! Great job on "${activeActivity.title}"`);
+    setActiveActivity(null);
+    window.setTimeout(() => setCelebration(null), 4000);
+  }, [activeActivity, completeActivity]);
+
+  const handleFocusComplete = useCallback(() => {
+    completeActivity('adhd-focus-sprint', 'adhd', 5, 12);
+    setShowFocusTimer(false);
+    setCelebration('Focus sprint complete! +5 stars');
+    window.setTimeout(() => setCelebration(null), 4000);
+  }, [completeActivity]);
+
+  const handleJournalClose = useCallback(() => {
+    setShowJournal(false);
+    const moodActivity = dailyActivities.find((a) => a.action === 'journal');
+    if (moodActivity && !useChildProgressStore.getState().isActivityCompletedToday(moodActivity.id)) {
+      completeActivity(moodActivity.id, moodActivity.neuroId, moodActivity.starsReward, moodActivity.durationMinutes);
+    }
+  }, [dailyActivities, completeActivity]);
+
+  const handleRecommendation = useCallback(
+    (_id: string, title: string) => {
+      setCelebration(`"${title}" is queued for your next session!`);
+      window.setTimeout(() => setCelebration(null), 3000);
+    },
+    [],
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm p-4">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
-              <BookOpen className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">My AdaptBuddy</h1>
-              <p className="text-sm text-gray-500">Welcome back, Alex! 👋</p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <button className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-              <Bell className="w-5 h-5" />
-            </button>
-            <button className="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
-              <Settings className="w-5 h-5" />
-            </button>
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-green-500 rounded-full flex items-center justify-center text-white font-bold">
-              A
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/30 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
+      <ChildDashboardNavbar />
 
-      <main className="max-w-6xl mx-auto p-4">
-        {/* Progress Section */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">Today's Progress</h2>
-            <span className="text-blue-600 font-bold">70%</span>
-          </div>
-          <div className="h-3 bg-gray-200 rounded-full overflow-hidden mb-4">
-            <div className="h-full bg-gradient-to-r from-blue-500 to-green-400" style={{ width: '70%' }}></div>
-          </div>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-2xl font-bold text-blue-700">3/5</p>
-              <p className="text-sm text-gray-500">Lessons</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-green-700">2</p>
-              <p className="text-sm text-gray-500">Check-ins</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-purple-700">8</p>
-              <p className="text-sm text-gray-500">Stars</p>
-            </div>
-          </div>
-        </div>
+      {welcomeMessage && <AuthSuccessBanner />}
 
-        {/* Quick Actions */}
-        <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {quickActions.map((action, idx) => (
-            <button
-              key={idx}
-              className={`p-6 rounded-2xl border-2 border-gray-200 flex flex-col items-center justify-center hover:scale-105 transition ${action.color}`}
-              onClick={() => idx === 1 && setShowJournal(true)}
-            >
-              {action.icon}
-              <span className="font-bold mt-3">{action.label}</span>
-              <span className="text-sm mt-1">{action.desc}</span>
-            </button>
-          ))}
+      {celebration && (
+        <div
+          className="fixed top-20 left-1/2 z-50 -translate-x-1/2 animate-slide-up rounded-2xl bg-gradient-to-r from-adapt-indigo to-adapt-teal px-6 py-3 text-sm font-bold text-white shadow-glow"
+          role="status"
+        >
+          {celebration}
         </div>
+      )}
 
-        {/* Accessibility Tools */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm mb-8">
-          <h2 className="text-xl font-bold mb-4">Accessibility Tools</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {accessibilityTools.map((tool, idx) => (
-              <button
-                key={idx}
-                className="p-4 rounded-xl border-2 border-gray-200 hover:border-blue-400 flex flex-col items-center"
-              >
-                {tool.icon}
-                <span className="font-medium mt-2">{tool.label}</span>
-                <span className="text-sm text-gray-500">{tool.desc}</span>
-              </button>
+      <main className="mx-auto max-w-6xl space-y-6 p-4 pb-16 sm:p-6 sm:pb-20">
+        <DashboardHero
+          firstName={firstName}
+          neuroTypes={neuroTypes}
+          todayProgress={todayProgress}
+        />
+
+        <DailyOrbitProgress
+          totalActivities={dailyActivities.length}
+          onMoodCheck={() => setShowJournal(true)}
+        />
+
+        <section>
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-adapt-indigo/10">
+              <Rocket className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-adapt-navy dark:text-gray-100">
+                Your Neuro Zones
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-gray-400">
+                Daily missions tailored to each profile you selected
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {neuroTypes.map((neuroId) => (
+              <NeuroZoneCard
+                key={neuroId}
+                neuroId={neuroId}
+                activities={getDailyActivitiesForNeuro(neuroId)}
+                onStartActivity={handleStartActivity}
+              />
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Recommended Activities */}
-        <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-xl font-bold mb-4">Recommended For You</h2>
-          <div className="space-y-4">
-            {/* AI-Powered Recommendations */}
-            <div className="mt-2 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-4">
-              <h3 className="text-lg font-semibold mb-3">🤖 AI-Powered Picks</h3>
-              <div className="space-y-3">
-                {RecommendationEngine.recommend(['autism', 'adhd'], 0.7, 'calm', []).map((rec, idx) => (
-                  <div key={idx} className="bg-white p-4 rounded-xl flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold">{rec.title}</h4>
-                      <p className="text-sm text-gray-600">{rec.description}</p>
-                      <div className="flex gap-2 mt-2">
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{rec.learningStyle}</span>
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">AI Confidence: {(rec.aiConfidence * 100).toFixed(0)}%</span>
-                      </div>
-                    </div>
-                    <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold">Try It</button>
-                  </div>
-                ))}
-              </div>
-            </div>
+        <MetricsConstellation neuroTypes={neuroTypes} />
 
-            {/* Manual Recommendations */}
-            <div className="bg-white p-4 rounded-xl flex items-center gap-4">
-              <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-7 h-7 text-blue-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold">Pattern Matching Game</h3>
-                <p className="text-sm text-gray-600">Visual thinking • 10 minutes</p>
-              </div>
-              <button className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg font-bold">Start</button>
-            </div>
+        <AccessibilityDock neuroTypes={neuroTypes} />
 
-            <div className="bg-white p-4 rounded-xl flex items-center gap-4">
-              <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center">
-                <Heart className="w-7 h-7 text-green-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold">Breathing Exercise</h3>
-                <p className="text-sm text-gray-600">Calm your mind • 5 minutes</p>
-              </div>
-              <button className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-bold">Start</button>
-            </div>
-          </div>
-        </div>
+        <SmartRecommendationsPanel
+          neuroTypes={neuroTypes}
+          onTryRecommendation={handleRecommendation}
+        />
+
+        <section className="rounded-3xl border border-dashed border-adapt-indigo/25 bg-adapt-indigo/5 p-6 text-center dark:border-adapt-cyan/25 dark:bg-adapt-cyan/5">
+          <Layers className="mx-auto mb-2 h-8 w-8 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+          <p className="text-sm font-medium text-slate-600 dark:text-gray-400">
+            Your dashboard reshapes every day based on mood, progress, and neuro profile —
+            inspired by UDL, Lexy, Vedyx, and AAC best practices.
+          </p>
+        </section>
       </main>
 
-      {/* Feelings Journal Modal */}
-      {showJournal && <FeelingsJournal onClose={() => setShowJournal(false)} />}
+      {showJournal && (
+        <FeelingsJournal
+          onClose={handleJournalClose}
+          onSave={(mood) => setTodayMood(mood)}
+        />
+      )}
+
+      {activeActivity && (
+        <ActivitySessionModal
+          activity={activeActivity}
+          onClose={() => setActiveActivity(null)}
+          onComplete={handleActivityComplete}
+        />
+      )}
+
+      {showFocusTimer && (
+        <FocusTimerModal
+          durationMinutes={12}
+          onClose={() => setShowFocusTimer(false)}
+          onComplete={handleFocusComplete}
+        />
+      )}
     </div>
   );
 };

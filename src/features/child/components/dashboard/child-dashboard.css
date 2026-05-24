@@ -1,0 +1,50 @@
+@keyframes dash-orbit-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes dash-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes dash-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes dash-pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.6; }
+  50% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.6; }
+}
+
+.dash-orbit-ring {
+  animation: dash-orbit-spin 48s linear infinite;
+}
+
+.dash-float {
+  animation: dash-float 4s ease-in-out infinite;
+}
+
+.dash-shimmer-text {
+  background: linear-gradient(90deg, #6366f1, #14b8a6, #6366f1);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: dash-shimmer 4s linear infinite;
+}
+
+.dash-activity-done {
+  animation: dash-pulse-ring 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-orbit-ring,
+  .dash-float,
+  .dash-shimmer-text,
+  .dash-activity-done {
+    animation: none !important;
+  }
+}

@@ -8,9 +8,11 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, isGuest, loading } = useAuth();
+  const { user, session, isGuest, loading } = useAuth();
 
-  if (loading) {
+  const isAuthenticated = Boolean(user ?? session?.user);
+
+  if (loading && !isAuthenticated && !isGuest) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-gray-500">Loading…</p>
@@ -18,8 +20,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  if (!user && !isGuest) {
-    return <Navigate to={ROUTES.HOME} replace />;
+  if (!isAuthenticated && !isGuest) {
+    return <Navigate to={ROUTES.LOGIN} replace />;
   }
 
   return <>{children}</>;

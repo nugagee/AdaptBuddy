@@ -7,9 +7,27 @@ export interface Profile {
   id: string;
   email: string;
   role: UserRole;
+  first_name: string;
+  last_name: string;
   full_name: string;
-  avatar_url?: string;
+  child_name?: string | null;
+  avatar_url?: string | null;
+  bio?: string | null;
+  age?: number | null;
+  neuro_types: string[];
+  onboarding_completed: boolean;
+  email_verified_at?: string | null;
   created_at: string;
+  updated_at: string;
+}
+
+/** Ensures neuro onboarding fields are always defined after a DB read. */
+export function normalizeProfile(raw: Profile): Profile {
+  return {
+    ...raw,
+    neuro_types: Array.isArray(raw.neuro_types) ? raw.neuro_types : [],
+    onboarding_completed: raw.onboarding_completed === true,
+  };
 }
 
 function resolveSupabaseEnv(): { url: string; key: string } | null {
@@ -56,7 +74,7 @@ export const getProfile = async (userId: string) => {
     .single();
 
   if (error) throw error;
-  return data as Profile;
+  return normalizeProfile(data as Profile);
 };
 
 export const signOut = async () => {

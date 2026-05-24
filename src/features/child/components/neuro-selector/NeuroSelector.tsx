@@ -1,402 +1,335 @@
-import React, { useState } from 'react';
-import { 
-  Brain, Zap, BookOpen, Target, Calculator, MessageSquare, 
-  Eye, Music, PenTool, Volume, Check, Sparkles, Waves,
-  Sun, Moon, Cloud, Wind, Leaf, Heart, Star, Bell
+import React, { useMemo, useState } from 'react';
+import {
+  ArrowRight,
+  Check,
+  Heart,
+  Loader2,
+  Sparkles,
+  Star,
+  Wand2,
 } from 'lucide-react';
-import { NeuroOption } from 'types/neuro';
-import { useTheme } from 'hooks/useTheme';
-
-// Intentionally reference these icons so they are reserved for future use
-// (prevents @typescript-eslint/no-unused-vars warnings while keeping imports)
-void MessageSquare;
-void Eye;
-void Music;
-void Moon;
-void Cloud;
-void Wind;
-void Leaf;
-void Heart;
-void Star;
-void Bell;
+import { NEURO_OPTIONS } from 'constants/neuroOptions';
+import { useUiStore } from 'store/uiStore';
+import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
+import './neuro-selector.css';
 
 interface NeuroSelectorProps {
-  onContinue: () => void;
+  initialSelected?: string[];
+  userName?: string;
+  onContinue: (selected: string[]) => void | Promise<void>;
+  submitLabel?: string;
+  saving?: boolean;
 }
 
-// ENHANCED: Each neurotype now has FULL personality profile
-const neuroOptions: NeuroOption[] = [
-  { 
-    id: 'autism', 
-    name: '🧩 Autism', 
-    description: 'Visual schedules, routine support, sensory-friendly',
-    longDescription: 'Structured learning with clear routines and visual guides',
-    colorClass: 'bg-blue-50 text-blue-900 border-blue-300 hover:bg-blue-100',
-    icon: Brain,
-    theme: {
-      primary: 'blue',
-      secondary: 'indigo',
-      background: 'bg-blue-50',
-      cardBg: 'bg-white/90',
-      accent: 'border-l-4 border-blue-500'
-    },
-    learningStyle: 'Visual & Structured'
+const CARD_ACCENTS: Record<
+  string,
+  { ring: string; icon: string; chip: string; glow: string }
+> = {
+  autism: {
+    ring: 'ring-sky-400/50',
+    icon: 'from-sky-400 to-indigo-500',
+    chip: 'bg-sky-100 text-sky-900 dark:bg-sky-950/60 dark:text-sky-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(56,189,248,0.45)]',
   },
-  { 
-    id: 'adhd', 
-    name: '🦋 ADHD', 
-    description: 'Focus timers, movement breaks, gamified',
-    longDescription: 'Energetic learning with built-in movement and rewards',
-    colorClass: 'bg-yellow-50 text-yellow-900 border-yellow-300 hover:bg-yellow-100',
-    icon: Zap,
-    theme: {
-      primary: 'yellow',
-      secondary: 'orange',
-      background: 'bg-yellow-50',
-      cardBg: 'bg-white/90',
-      accent: 'border-l-4 border-yellow-500'
-    },
-    learningStyle: 'Dynamic & Gamified'
+  adhd: {
+    ring: 'ring-amber-400/50',
+    icon: 'from-amber-400 to-orange-500',
+    chip: 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(251,191,36,0.45)]',
   },
-  { 
-    id: 'dyslexia', 
-    name: '📖 Dyslexia', 
-    description: 'OpenDyslexic font, colored overlays, audio',
-    longDescription: 'Text-to-speech, special fonts, and reading support',
-    colorClass: 'bg-purple-50 text-purple-900 border-purple-300 hover:bg-purple-100',
-    icon: BookOpen,
-    theme: {
-      primary: 'purple',
-      secondary: 'violet',
-      background: 'bg-purple-50',
-      cardBg: 'bg-white/90',
-      accent: 'border-l-4 border-purple-500'
-    },
-    learningStyle: 'Multi-sensory Reading'
+  dyslexia: {
+    ring: 'ring-violet-400/50',
+    icon: 'from-violet-400 to-purple-500',
+    chip: 'bg-violet-100 text-violet-900 dark:bg-violet-950/60 dark:text-violet-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(167,139,250,0.45)]',
   },
-  { 
-    id: 'dysgraphia', 
-    name: '✍️ Dysgraphia', 
-    description: 'Speech-to-text, writing guides, motor support',
-    longDescription: 'Express ideas through voice, drawing, or assisted writing',
-    colorClass: 'bg-green-50 text-green-900 border-green-300 hover:bg-green-100',
-    icon: PenTool,
-    theme: {
-      primary: 'green',
-      secondary: 'emerald',
-      background: 'bg-green-50',
-      cardBg: 'bg-white/90',
-      accent: 'border-l-4 border-green-500'
-    },
-    learningStyle: 'Voice & Motor-Friendly'
+  dysgraphia: {
+    ring: 'ring-emerald-400/50',
+    icon: 'from-emerald-400 to-teal-500',
+    chip: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(52,211,153,0.45)]',
   },
-  { 
-    id: 'dyscalculia', 
-    name: '🧮 Dyscalculia', 
-    description: 'Visual math tools, number patterns',
-    longDescription: 'Math made visual with patterns and real-world examples',
-    colorClass: 'bg-red-50 text-red-900 border-red-300 hover:bg-red-100',
-    icon: Calculator,
-    theme: {
-      primary: 'red',
-      secondary: 'rose',
-      background: 'bg-red-50',
-      cardBg: 'bg-white/90',
-      accent: 'border-l-4 border-red-500'
-    },
-    learningStyle: 'Visual Mathematics'
+  dyscalculia: {
+    ring: 'ring-rose-400/50',
+    icon: 'from-rose-400 to-red-500',
+    chip: 'bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(251,113,133,0.45)]',
   },
-  { 
-    id: 'dyspraxia', 
-    name: '🤸 Dyspraxia', 
-    description: 'Coordination games, motor planning',
-    longDescription: 'Movement-friendly activities and coordination support',
-    colorClass: 'bg-teal-50 text-teal-900 border-teal-300 hover:bg-teal-100',
-    icon: Target,
-    theme: {
-      primary: 'teal',
-      secondary: 'cyan',
-      background: 'bg-teal-50',
-      cardBg: 'bg-white/90',
-      accent: 'border-l-4 border-teal-500'
-    },
-    learningStyle: 'Movement & Coordination'
+  dyspraxia: {
+    ring: 'ring-teal-400/50',
+    icon: 'from-teal-400 to-cyan-500',
+    chip: 'bg-teal-100 text-teal-900 dark:bg-teal-950/60 dark:text-teal-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(45,212,191,0.45)]',
   },
-  { 
-    id: 'spd', 
-    name: '🎵 SPD (Sensory)', 
-    description: 'Calming sounds, brightness control',
-    longDescription: 'Sensory regulation tools and calming environments',
-    colorClass: 'bg-pink-50 text-pink-900 border-pink-300 hover:bg-pink-100',
-    icon: Waves,
-    theme: {
-      primary: 'pink',
-      secondary: 'rose',
-      background: 'bg-pink-50',
-      cardBg: 'bg-white/90',
-      accent: 'border-l-4 border-pink-500'
-    },
-    learningStyle: 'Sensory-Regulated'
+  spd: {
+    ring: 'ring-pink-400/50',
+    icon: 'from-pink-400 to-fuchsia-500',
+    chip: 'bg-pink-100 text-pink-900 dark:bg-pink-950/60 dark:text-pink-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(244,114,182,0.45)]',
   },
-  { 
-    id: 'auditory', 
-    name: '👂 Auditory Processing', 
-    description: 'Clear speech, visual reinforcements',
-    longDescription: 'Enhanced audio with visual cues and captions',
-    colorClass: 'bg-indigo-50 text-indigo-900 border-indigo-300 hover:bg-indigo-100',
-    icon: Volume,
-    theme: {
-      primary: 'indigo',
-      secondary: 'blue',
-      background: 'bg-indigo-50',
-      cardBg: 'bg-white/90',
-      accent: 'border-l-4 border-indigo-500'
-    },
-    learningStyle: 'Visual + Audio Support'
+  auditory: {
+    ring: 'ring-indigo-400/50',
+    icon: 'from-indigo-400 to-blue-500',
+    chip: 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(129,140,248,0.45)]',
   },
-  { 
-    id: 'visual-stress', 
-    name: '👁️ Visual Stress', 
-    description: 'Low contrast, font scaling, color themes',
-    longDescription: 'Comfortable viewing with adjustable visual settings',
-    colorClass: 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100',
-    icon: Sun,
-    theme: {
-      primary: 'amber',
-      secondary: 'yellow',
-      background: 'bg-amber-50',
-      cardBg: 'bg-white/90',
-      accent: 'border-l-4 border-amber-500'
-    },
-    learningStyle: 'Visual Comfort'
+  'visual-stress': {
+    ring: 'ring-yellow-400/50',
+    icon: 'from-yellow-300 to-amber-500',
+    chip: 'bg-yellow-100 text-yellow-900 dark:bg-yellow-950/60 dark:text-yellow-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(250,204,21,0.4)]',
   },
-  { 
-    id: 'tourettes', 
-    name: '💫 Tourette\'s', 
-    description: 'Tic-friendly, no time pressure',
-    longDescription: 'Flexible timing and accepting interface',
-    colorClass: 'bg-violet-50 text-violet-900 border-violet-300 hover:bg-violet-100',
-    icon: Sparkles,
-    theme: {
-      primary: 'violet',
-      secondary: 'purple',
-      background: 'bg-violet-50',
-      cardBg: 'bg-white/90',
-      accent: 'border-l-4 border-violet-500'
-    },
-    learningStyle: 'Flexible & Accepting'
-  }
-];
+  tourettes: {
+    ring: 'ring-purple-400/50',
+    icon: 'from-purple-400 to-violet-600',
+    chip: 'bg-purple-100 text-purple-900 dark:bg-purple-950/60 dark:text-purple-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(192,132,252,0.45)]',
+  },
+};
 
-const NeuroSelector: React.FC<NeuroSelectorProps> = ({ onContinue }) => {
-  const [selected, setSelected] = useState<string[]>([]);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const { theme, setTheme } = useTheme();
+const defaultAccent = CARD_ACCENTS.autism;
+
+const NeuroSelector: React.FC<NeuroSelectorProps> = ({
+  initialSelected = [],
+  userName = 'friend',
+  onContinue,
+  submitLabel = 'Create My Calm Space',
+  saving = false,
+}) => {
+  const [selected, setSelected] = useState<string[]>(initialSelected);
+  const reducedMotion = useUiStore((s) => s.reducedMotion);
 
   const toggleSelection = (id: string) => {
-    setSelected(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
 
-  // ✅ NEW: Handle continue with localStorage save
-  const handleContinue = () => {
-    // Save selected neurotypes to localStorage
-    localStorage.setItem('userNeurotypes', JSON.stringify(selected));
-    
-    // Check if dysgraphia is selected for special tutorial
-    if (selected.includes('dysgraphia')) {
-      localStorage.setItem('showWritingPadTour', 'true');
-    }
-    
-    // Check if SPD is selected for calming music suggestion
-    if (selected.includes('spd')) {
-      localStorage.setItem('showMusicSuggestion', 'true');
-    }
-    
-    // Navigate to dashboard
-    onContinue();
-  };
+  const selectedOptions = useMemo(
+    () => NEURO_OPTIONS.filter((o) => selected.includes(o.id)),
+    [selected],
+  );
+
+  const encouragement =
+    selected.length === 0
+      ? 'Tap any cards that feel like you — pick as many as you like.'
+      : selected.length === 1
+        ? 'Great start! Add more if they feel right, or continue when ready.'
+        : 'Beautiful — your learning space is taking shape.';
 
   return (
-    <div className={`min-h-screen p-4 md:p-8 transition-colors duration-300 ${
-      theme === 'light' ? 'bg-gradient-to-br from-blue-50 to-green-50' :
-      theme === 'dark' ? 'bg-gradient-to-br from-gray-900 to-gray-800' :
-      'bg-gradient-to-br from-sepia-100 to-amber-50'
-    }`}>
-      <div className="max-w-7xl mx-auto">
-        {/* ENHANCED Header with animation */}
-        <header className="mb-8 md:mb-12 text-center animate-fade-in">
-          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-neuro-blue to-neuro-green bg-clip-text text-transparent mb-4">
-            🧠 AdaptBuddy
-          </h1>
-          <p className="text-xl text-gray-600">Your brain is unique. Your learning should be too.</p>
-          <div className="mt-4 flex justify-center gap-2">
-            <span className="px-4 py-2 bg-white/80 rounded-full text-sm shadow-sm">✨ 10 Neurotypes</span>
-            <span className="px-4 py-2 bg-white/80 rounded-full text-sm shadow-sm">🎨 Personalized Themes</span>
+    <div className="relative min-h-screen overflow-x-hidden bg-adapt-cloud dark:bg-gray-950 sepia:bg-sepia-50">
+      {/* Soothing ambient layer */}
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-100/70 via-adapt-cloud to-teal-100/60 dark:from-indigo-950/50 dark:via-gray-950 dark:to-teal-950/30 sepia:from-amber-50/90 sepia:via-sepia-50 sepia:to-orange-50/50" />
+        <div
+          className={`neuro-ambient-blob absolute -left-24 top-10 h-72 w-72 rounded-full bg-violet-300/30 blur-3xl dark:bg-violet-600/20 ${
+            reducedMotion ? 'opacity-50' : ''
+          }`}
+        />
+        <div
+          className={`neuro-ambient-blob-delayed absolute -right-16 top-1/3 h-80 w-80 rounded-full bg-cyan-300/25 blur-3xl dark:bg-cyan-500/15 ${
+            reducedMotion ? 'opacity-50' : ''
+          }`}
+        />
+        <div className="absolute bottom-0 left-1/4 h-64 w-64 rounded-full bg-indigo-200/25 blur-3xl dark:bg-indigo-700/15" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(99,102,241,0.08),transparent_55%)]" />
+      </div>
+
+      <div className="relative mx-auto max-w-6xl px-4 pb-36 pt-8 sm:px-6 sm:pt-12">
+        {/* Hero */}
+        <header className="mb-10 text-center animate-slide-up">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-white/70 shadow-soft ring-1 ring-white/80 backdrop-blur-md dark:bg-gray-900/70 dark:ring-white/10">
+            <img src={adaptbuddyLogo} alt="" className="h-11 w-11 object-contain" />
           </div>
 
-          {/* Theme quick-select buttons */}
-          <div className="flex justify-center gap-2 mt-4">
-            <button onClick={() => setTheme('light')} aria-label="Light theme" className="w-8 h-8 rounded-full bg-white border-2 border-gray-300 hover:scale-110 transition" />
-            <button onClick={() => setTheme('dark')} aria-label="Dark theme" className="w-8 h-8 rounded-full bg-gray-800 border-2 border-gray-600 hover:scale-110 transition" />
-            <button onClick={() => setTheme('sepia')} aria-label="Sepia theme" className="w-8 h-8 rounded-full bg-amber-100 border-2 border-amber-300 hover:scale-110 transition" />
+          <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-adapt-indigo/20 bg-white/60 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-adapt-indigo backdrop-blur-sm dark:border-adapt-cyan/25 dark:bg-gray-900/60 dark:text-adapt-cyan sepia:border-amber-300/50 sepia:bg-amber-50/80 sepia:text-amber-900">
+            <Sparkles className="h-3.5 w-3.5" aria-hidden />
+            Your learning galaxy
+          </p>
+
+          <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-adapt-navy sm:text-4xl md:text-5xl dark:text-gray-100 sepia:text-amber-950">
+            Hi {userName},{' '}
+            <span className="bg-gradient-to-r from-adapt-purple via-adapt-indigo to-adapt-teal bg-clip-text text-transparent">
+              how does your brain like to learn?
+            </span>
+          </h1>
+
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-gray-300 sepia:text-amber-900/80 sm:text-lg">
+            There&apos;s no wrong answer here. Choose everything that feels like{' '}
+            <span className="font-semibold text-adapt-indigo dark:text-adapt-cyan">you</span>
+            — we&apos;ll gently shape your space around it.
+          </p>
+
+          <div className="mx-auto mt-6 flex max-w-md flex-col items-center gap-3">
+            <div className="flex w-full items-center gap-3 rounded-2xl border border-white/60 bg-white/50 px-4 py-3 backdrop-blur-md dark:border-white/10 dark:bg-gray-900/50 sepia:border-amber-200/60 sepia:bg-amber-50/70">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-adapt-indigo to-adapt-teal text-sm font-bold text-white shadow-md"
+                aria-label={`${selected.length} of ${NEURO_OPTIONS.length} selected`}
+              >
+                {selected.length}
+              </div>
+              <div className="min-w-0 text-left">
+                <p className="text-sm font-semibold text-adapt-navy dark:text-gray-100">
+                  {selected.length} of {NEURO_OPTIONS.length} picked
+                </p>
+                <p className="text-xs text-slate-500 dark:text-gray-400">{encouragement}</p>
+              </div>
+            </div>
           </div>
         </header>
 
-        {/* Theme Preview Buttons */}
-        <div className="flex justify-center gap-3 mb-6">
-          <button 
-            onClick={() => setTheme('light')} 
-            aria-label="Activate light theme"
-            className={`w-10 h-10 rounded-full bg-white border-2 hover:scale-110 transition-all ${
-              theme === 'light' ? 'border-neuro-blue ring-4 ring-neuro-blue/20' : 'border-gray-300'
-            }`}
-            title="Light Mode"
-          />
-          <button 
-            onClick={() => setTheme('dark')} 
-            aria-label="Activate dark theme"
-            className={`w-10 h-10 rounded-full bg-gray-800 border-2 hover:scale-110 transition-all ${
-              theme === 'dark' ? 'border-neuro-blue ring-4 ring-neuro-blue/20' : 'border-gray-600'
-            }`}
-            title="Dark Mode"
-          />
-          <button 
-            onClick={() => setTheme('sepia')} 
-            aria-label="Activate comfort (sepia) theme"
-            className={`w-10 h-10 rounded-full bg-amber-100 border-2 hover:scale-110 transition-all ${
-              theme === 'sepia' ? 'border-neuro-blue ring-4 ring-neuro-blue/20' : 'border-amber-300'
-            }`}
-            title="Comfort Mode"
-          />
-        </div>
+        {/* Card grid */}
+        <div
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-slide-up delay-100"
+          role="group"
+          aria-label="Neurotype options — select all that apply"
+        >
+          {NEURO_OPTIONS.map((option) => {
+            const isSelected = selected.includes(option.id);
+            const accent = CARD_ACCENTS[option.id] ?? defaultAccent;
+            const IconComponent = option.icon;
+            const displayName = option.name.replace(/^[^\s]+\s/, '');
 
-        {/* ENHANCED Main Card */}
-        <div className={`${
-          theme === 'light' ? 'bg-white' :
-          theme === 'dark' ? 'bg-gray-800' :
-          'bg-sepia-50'
-        } backdrop-blur-sm rounded-3xl shadow-2xl p-6 md:p-8 mb-8 border border-white/50`}>
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-800">How do you learn best?</h2>
-              <p className="text-gray-600 mt-2">Select all that feel like you. We'll adapt everything!</p>
-            </div>
-            <div className="mt-4 md:mt-0 px-6 py-3 bg-gradient-to-r from-neuro-blue to-neuro-green rounded-full text-white font-bold">
-              {selected.length} / 10 Selected
-            </div>
-          </div>
-
-          {/* ENHANCED Neuro Grid - Now with FULL personality cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-10">
-            {neuroOptions.map((option) => {
-              const isSelected = selected.includes(option.id);
-              const isHovered = hoveredId === option.id;
-              const IconComponent = option.icon as React.ComponentType<any> | undefined;
-              
-              return (
-                <button
-                  key={option.id}
-                  onClick={() => toggleSelection(option.id)}
-                  onMouseEnter={() => setHoveredId(option.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                  className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 ${option.colorClass} ${
-                    isSelected 
-                      ? 'border-neuro-blue scale-[1.02] shadow-xl ring-4 ring-neuro-blue/20' 
-                      : 'border-gray-200 hover:border-gray-400 hover:scale-[1.02] hover:shadow-lg'
-                  }`}
-                >
-                  {/* Selected Badge */}
-                  {isSelected && (
-                    <div className="absolute -top-3 -right-3 w-8 h-8 bg-neuro-green rounded-full flex items-center justify-center text-white shadow-lg">
-                      <Check className="w-5 h-5" />
-                    </div>
-                  )}
-
-                  {/* Icon with animation */}
-                  <div className="flex justify-center mb-4 transform group-hover:scale-110 transition-transform">
-                    {IconComponent && (
-                      <IconComponent className={`w-12 h-12 ${
-                        option.theme?.primary === 'blue' ? 'text-blue-600' :
-                        option.theme?.primary === 'yellow' ? 'text-yellow-600' :
-                        option.theme?.primary === 'purple' ? 'text-purple-600' :
-                        option.theme?.primary === 'green' ? 'text-green-600' :
-                        option.theme?.primary === 'red' ? 'text-red-600' :
-                        option.theme?.primary === 'teal' ? 'text-teal-600' :
-                        option.theme?.primary === 'pink' ? 'text-pink-600' :
-                        option.theme?.primary === 'indigo' ? 'text-indigo-600' :
-                        option.theme?.primary === 'amber' ? 'text-amber-600' :
-                        'text-violet-600'
-                      }`} />
-                    )}
-                  </div>
-
-                  {/* Name with emoji */}
-                  <h3 className="text-xl font-bold mb-2">{option.name}</h3>
-                  
-                  {/* Learning style badge */}
-                  <span className="inline-block px-3 py-1 bg-white/80 rounded-full text-xs font-medium mb-3 shadow-sm">
-                    {option.learningStyle}
-                  </span>
-                  
-                  {/* Description */}
-                  <p className="text-sm text-gray-600 mb-3">{option.description}</p>
-                  
-                  {/* Hover long description */}
-                  {isHovered && (
-                    <div className="absolute left-0 right-0 bottom-0 p-4 bg-white/95 backdrop-blur-sm rounded-b-2xl border-t border-gray-200 animate-slide-up">
-                      <p className="text-xs text-gray-700">{option.longDescription}</p>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* ENHANCED Selection Summary */}
-          <div className="bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 rounded-2xl p-6 md:p-8">
-            <div className="flex flex-col md:flex-row justify-between items-center">
-              <div className="mb-6 md:mb-0">
-                <h3 className="text-2xl font-bold text-gray-800 mb-2">Your Learning Profile</h3>
-                <div className="flex flex-wrap gap-2">
-                  {selected.length > 0 ? (
-                    neuroOptions
-                      .filter(o => selected.includes(o.id))
-                      .map(o => (
-                        <span key={o.id} className={`px-4 py-2 rounded-full text-sm font-medium shadow-sm ${o.colorClass}`}>
-                          {o.name}
-                        </span>
-                      ))
-                  ) : (
-                    <p className="text-gray-500">Select your learning preferences above ✨</p>
-                  )}
-                </div>
-              </div>
-              
-              {/* ✅ UPDATED: Button now calls handleContinue instead of onContinue directly */}
-              <button 
-                onClick={handleContinue}
-                className="bg-gradient-to-r from-neuro-blue to-neuro-green text-white px-10 py-4 rounded-xl font-bold text-lg hover:scale-105 transition-all duration-300 shadow-xl hover:shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 group"
-                disabled={selected.length === 0}
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() => toggleSelection(option.id)}
+                className={`group relative flex flex-col rounded-3xl border-2 p-5 text-left transition-all duration-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-adapt-indigo/30 ${
+                  isSelected
+                    ? `border-adapt-indigo/60 bg-white/90 ring-4 ${accent.ring} ${accent.glow} dark:border-adapt-cyan/50 dark:bg-gray-900/85 ${
+                        !reducedMotion ? 'neuro-card-selected' : ''
+                      }`
+                    : 'border-white/70 bg-white/55 hover:border-adapt-indigo/30 hover:bg-white/75 hover:shadow-lg dark:border-gray-700/80 dark:bg-gray-900/45 dark:hover:border-adapt-cyan/30 dark:hover:bg-gray-900/65 sepia:border-amber-200/70 sepia:bg-amber-50/60'
+                }`}
               >
-                <span>Create My Personalized Space</span>
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
+                {isSelected && (
+                  <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-md">
+                    <Check className="h-4 w-4" strokeWidth={3} aria-hidden />
+                  </span>
+                )}
+
+                <div className="mb-4 flex items-start gap-4">
+                  <div
+                    className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${accent.icon} text-white shadow-md transition-transform duration-300 group-hover:scale-105`}
+                  >
+                    {IconComponent && <IconComponent className="h-7 w-7" aria-hidden />}
+                  </div>
+                  <div className="min-w-0 pt-0.5">
+                    <p className="text-lg font-bold leading-tight text-adapt-navy dark:text-gray-100">
+                      {displayName}
+                    </p>
+                    <span
+                      className={`mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${accent.chip}`}
+                    >
+                      {option.learningStyle}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-sm leading-relaxed text-slate-600 dark:text-gray-300">
+                  {option.description}
+                </p>
+
+                {(isSelected || option.longDescription) && (
+                  <p
+                    className={`mt-3 text-xs leading-relaxed ${
+                      isSelected
+                        ? 'text-adapt-indigo/90 dark:text-adapt-cyan/90'
+                        : 'text-slate-400 dark:text-gray-500'
+                    }`}
+                  >
+                    {isSelected ? (
+                      <span className="inline-flex items-center gap-1 font-medium">
+                        <Star className="h-3 w-3 fill-current" aria-hidden />
+                        Added to your galaxy
+                      </span>
+                    ) : (
+                      option.longDescription
+                    )}
+                  </p>
+                )}
               </button>
-            </div>
-          </div>
+            );
+          })}
         </div>
 
-        {/* ENHANCED Footer with safeguards */}
-        <footer className="text-center">
-          <div className="flex justify-center gap-4 mb-4">
-            <span className="px-4 py-2 bg-white/80 rounded-full text-xs text-gray-600 shadow-sm">🔐 Secure & Private</span>
-            <span className="px-4 py-2 bg-white/80 rounded-full text-xs text-gray-600 shadow-sm">📱 Works on All Devices</span>
-            <span className="px-4 py-2 bg-white/80 rounded-full text-xs text-gray-600 shadow-sm">♿ Fully Accessible</span>
-            <span className="px-4 py-2 bg-white/80 rounded-full text-xs text-gray-600 shadow-sm">🛡️ Safeguarding Ready</span>
+        {/* Constellation summary */}
+        <section
+          className="mt-10 animate-slide-up delay-200 rounded-4xl border border-white/60 bg-white/50 p-6 backdrop-blur-xl dark:border-white/10 dark:bg-gray-900/45 sepia:border-amber-200/55 sepia:bg-amber-50/55"
+          aria-live="polite"
+        >
+          <div className="mb-4 flex items-center gap-2">
+            <Wand2 className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+            <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">
+              Your learning constellation
+            </h2>
           </div>
-          <p className="text-gray-500 text-sm">© 2025 AdaptBuddy. Built with 💙 for every unique brain</p>
-        </footer>
+
+          {selectedOptions.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {selectedOptions.map((o) => {
+                const accent = CARD_ACCENTS[o.id] ?? defaultAccent;
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => toggleSelection(o.id)}
+                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition hover:opacity-80 ${accent.chip}`}
+                    aria-label={`Remove ${o.name}`}
+                  >
+                    {o.name}
+                    <span className="text-xs opacity-60">×</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-gray-400">
+              <Heart className="h-4 w-4 text-pink-400" aria-hidden />
+              Your picks will glow here like little stars…
+            </p>
+          )}
+        </section>
+
+        <p className="mt-8 text-center text-xs text-slate-400 dark:text-gray-500">
+          🔒 Private & safe · ♿ Built for every brain · 🌈 You can change this anytime in Settings
+        </p>
+      </div>
+
+      {/* Sticky calm dock */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/50 bg-white/75 px-4 py-4 backdrop-blur-xl dark:border-gray-800 dark:bg-gray-950/85 sepia:border-amber-200/50 sepia:bg-amber-50/90">
+        <div className="mx-auto flex max-w-3xl flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="hidden sm:block">
+            <p className="text-sm font-semibold text-adapt-navy dark:text-gray-100">
+              {selected.length > 0 ? 'Ready when you are' : 'Pick at least one to continue'}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-gray-400">
+              We&apos;ll save your choices to your profile
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void onContinue(selected)}
+            disabled={selected.length === 0 || saving}
+            className="neuro-cta-shimmer inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-adapt-indigo via-adapt-purple to-adapt-teal px-8 py-4 text-base font-bold text-white shadow-[0_8px_32px_-8px_rgba(99,102,241,0.55)] transition hover:scale-[1.02] hover:shadow-[0_12px_40px_-8px_rgba(99,102,241,0.65)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 sm:w-auto"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                Creating your space…
+              </>
+            ) : (
+              <>
+                {submitLabel}
+                <ArrowRight className="h-5 w-5" aria-hidden />
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

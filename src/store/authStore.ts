@@ -8,6 +8,7 @@ import {
   type Profile,
   type UserRole,
 } from 'services/supabase/client';
+import { useChildSessionStore } from 'features/child/store/childSessionStore';
 import {
   requestSignupOtp,
   resendSignupOtp,
@@ -47,7 +48,7 @@ interface AuthState {
   initialize: () => () => void;
 }
 
-const loadProfile = async (userId: string) => {
+const loadProfile = async (userId: string): Promise<Profile | null> => {
   try {
     return await getProfile(userId);
   } catch (error) {
@@ -71,6 +72,7 @@ const applyAuthSession = async (session: Session) => {
 
 const handleAuthStateChange = async (event: AuthChangeEvent, session: Session | null) => {
   if (event === 'SIGNED_OUT') {
+    useChildSessionStore.getState().resetSession();
     useAuthStore.setState({
       user: null,
       profile: null,
@@ -117,16 +119,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Sign in succeeded but no user was returned.');
       }
 
+      const profile =
+        (await loadProfile(user.id)) ?? buildFallbackProfileFromUser(user);
+
       set({
         user,
-        profile: buildFallbackProfileFromUser(user),
+        profile,
         session: session ? toAuthSessionState(session) : null,
         isGuest: false,
         loading: false,
-      });
-
-      void loadProfile(user.id).then((profile) => {
-        if (profile) set({ profile });
       });
 
       return user;
@@ -261,6 +262,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
+    useChildSessionStore.getState().resetSession();
+
     if (!isSupabaseConfigured) {
       set({ user: null, profile: null, session: null, isGuest: false });
       return;

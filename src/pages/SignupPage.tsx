@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Check, GraduationCap, Heart, Smile, X } from 'lucide-react';
 import { useAuth } from 'hooks/useAuth';
 import { UserRole, isSupabaseConfigured } from 'services/supabase/client';
-import { getPostSignupRoute, type SignupDetails } from 'services/supabase/authService';
+import { getPostSignupRoute, getRouteForUser, type SignupDetails } from 'services/supabase/authService';
+import { useAuthStore } from 'store/authStore';
 import { ROUTES } from 'constants/routes';
 import { isPasswordValid } from 'utils/passwordValidation';
 import AuthBackground, { AuthLogo } from 'pages/auth/AuthBackground';
@@ -116,7 +117,11 @@ const SignupPage: React.FC = () => {
   });
 
   const finishSignup = (signupRole: UserRole) => {
-    navigate(getPostSignupRoute(signupRole), {
+    const { user, profile } = useAuthStore.getState();
+    const destination =
+      user && profile ? getRouteForUser(user, profile) : getPostSignupRoute(signupRole);
+
+    navigate(destination, {
       replace: true,
       state: { message: 'Welcome! Your account is ready.' },
     });

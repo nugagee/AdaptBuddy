@@ -12,6 +12,10 @@ export interface Profile {
   full_name: string;
   child_name?: string | null;
   avatar_url?: string | null;
+  bio?: string | null;
+  age?: number | null;
+  neuro_types: string[];
+  onboarding_completed: boolean;
   email_verified_at?: string | null;
   created_at: string;
   updated_at: string;

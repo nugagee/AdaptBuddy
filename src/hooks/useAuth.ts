@@ -21,5 +21,7 @@ export const useAuth = () =>
       resetPassword: s.resetPassword,
       signOut: s.signOut,
       setGuestMode: s.setGuestMode,
+      setProfile: s.setProfile,
+      refreshProfile: s.refreshProfile,
     }))
   );

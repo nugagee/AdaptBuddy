@@ -1,6 +1,8 @@
 import { AuthError, type Session, type User } from '@supabase/supabase-js';
+import { ROUTES } from 'constants/routes';
 import type { Profile } from './client';
 import { getSupabaseClient, type UserRole } from './client';
+import { resolveAuthSession } from './sessionUtils';
 
 export interface SignupDetails {
   email: string;
@@ -90,20 +92,58 @@ async function persistVerifiedAuth(data: {
   session: Session | null;
   user: User | null;
 }): Promise<{ session: Session | null; user: User | null }> {
-  const client = getSupabaseClient();
+  return resolveAuthSession(getSupabaseClient(), data);
+}
 
-  if (data.session?.access_token && data.session.refresh_token) {
-    await client.auth.setSession({
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-    });
+export function getRoleFromUser(user: User): UserRole {
+  const role = user.user_metadata?.role;
+  if (role === 'child' || role === 'parent' || role === 'teacher') return role;
+  return 'parent';
+}
+
+export function getRouteForProfile(profile: Profile): string {
+  switch (profile.role) {
+    case 'child':
+      return profile.onboarding_completed && profile.neuro_types.length > 0
+        ? ROUTES.CHILD_DASHBOARD
+        : ROUTES.NEURO_SELECTOR;
+    case 'parent':
+      return ROUTES.PARENT_HUB;
+    case 'teacher':
+      return ROUTES.TEACHER_DASHBOARD;
+    default:
+      return ROUTES.LOGIN;
   }
+}
 
-  const { data: sessionData } = await client.auth.getSession();
-  const session = sessionData.session ?? data.session;
-  const user = session?.user ?? data.user;
+export function getRouteForUser(user: User, profile?: Profile | null): string {
+  if (profile) return getRouteForProfile(profile);
+  if (getRoleFromUser(user) === 'child') return ROUTES.NEURO_SELECTOR;
+  return getPostSignupRoute(getRoleFromUser(user));
+}
 
-  return { session, user };
+export function buildFallbackProfileFromUser(user: User): Profile {
+  const meta = user.user_metadata ?? {};
+  const firstName = String(meta.first_name ?? '');
+  const lastName = String(meta.last_name ?? '');
+  const now = new Date().toISOString();
+
+  return {
+    id: user.id,
+    email: user.email ?? '',
+    role: getRoleFromUser(user),
+    first_name: firstName,
+    last_name: lastName,
+    full_name: String(meta.full_name ?? `${firstName} ${lastName}`.trim()),
+    child_name: meta.child_name ? String(meta.child_name) : null,
+    bio: null,
+    age: null,
+    neuro_types: [],
+    onboarding_completed: false,
+    email_verified_at: now,
+    created_at: now,
+    updated_at: now,
+  };
 }
 
 export async function verifySignupOtp(email: string, token: string) {
@@ -176,6 +216,8 @@ export async function upsertUserProfile(payload: ProfileUpsertPayload) {
     last_name: lastName,
     full_name: fullName,
     child_name: childName,
+    neuro_types: [],
+    onboarding_completed: false,
     email_verified_at: payload.emailVerified ? new Date().toISOString() : null,
   };
 
@@ -203,6 +245,8 @@ export function buildFallbackProfile(details: SignupDetails, userId: string): Pr
     last_name: lastName,
     full_name: buildFullName(firstName, lastName),
     child_name: details.childName?.trim() || null,
+    neuro_types: [],
+    onboarding_completed: false,
     email_verified_at: now,
     created_at: now,
     updated_at: now,
@@ -212,12 +256,12 @@ export function buildFallbackProfile(details: SignupDetails, userId: string): Pr
 export function getPostSignupRoute(role: UserRole): string {
   switch (role) {
     case 'child':
-      return '/dashboard';
+      return ROUTES.NEURO_SELECTOR;
     case 'parent':
-      return '/parent-hub';
+      return ROUTES.PARENT_HUB;
     case 'teacher':
-      return '/teacher/dashboard';
+      return ROUTES.TEACHER_DASHBOARD;
     default:
-      return '/login';
+      return ROUTES.LOGIN;
   }
 }

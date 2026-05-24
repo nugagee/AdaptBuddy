@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useAuth } from 'hooks/useAuth';
+import { useAuthStore } from 'store/authStore';
 import { UserRole } from 'services/supabase/client';
+import { getRouteForUser } from 'services/supabase/authService';
 import { ROUTES } from 'constants/routes';
-import AuthBackground, { AuthLogo, authGlassPanelClass } from 'pages/auth/AuthBackground';
+import AuthBackground, { AuthLogo } from 'pages/auth/AuthBackground';
 import {
   AuthField,
   PasswordField,
@@ -29,20 +31,38 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const signupMessage = (location.state as { message?: string } | null)?.message;
-  const { signIn, setGuestMode } = useAuth();
+  const { signIn, setGuestMode, user, loading: authLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const redirectAfterAuth = useCallback(
+    (authUser: NonNullable<typeof user>, message: string) => {
+      const { profile } = useAuthStore.getState();
+      navigate(getRouteForUser(authUser, profile), {
+        replace: true,
+        state: { message },
+      });
+    },
+    [navigate],
+  );
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
     try {
-      await signIn(email.trim(), password);
-      navigate(ROUTES.NEURO_SELECTOR);
+      const authUser = await signIn(email.trim(), password);
+
+      const firstName = authUser.user_metadata?.first_name;
+      const welcomeMessage = firstName
+        ? `Welcome back, ${firstName}! You're signed in.`
+        : "Welcome back! You're signed in.";
+
+      redirectAfterAuth(authUser, welcomeMessage);
     } catch (err: unknown) {
       const message =
         err && typeof err === 'object' && 'message' in err
@@ -53,6 +73,12 @@ const LoginPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (authLoading || !user || location.pathname !== ROUTES.LOGIN) return;
+
+    redirectAfterAuth(user, "Welcome back! You're signed in.");
+  }, [authLoading, user, location.pathname, redirectAfterAuth]);
 
   const handleDemoRole = (role: UserRole) => {
     setGuestMode();
@@ -65,9 +91,7 @@ const LoginPage: React.FC = () => {
         <AuthLogo />
 
         <div className="mt-10 flex flex-1 flex-col items-center justify-center gap-12 lg:mt-16 lg:flex-row lg:items-center lg:gap-16">
-          {/* Welcome panel */}
-          <div className={`w-full max-w-lg lg:flex-1`}>
-          {/* <div className={`w-full max-w-lg lg:flex-1 ${authGlassPanelClass}`}> */}
+          <div className="w-full max-w-lg lg:flex-1">
             <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-adapt-navy sm:text-4xl lg:text-[2.75rem] lg:leading-[1.15] dark:text-gray-100 sepia:text-amber-950">
               Welcome back to a calmer space.
             </h1>
@@ -80,7 +104,7 @@ const LoginPage: React.FC = () => {
                 <button
                   key={role}
                   type="button"
-                  // onClick={() => handleDemoRole(role)}
+                  onClick={() => handleDemoRole(role)}
                   className="rounded-full border border-white/60 bg-white/60 px-5 py-2.5 text-sm font-semibold text-adapt-navy shadow-soft backdrop-blur-sm transition hover:border-adapt-indigo/50 hover:bg-white/80 hover:shadow-[0_0_20px_-4px_rgba(99,102,241,0.35)] dark:border-white/10 dark:bg-gray-800/50 dark:text-gray-100 dark:hover:bg-gray-800/70 sepia:border-amber-200/70 sepia:bg-amber-50/60"
                 >
                   {label}
@@ -89,7 +113,6 @@ const LoginPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Sign-in card */}
           <div className={`w-full max-w-md lg:max-w-lg ${authCardClass}`}>
             <p className="text-xs font-semibold uppercase tracking-widest text-adapt-indigo">
               Sign in

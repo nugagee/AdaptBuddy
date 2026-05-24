@@ -125,6 +125,52 @@
   animation: theme-hint-down 0.45s ease-out forwards;
 }
 
+/* Auth neon background blobs */
+@keyframes auth-neon-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(3%, -2%) scale(1.06);
+  }
+  66% {
+    transform: translate(-2%, 3%) scale(0.97);
+  }
+}
+
+@keyframes auth-neon-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+}
+
+.animate-auth-neon-drift {
+  animation: auth-neon-drift 20s ease-in-out infinite;
+}
+
+.animate-auth-neon-drift-slow {
+  animation: auth-neon-drift 28s ease-in-out infinite reverse;
+}
+
+.animate-auth-neon-pulse {
+  animation: auth-neon-pulse 14s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-auth-neon-drift,
+  .animate-auth-neon-drift-slow,
+  .animate-auth-neon-pulse {
+    animation: none;
+  }
+}
+
 /* Music player range sliders */
 .music-player-range {
   --range-fill: #3b82f6;

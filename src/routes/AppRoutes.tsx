@@ -16,6 +16,7 @@ import Students from 'features/teacher/components/Students';
 import Reports from 'features/teacher/components/Reports';
 import Settings from 'features/teacher/components/Settings';
 import LoginPage from 'pages/LoginPage';
+import SignupPage from 'pages/SignupPage';
 
 const withAuth = (page: React.ReactNode) => (
   <ProtectedRoute>
@@ -27,7 +28,7 @@ const AppRoutes: React.FC = () => (
   <Routes>
     <Route path={ROUTES.HOME} element={<LandingPage />} />
     <Route path={ROUTES.LOGIN} element={<LoginPage />} />
-    {/* <Route path={ROUTES.SIGNUP} element={<SignupPage />} /> */}
+    <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
     <Route
       path={ROUTES.NEURO_SELECTOR}
       element={withAuth(<NeuroSelector onContinue={() => {}} />)}

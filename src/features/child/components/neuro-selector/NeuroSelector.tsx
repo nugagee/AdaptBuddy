@@ -61,11 +61,17 @@ const CARD_ACCENTS: Record<
     chip: 'bg-teal-100 text-teal-900 dark:bg-teal-950/60 dark:text-teal-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(45,212,191,0.45)]',
   },
-  spd: {
-    ring: 'ring-pink-400/50',
-    icon: 'from-pink-400 to-fuchsia-500',
-    chip: 'bg-pink-100 text-pink-900 dark:bg-pink-950/60 dark:text-pink-200',
-    glow: 'shadow-[0_8px_32px_-8px_rgba(244,114,182,0.45)]',
+  tourettes: {
+    ring: 'ring-purple-400/50',
+    icon: 'from-purple-400 to-violet-600',
+    chip: 'bg-purple-100 text-purple-900 dark:bg-purple-950/60 dark:text-purple-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(192,132,252,0.45)]',
+  },
+  'speech-language': {
+    ring: 'ring-cyan-400/50',
+    icon: 'from-cyan-400 to-blue-500',
+    chip: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-950/60 dark:text-cyan-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(34,211,238,0.45)]',
   },
   auditory: {
     ring: 'ring-indigo-400/50',
@@ -73,17 +79,23 @@ const CARD_ACCENTS: Record<
     chip: 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(129,140,248,0.45)]',
   },
+  spd: {
+    ring: 'ring-pink-400/50',
+    icon: 'from-pink-400 to-fuchsia-500',
+    chip: 'bg-pink-100 text-pink-900 dark:bg-pink-950/60 dark:text-pink-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(244,114,182,0.45)]',
+  },
   'visual-stress': {
     ring: 'ring-yellow-400/50',
     icon: 'from-yellow-300 to-amber-500',
     chip: 'bg-yellow-100 text-yellow-900 dark:bg-yellow-950/60 dark:text-yellow-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(250,204,21,0.4)]',
   },
-  tourettes: {
-    ring: 'ring-purple-400/50',
-    icon: 'from-purple-400 to-violet-600',
-    chip: 'bg-purple-100 text-purple-900 dark:bg-purple-950/60 dark:text-purple-200',
-    glow: 'shadow-[0_8px_32px_-8px_rgba(192,132,252,0.45)]',
+  'executive-function': {
+    ring: 'ring-slate-400/50',
+    icon: 'from-slate-500 to-gray-700',
+    chip: 'bg-slate-100 text-slate-900 dark:bg-slate-900/80 dark:text-slate-200',
+    glow: 'shadow-[0_8px_32px_-8px_rgba(100,116,139,0.45)]',
   },
 };
 
@@ -96,30 +108,27 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
   submitLabel = 'Create My Calm Space',
   saving = false,
 }) => {
-  const [selected, setSelected] = useState<string[]>(initialSelected);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
+    initialSelected[0] ?? null,
+  );
   const reducedMotion = useUiStore((s) => s.reducedMotion);
 
-  const toggleSelection = (id: string) => {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    );
-  };
-
+  const selected = selectedProfileId ? [selectedProfileId] : [];
   const selectedOptions = useMemo(
-    () => NEURO_OPTIONS.filter((o) => selected.includes(o.id)),
-    [selected],
+    () => NEURO_OPTIONS.filter((o) => o.id === selectedProfileId),
+    [selectedProfileId],
   );
 
-  const encouragement =
-    selected.length === 0
-      ? 'Tap any cards that feel like you — pick as many as you like.'
-      : selected.length === 1
-        ? 'Great start! Add more if they feel right, or continue when ready.'
-        : 'Beautiful — your learning space is taking shape.';
+  const toggleSelection = (id: string) => {
+    setSelectedProfileId((currentId) => (currentId === id ? null : id));
+  };
+
+  const encouragement = selectedProfileId
+    ? 'Great start. You can continue, or choose a different main support profile.'
+    : 'Choose one main support profile to begin. You can refine this later.';
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-adapt-cloud dark:bg-gray-950 sepia:bg-sepia-50">
-      {/* Soothing ambient layer */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
         <div className="absolute inset-0 bg-gradient-to-br from-violet-100/70 via-adapt-cloud to-teal-100/60 dark:from-indigo-950/50 dark:via-gray-950 dark:to-teal-950/30 sepia:from-amber-50/90 sepia:via-sepia-50 sepia:to-orange-50/50" />
         <div
@@ -137,7 +146,6 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
       </div>
 
       <div className="relative mx-auto max-w-6xl px-4 pb-36 pt-8 sm:px-6 sm:pt-12">
-        {/* Hero */}
         <header className="mb-10 text-center animate-slide-up">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-white/70 shadow-soft ring-1 ring-white/80 backdrop-blur-md dark:bg-gray-900/70 dark:ring-white/10">
             <img src={adaptbuddyLogo} alt="" className="h-11 w-11 object-contain" />
@@ -145,7 +153,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
 
           <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-adapt-indigo/20 bg-white/60 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-adapt-indigo backdrop-blur-sm dark:border-adapt-cyan/25 dark:bg-gray-900/60 dark:text-adapt-cyan sepia:border-amber-300/50 sepia:bg-amber-50/80 sepia:text-amber-900">
             <Sparkles className="h-3.5 w-3.5" aria-hidden />
-            Your learning galaxy
+            12 support profiles
           </p>
 
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-adapt-navy sm:text-4xl md:text-5xl dark:text-gray-100 sepia:text-amber-950">
@@ -156,22 +164,21 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-gray-300 sepia:text-amber-900/80 sm:text-lg">
-            There&apos;s no wrong answer here. Choose everything that feels like{' '}
-            <span className="font-semibold text-adapt-indigo dark:text-adapt-cyan">you</span>
-            — we&apos;ll gently shape your space around it.
+            Choose the main support profile you want to start with. We&apos;ll gently shape
+            your space around it.
           </p>
 
           <div className="mx-auto mt-6 flex max-w-md flex-col items-center gap-3">
             <div className="flex w-full items-center gap-3 rounded-2xl border border-white/60 bg-white/50 px-4 py-3 backdrop-blur-md dark:border-white/10 dark:bg-gray-900/50 sepia:border-amber-200/60 sepia:bg-amber-50/70">
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-adapt-indigo to-adapt-teal text-sm font-bold text-white shadow-md"
-                aria-label={`${selected.length} of ${NEURO_OPTIONS.length} selected`}
+                aria-label={`${selectedProfileId ? 1 : 0} of 1 selected`}
               >
-                {selected.length}
+                {selectedProfileId ? 1 : 0}
               </div>
               <div className="min-w-0 text-left">
                 <p className="text-sm font-semibold text-adapt-navy dark:text-gray-100">
-                  {selected.length} of {NEURO_OPTIONS.length} picked
+                  {selectedProfileId ? 1 : 0} of 1 picked
                 </p>
                 <p className="text-xs text-slate-500 dark:text-gray-400">{encouragement}</p>
               </div>
@@ -179,23 +186,22 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
           </div>
         </header>
 
-        {/* Card grid */}
         <div
           className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-slide-up delay-100"
-          role="group"
-          aria-label="Neurotype options — select all that apply"
+          role="radiogroup"
+          aria-label="Support profile options"
         >
           {NEURO_OPTIONS.map((option) => {
-            const isSelected = selected.includes(option.id);
+            const isSelected = selectedProfileId === option.id;
             const accent = CARD_ACCENTS[option.id] ?? defaultAccent;
             const IconComponent = option.icon;
-            const displayName = option.name.replace(/^[^\s]+\s/, '');
 
             return (
               <button
                 key={option.id}
                 type="button"
-                aria-pressed={isSelected}
+                role="radio"
+                aria-checked={isSelected}
                 onClick={() => toggleSelection(option.id)}
                 className={`group relative flex flex-col rounded-3xl border-2 p-5 text-left transition-all duration-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-adapt-indigo/30 ${
                   isSelected
@@ -219,7 +225,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
                   </div>
                   <div className="min-w-0 pt-0.5">
                     <p className="text-lg font-bold leading-tight text-adapt-navy dark:text-gray-100">
-                      {displayName}
+                      {option.name}
                     </p>
                     <span
                       className={`mt-1.5 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${accent.chip}`}
@@ -244,7 +250,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
                     {isSelected ? (
                       <span className="inline-flex items-center gap-1 font-medium">
                         <Star className="h-3 w-3 fill-current" aria-hidden />
-                        Added to your galaxy
+                        Selected as your starting profile
                       </span>
                     ) : (
                       option.longDescription
@@ -256,7 +262,6 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
           })}
         </div>
 
-        {/* Constellation summary */}
         <section
           className="mt-10 animate-slide-up delay-200 rounded-4xl border border-white/60 bg-white/50 p-6 backdrop-blur-xl dark:border-white/10 dark:bg-gray-900/45 sepia:border-amber-200/55 sepia:bg-amber-50/55"
           aria-live="polite"
@@ -264,7 +269,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
           <div className="mb-4 flex items-center gap-2">
             <Wand2 className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
             <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">
-              Your learning constellation
+              Your learning profile
             </h2>
           </div>
 
@@ -281,7 +286,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
                     aria-label={`Remove ${o.name}`}
                   >
                     {o.name}
-                    <span className="text-xs opacity-60">×</span>
+                    <span className="text-xs opacity-60">x</span>
                   </button>
                 );
               })}
@@ -289,38 +294,37 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
           ) : (
             <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-gray-400">
               <Heart className="h-4 w-4 text-pink-400" aria-hidden />
-              Your picks will glow here like little stars…
+              Your chosen profile will appear here.
             </p>
           )}
         </section>
 
         <p className="mt-8 text-center text-xs text-slate-400 dark:text-gray-500">
-          🔒 Private & safe · ♿ Built for every brain · 🌈 You can change this anytime in Settings
+          Private & safe · Built for every brain · You can change this anytime in Settings
         </p>
       </div>
 
-      {/* Sticky calm dock */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/50 bg-white/75 px-4 py-4 backdrop-blur-xl dark:border-gray-800 dark:bg-gray-950/85 sepia:border-amber-200/50 sepia:bg-amber-50/90">
         <div className="mx-auto flex max-w-3xl flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="hidden sm:block">
             <p className="text-sm font-semibold text-adapt-navy dark:text-gray-100">
-              {selected.length > 0 ? 'Ready when you are' : 'Pick at least one to continue'}
+              {selectedProfileId ? 'Ready when you are' : 'Pick one profile to continue'}
             </p>
             <p className="text-xs text-slate-500 dark:text-gray-400">
-              We&apos;ll save your choices to your profile
+              We&apos;ll save this starting profile to your account
             </p>
           </div>
 
           <button
             type="button"
             onClick={() => void onContinue(selected)}
-            disabled={selected.length === 0 || saving}
+            disabled={!selectedProfileId || saving}
             className="neuro-cta-shimmer inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-adapt-indigo via-adapt-purple to-adapt-teal px-8 py-4 text-base font-bold text-white shadow-[0_8px_32px_-8px_rgba(99,102,241,0.55)] transition hover:scale-[1.02] hover:shadow-[0_12px_40px_-8px_rgba(99,102,241,0.65)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 sm:w-auto"
           >
             {saving ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-                Creating your space…
+                Creating your space...
               </>
             ) : (
               <>

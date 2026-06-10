@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Sparkles, Shield, Accessibility } from 'lucide-react';
 import { ROUTES } from 'constants/routes';
 import { useAuth } from 'hooks/useAuth';
@@ -8,10 +8,11 @@ import TypingBuddyMessage from 'components/animations/TypingBuddyMessage';
 
 const HeroSection: React.FC = () => {
   const { setGuestMode } = useAuth();
+  const navigate = useNavigate();
 
   const handleDemo = () => {
     setGuestMode();
-    window.location.href = ROUTES.NEURO_SELECTOR;
+    navigate(ROUTES.NEURO_SELECTOR);
   };
 
   return (

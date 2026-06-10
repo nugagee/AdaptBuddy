@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
+import type {
+  AuthChangeEvent,
+  Session,
+  Subscription,
+  User,
+} from '@supabase/supabase-js';
 import type { AuthSessionState } from 'types/auth';
 import {
   getProfile,
@@ -21,8 +26,13 @@ import {
 } from 'services/supabase/authService';
 import { toAuthSessionState } from 'services/supabase/sessionUtils';
 
+const GUEST_MODE_KEY = 'adaptbuddy-guest-mode';
+
 /** Prevents onAuthStateChange from clearing auth mid-signup verify / sign-in */
 let completingAuthFlow = false;
+let authSubscription: Subscription | null = null;
+let initialSessionRequest: Promise<Session | null> | null = null;
+let authInitializeVersion = 0;
 
 interface AuthState {
   user: User | null;
@@ -57,9 +67,29 @@ const loadProfile = async (userId: string): Promise<Profile | null> => {
   }
 };
 
+const getInitialSession = () => {
+  if (!initialSessionRequest) {
+    initialSessionRequest = getSupabaseClient()
+      .auth
+      .getSession()
+      .then(({ data: { session } }) => session)
+      .catch((error) => {
+        console.warn('Failed to read initial Supabase session:', error);
+        return null;
+      })
+      .finally(() => {
+        initialSessionRequest = null;
+      });
+  }
+
+  return initialSessionRequest;
+};
+
 const applyAuthSession = async (session: Session) => {
   const profile =
     (await loadProfile(session.user.id)) ?? buildFallbackProfileFromUser(session.user);
+
+  localStorage.removeItem(GUEST_MODE_KEY);
 
   useAuthStore.setState({
     user: session.user,
@@ -70,16 +100,31 @@ const applyAuthSession = async (session: Session) => {
   });
 };
 
+const applySignedOutState = () => {
+  useChildSessionStore.getState().resetSession();
+  localStorage.removeItem(GUEST_MODE_KEY);
+  useAuthStore.setState({
+    user: null,
+    profile: null,
+    session: null,
+    loading: false,
+    isGuest: false,
+  });
+};
+
+const applyNoSessionState = () => {
+  useAuthStore.setState({
+    user: null,
+    profile: null,
+    session: null,
+    loading: false,
+    isGuest: localStorage.getItem(GUEST_MODE_KEY) === 'true',
+  });
+};
+
 const handleAuthStateChange = async (event: AuthChangeEvent, session: Session | null) => {
   if (event === 'SIGNED_OUT') {
-    useChildSessionStore.getState().resetSession();
-    useAuthStore.setState({
-      user: null,
-      profile: null,
-      session: null,
-      loading: false,
-      isGuest: false,
-    });
+    applySignedOutState();
     return;
   }
 
@@ -91,7 +136,7 @@ const handleAuthStateChange = async (event: AuthChangeEvent, session: Session | 
   }
 
   if (event === 'INITIAL_SESSION') {
-    useAuthStore.setState({ loading: false });
+    applyNoSessionState();
   }
 };
 
@@ -121,6 +166,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const profile =
         (await loadProfile(user.id)) ?? buildFallbackProfileFromUser(user);
+
+      localStorage.removeItem(GUEST_MODE_KEY);
 
       set({
         user,
@@ -171,6 +218,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Verification succeeded but no user was returned.');
       }
 
+      localStorage.removeItem(GUEST_MODE_KEY);
+
       const nextState: Pick<AuthState, 'user' | 'isGuest' | 'loading'> & {
         session?: AuthSessionState;
       } = {
@@ -201,7 +250,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ profile: buildFallbackProfile(details, userId) });
       }
 
-      // Password must not block routing — set after auth state is saved
+      // Password must not block routing - set after auth state is saved.
       void setSignupPassword(details.password);
     } finally {
       window.setTimeout(() => {
@@ -233,6 +282,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
 
     const { data: { session } } = await getSupabaseClient().auth.getSession();
+    localStorage.removeItem(GUEST_MODE_KEY);
     set({
       user: session?.user ?? null,
       profile,
@@ -265,15 +315,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     useChildSessionStore.getState().resetSession();
 
     if (!isSupabaseConfigured) {
-      set({ user: null, profile: null, session: null, isGuest: false });
+      applySignedOutState();
       return;
     }
     const { error } = await getSupabaseClient().auth.signOut();
     if (error) throw error;
-    set({ user: null, profile: null, session: null, isGuest: false });
+    applySignedOutState();
   },
 
   setGuestMode: () => {
+    localStorage.setItem(GUEST_MODE_KEY, 'true');
     set({ isGuest: true, user: null, profile: null, session: null, loading: false });
   },
 
@@ -295,31 +346,49 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: () => {
+    const version = authInitializeVersion + 1;
+    authInitializeVersion = version;
+
     if (!isSupabaseConfigured) {
-      set({ initialized: true, loading: false, user: null, profile: null, session: null });
+      set({
+        initialized: true,
+        loading: false,
+        user: null,
+        profile: null,
+        session: null,
+        isGuest: localStorage.getItem(GUEST_MODE_KEY) === 'true',
+      });
       return () => {
-        set({ initialized: false });
+        if (authInitializeVersion === version) set({ initialized: false });
       };
     }
 
     set({ initialized: true, loading: true });
 
-    getSupabaseClient().auth.getSession().then(({ data: { session } }) => {
+    getInitialSession().then((session) => {
+      if (authInitializeVersion !== version) return;
+
       if (session?.user) {
-        applyAuthSession(session);
+        void applyAuthSession(session);
       } else {
-        set({ loading: false });
+        applyNoSessionState();
       }
     });
 
-    const { data: { subscription } } = getSupabaseClient().auth.onAuthStateChange(
-      (event, session) => {
-        void handleAuthStateChange(event, session);
-      },
-    );
+    if (!authSubscription) {
+      const { data: { subscription } } = getSupabaseClient().auth.onAuthStateChange(
+        (event, session) => {
+          void handleAuthStateChange(event, session);
+        },
+      );
+
+      authSubscription = subscription;
+    }
 
     return () => {
-      subscription.unsubscribe();
+      if (authInitializeVersion !== version) return;
+      authSubscription?.unsubscribe();
+      authSubscription = null;
       set({ initialized: false });
     };
   },

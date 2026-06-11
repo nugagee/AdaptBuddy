@@ -1,9 +1,41 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  PenTool, Mic, Volume2, Save, Trash2, Download,
-  Type, Grid3X3, Palette, Eye, HelpCircle
+  Mic, Volume2, Save, Trash2, Download,
+  Grid3X3, Eye, HelpCircle
 } from 'lucide-react';
 import { useTheme } from 'hooks/useTheme';
+
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  0: {
+    transcript: string;
+  };
+};
+
+type SpeechRecognitionEventLike = Event & {
+  results: {
+    length: number;
+    [index: number]: SpeechRecognitionResultLike;
+  };
+};
+
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+type SpeechWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+};
 
 interface WritingPadProps {
   onSave?: (content: string) => void;
@@ -18,37 +50,84 @@ const WritingPad: React.FC<WritingPadProps> = ({
 }) => {
   const [content, setContent] = useState(initialContent);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingStatus, setRecordingStatus] = useState('');
   const [lineSpacing, setLineSpacing] = useState<'wide' | 'medium' | 'narrow'>('medium');
   const [showGuides, setShowGuides] = useState(true);
   const [overlayColor, setOverlayColor] = useState<'none' | 'yellow' | 'blue' | 'green'>('none');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recordingBaseContentRef = useRef('');
   const { theme } = useTheme();
 
   // Speech-to-text
-  const toggleRecording = () => {
-    if (!isRecording) {
-      // Start recording
-      const win: any = window as any;
-      if (win.SpeechRecognition || win.webkitSpeechRecognition) {
-        const SpeechRecognition: any = win.SpeechRecognition || win.webkitSpeechRecognition;
-        const recognition: any = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
+  const getSpeechRecognition = () => {
+    if (typeof window === 'undefined') return undefined;
+    const speechWindow = window as SpeechWindow;
+    return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+  };
 
-        recognition.onresult = (event: any) => {
-          const transcript = Array.from(event.results as any)
-            .map((result: any) => (result[0] && result[0].transcript) || '')
-            .join('');
-          setContent((prev) => prev + ' ' + transcript);
-        };
+  const stopRecording = () => {
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    setIsRecording(false);
+  };
 
-        recognition.start();
-        setIsRecording(true);
+  const startRecording = () => {
+    const SpeechRecognition = getSpeechRecognition();
+
+    if (!SpeechRecognition) {
+      setRecordingStatus('Voice typing is not available in this browser. You can still type normally.');
+      return;
+    }
+
+    stopRecording();
+
+    const recognition = new SpeechRecognition();
+    recordingBaseContentRef.current = content.trimEnd();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-GB';
+    recognition.onresult = (event) => {
+      let transcript = '';
+      for (let index = 0; index < event.results.length; index += 1) {
+        transcript += event.results[index][0].transcript;
       }
-    } else {
+
+      const baseContent = recordingBaseContentRef.current;
+      const nextContent = [baseContent, transcript.trim()].filter(Boolean).join(' ');
+      setContent(nextContent);
+      setRecordingStatus('Listening...');
+    };
+    recognition.onerror = () => {
+      setRecordingStatus('Voice typing could not hear clearly. Try again, or type your words.');
       setIsRecording(false);
+    };
+    recognition.onend = () => {
+      setIsRecording(false);
+      setRecordingStatus((current) => (current === 'Listening...' ? 'Voice typing paused.' : current));
+    };
+
+    recognitionRef.current = recognition;
+
+    try {
+      recognition.start();
+      setIsRecording(true);
+      setRecordingStatus('Listening...');
+      textareaRef.current?.focus();
+    } catch {
+      setRecordingStatus('Voice typing is already starting. Try again in a moment.');
     }
   };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  useEffect(() => () => stopRecording(), []);
 
   // Text-to-speech
   const speakContent = () => {
@@ -168,6 +247,18 @@ const WritingPad: React.FC<WritingPadProps> = ({
             </button>
           </div>
         </header>
+
+        {recordingStatus && (
+          <div
+            className={`mb-4 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+              isRecording
+                ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200'
+                : 'border-blue-100 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200'
+            }`}
+          >
+            {recordingStatus}
+          </div>
+        )}
 
         {/* Settings Bar */}
         <div className="mb-6 flex flex-wrap gap-4 p-4 bg-white dark:bg-gray-800 rounded-xl shadow">

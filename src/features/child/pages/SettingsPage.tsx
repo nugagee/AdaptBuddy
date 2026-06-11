@@ -1,18 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Camera, Check, Loader2, Save } from 'lucide-react';
+import { Camera, Check, Loader2, Plus, Save, ShieldCheck, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
-import { NEURO_OPTIONS } from 'constants/neuroOptions';
+import { NEURO_OPTION_MAP } from 'constants/neuroOptions';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
 import {
   updateUserProfile,
   uploadProfileAvatar,
 } from 'services/supabase/profileService';
+import type { Profile } from 'services/supabase/client';
+import { useTrustedAdultStore } from 'features/child/store/trustedAdultStore';
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { profile, user, setProfile } = useAuth();
+  const { profile, user, isGuest, setProfile } = useAuth();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -24,24 +26,54 @@ const SettingsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [adultName, setAdultName] = useState('');
+  const [adultRole, setAdultRole] = useState('');
+  const [adultEmail, setAdultEmail] = useState('');
+  const [adultPhone, setAdultPhone] = useState('');
+
+  const trustedAdults = useTrustedAdultStore((s) => s.trustedAdults);
+  const selectedTrustedAdultId = useTrustedAdultStore((s) => s.selectedTrustedAdultId);
+  const selectTrustedAdult = useTrustedAdultStore((s) => s.selectTrustedAdult);
+  const addTrustedAdult = useTrustedAdultStore((s) => s.addTrustedAdult);
+
+  const guestProfile = useMemo<Profile | null>(() => {
+    if (!isGuest) return null;
+    const now = new Date().toISOString();
+    return {
+      id: 'guest-child',
+      email: 'guest@adaptbuddy.local',
+      role: 'child',
+      first_name: 'Friend',
+      last_name: '',
+      full_name: 'Friend',
+      child_name: null,
+      avatar_url: null,
+      bio: null,
+      age: null,
+      neuro_types: ['autism'],
+      onboarding_completed: true,
+      email_verified_at: null,
+      created_at: now,
+      updated_at: now,
+    };
+  }, [isGuest]);
+
+  const activeProfile = profile ?? guestProfile;
 
   useEffect(() => {
-    if (!profile) return;
-    setFirstName(profile.first_name);
-    setLastName(profile.last_name);
-    setBio(profile.bio ?? '');
-    setAge(profile.age ? String(profile.age) : '');
-    setSelectedNeuro(profile.neuro_types ?? []);
-    setAvatarPreview(profile.avatar_url ?? null);
-  }, [profile]);
+    if (!activeProfile) return;
+    setFirstName(activeProfile.first_name);
+    setLastName(activeProfile.last_name);
+    setBio(activeProfile.bio ?? '');
+    setAge(activeProfile.age ? String(activeProfile.age) : '');
+    setSelectedNeuro(activeProfile.neuro_types ?? []);
+    setAvatarPreview(activeProfile.avatar_url ?? null);
+  }, [activeProfile]);
 
-  const email = profile?.email ?? user?.email ?? '';
-
-  const toggleNeuro = (id: string) => {
-    setSelectedNeuro((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    );
-  };
+  const email = activeProfile?.email ?? user?.email ?? '';
+  const chosenNeuroOptions = selectedNeuro
+    .map((id) => NEURO_OPTION_MAP[id])
+    .filter(Boolean);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -50,28 +82,83 @@ const SettingsPage: React.FC = () => {
     setAvatarPreview(URL.createObjectURL(file));
   };
 
+  const handleAddTrustedAdult = () => {
+    const name = adultName.trim();
+    const role = adultRole.trim();
+    const email = adultEmail.trim();
+    const phone = adultPhone.trim();
+
+    if (!name || !role) {
+      setError('Add a trusted adult name and role first.');
+      setSuccess('');
+      return;
+    }
+
+    if (!email || !phone) {
+      setError('Add both email and phone number for the trusted adult.');
+      setSuccess('');
+      return;
+    }
+
+    addTrustedAdult({
+      name,
+      role,
+      email,
+      phone,
+    });
+
+    setAdultName('');
+    setAdultRole('');
+    setAdultEmail('');
+    setAdultPhone('');
+    setError('');
+    setSuccess(`${name} has been added as a trusted adult.`);
+  };
+
   const dirty = useMemo(() => {
-    if (!profile) return false;
+    if (!activeProfile) return false;
     return (
-      firstName !== profile.first_name ||
-      lastName !== profile.last_name ||
-      bio !== (profile.bio ?? '') ||
-      age !== (profile.age ? String(profile.age) : '') ||
-      JSON.stringify(selectedNeuro) !== JSON.stringify(profile.neuro_types ?? []) ||
+      firstName !== activeProfile.first_name ||
+      lastName !== activeProfile.last_name ||
+      bio !== (activeProfile.bio ?? '') ||
+      age !== (activeProfile.age ? String(activeProfile.age) : '') ||
+      JSON.stringify(selectedNeuro) !== JSON.stringify(activeProfile.neuro_types ?? []) ||
       avatarFile !== null
     );
-  }, [profile, firstName, lastName, bio, age, selectedNeuro, avatarFile]);
+  }, [activeProfile, firstName, lastName, bio, age, selectedNeuro, avatarFile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.id || !profile) return;
+    if (!activeProfile) return;
 
     setSaving(true);
     setError('');
     setSuccess('');
 
     try {
-      let avatarUrl = profile.avatar_url ?? null;
+      let avatarUrl = activeProfile.avatar_url ?? null;
+
+      if (isGuest) {
+        const updated: Profile = {
+          ...activeProfile,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          full_name: `${firstName.trim()} ${lastName.trim()}`.trim() || 'Friend',
+          bio: bio.trim() || null,
+          age: age ? Number(age) : null,
+          neuro_types: selectedNeuro,
+          onboarding_completed: selectedNeuro.length > 0,
+          avatar_url: avatarUrl,
+          updated_at: new Date().toISOString(),
+        };
+
+        setProfile(updated);
+        setAvatarFile(null);
+        setSuccess('Your profile has been updated for this guest session.');
+        return;
+      }
+
+      if (!user?.id) return;
 
       if (avatarFile) {
         avatarUrl = await uploadProfileAvatar(user.id, avatarFile);
@@ -85,7 +172,7 @@ const SettingsPage: React.FC = () => {
         neuro_types: selectedNeuro,
         onboarding_completed: selectedNeuro.length > 0,
         avatar_url: avatarUrl,
-      }, profile);
+      }, activeProfile);
 
       setProfile(updated);
       setAvatarFile(null);
@@ -101,7 +188,7 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  if (!profile) {
+  if (!activeProfile) {
     return (
       <div className="min-h-screen bg-adapt-cloud dark:bg-gray-950">
         <ChildDashboardNavbar />
@@ -227,27 +314,172 @@ const SettingsPage: React.FC = () => {
           </section>
 
           <section className="rounded-3xl border border-white/70 bg-white/80 p-6 shadow-soft backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/70">
-            <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">Neuro selections</h2>
+            <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">My learning space</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
-              Update how AdaptBuddy personalizes your learning space.
+              This is the profile your space is built around.
             </p>
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {NEURO_OPTIONS.map((option) => {
-                const active = selectedNeuro.includes(option.id);
+            <div className="mt-4 space-y-3">
+              {chosenNeuroOptions.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <div
+                    key={option.id}
+                    className={`rounded-2xl border-2 p-4 ${option.colorClass} ring-2 ring-adapt-indigo/20`}
+                  >
+                    <div className="flex items-start gap-3">
+                      {Icon && (
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/80">
+                          <Icon className="h-5 w-5" aria-hidden />
+                        </span>
+                      )}
+                      <div>
+                        <p className="font-bold">{option.name}</p>
+                        {option.learningStyle && (
+                          <p className="mt-1 text-xs font-semibold">{option.learningStyle}</p>
+                        )}
+                        <p className="mt-2 text-sm">{option.longDescription ?? option.description}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {chosenNeuroOptions.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                  Your space has not been created yet.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-white/70 bg-white/80 p-6 shadow-soft backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/70">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-adapt-indigo/10 text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
+                <ShieldCheck className="h-5 w-5" aria-hidden />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">
+                  Trusted adult
+                </h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
+                  Choose who AdaptBuddy should help you reach when you need support.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {trustedAdults.map((adult) => {
+                const active = selectedTrustedAdultId === adult.id;
                 return (
                   <button
-                    key={option.id}
+                    key={adult.id}
                     type="button"
-                    onClick={() => toggleNeuro(option.id)}
-                    className={`rounded-2xl border-2 p-4 text-left transition ${option.colorClass} ${
-                      active ? 'ring-2 ring-adapt-indigo/40' : 'opacity-80 hover:opacity-100'
+                    onClick={() => {
+                      selectTrustedAdult(adult.id);
+                      setSuccess(`${adult.name} is now your trusted adult.`);
+                      setError('');
+                    }}
+                    className={`rounded-2xl border-2 p-4 text-left transition ${
+                      active
+                        ? 'border-adapt-indigo bg-adapt-indigo/5 ring-2 ring-adapt-indigo/20 dark:border-adapt-cyan dark:bg-adapt-cyan/10'
+                        : 'border-slate-100 bg-white hover:border-adapt-indigo/30 dark:border-gray-700 dark:bg-gray-800'
                     }`}
+                    aria-pressed={active}
                   >
-                    <p className="font-bold">{option.name}</p>
-                    <p className="mt-1 text-xs">{option.description}</p>
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-adapt-indigo to-adapt-teal text-sm font-bold text-white">
+                        {adult.name.charAt(0).toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-bold text-adapt-navy dark:text-gray-100">
+                          {adult.name}
+                        </span>
+                        <span className="mt-0.5 block text-sm text-slate-500 dark:text-gray-400">
+                          {adult.role}
+                        </span>
+                        {adult.contact && (
+                          <span className="mt-1 block text-xs text-slate-400">{adult.contact}</span>
+                        )}
+                        {adult.email && (
+                          <span className="mt-1 block text-xs text-slate-400">{adult.email}</span>
+                        )}
+                        {adult.phone && (
+                          <span className="mt-1 block text-xs text-slate-400">{adult.phone}</span>
+                        )}
+                      </span>
+                      {active && <Check className="h-5 w-5 text-adapt-teal" aria-hidden />}
+                    </div>
                   </button>
                 );
               })}
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-dashed border-adapt-indigo/25 bg-adapt-indigo/5 p-4 dark:border-adapt-cyan/25 dark:bg-adapt-cyan/5">
+              <div className="mb-4 flex items-center gap-2">
+                <UserRound className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+                <h3 className="font-bold text-adapt-navy dark:text-gray-100">
+                  Create a trusted adult
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="trusted-adult-name" className="mb-2 block text-sm font-medium text-slate-600 dark:text-gray-300">
+                    Name
+                  </label>
+                  <input
+                    id="trusted-adult-name"
+                    value={adultName}
+                    onChange={(e) => setAdultName(e.target.value)}
+                    placeholder="e.g. Mum, Dad, Aunty Sarah"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-800"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="trusted-adult-role" className="mb-2 block text-sm font-medium text-slate-600 dark:text-gray-300">
+                    Role
+                  </label>
+                  <input
+                    id="trusted-adult-role"
+                    value={adultRole}
+                    onChange={(e) => setAdultRole(e.target.value)}
+                    placeholder="e.g. Parent, teacher, therapist"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-800"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="trusted-adult-email" className="mb-2 block text-sm font-medium text-slate-600 dark:text-gray-300">
+                    Email
+                  </label>
+                  <input
+                    id="trusted-adult-email"
+                    type="email"
+                    value={adultEmail}
+                    onChange={(e) => setAdultEmail(e.target.value)}
+                    placeholder="adult@example.com"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-800"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="trusted-adult-phone" className="mb-2 block text-sm font-medium text-slate-600 dark:text-gray-300">
+                    Phone number
+                  </label>
+                  <input
+                    id="trusted-adult-phone"
+                    type="tel"
+                    value={adultPhone}
+                    onChange={(e) => setAdultPhone(e.target.value)}
+                    placeholder="+44 7000 000000"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-800"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddTrustedAdult}
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-bold text-adapt-indigo shadow-sm transition hover:bg-adapt-mist dark:bg-gray-800 dark:text-adapt-cyan"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                Add trusted adult
+              </button>
             </div>
           </section>
 

@@ -85,6 +85,11 @@ const LoginPage: React.FC = () => {
     navigate(demoRoutes[role]);
   };
 
+  const handleGuestEntry = () => {
+    setGuestMode();
+    navigate(ROUTES.NEURO_SELECTOR);
+  };
+
   return (
     <AuthBackground variant="login">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-8 sm:px-6 lg:px-8">
@@ -171,6 +176,16 @@ const LoginPage: React.FC = () => {
               >
                 Create an account
               </Link>
+              <span className="mx-2 text-slate-300" aria-hidden>
+                |
+              </span>
+              <button
+                type="button"
+                onClick={handleGuestEntry}
+                className="font-semibold text-adapt-indigo transition-colors hover:text-adapt-purple dark:text-adapt-cyan"
+              >
+                Enter as guest
+              </button>
             </p>
           </div>
         </div>

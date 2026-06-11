@@ -48,7 +48,7 @@ const HeroSection: React.FC = () => {
               onClick={handleDemo}
               className="rounded-full border-2 border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-adapt-navy transition hover:border-adapt-indigo/30 hover:bg-adapt-mist"
             >
-              Try a demo account
+              Enter as guest
             </button>
           </span>
 

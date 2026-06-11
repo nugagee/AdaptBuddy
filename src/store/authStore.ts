@@ -27,6 +27,7 @@ import {
 import { toAuthSessionState } from 'services/supabase/sessionUtils';
 
 const GUEST_MODE_KEY = 'adaptbuddy-guest-mode';
+const GUEST_PROFILE_KEY = 'adaptbuddy-guest-profile';
 
 /** Prevents onAuthStateChange from clearing auth mid-signup verify / sign-in */
 let completingAuthFlow = false;
@@ -85,11 +86,26 @@ const getInitialSession = () => {
   return initialSessionRequest;
 };
 
+const loadGuestProfile = (): Profile | null => {
+  try {
+    const raw = localStorage.getItem(GUEST_PROFILE_KEY);
+    return raw ? (JSON.parse(raw) as Profile) : null;
+  } catch {
+    localStorage.removeItem(GUEST_PROFILE_KEY);
+    return null;
+  }
+};
+
+const saveGuestProfile = (profile: Profile) => {
+  localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(profile));
+};
+
 const applyAuthSession = async (session: Session) => {
   const profile =
     (await loadProfile(session.user.id)) ?? buildFallbackProfileFromUser(session.user);
 
   localStorage.removeItem(GUEST_MODE_KEY);
+  localStorage.removeItem(GUEST_PROFILE_KEY);
 
   useAuthStore.setState({
     user: session.user,
@@ -103,6 +119,7 @@ const applyAuthSession = async (session: Session) => {
 const applySignedOutState = () => {
   useChildSessionStore.getState().resetSession();
   localStorage.removeItem(GUEST_MODE_KEY);
+  localStorage.removeItem(GUEST_PROFILE_KEY);
   useAuthStore.setState({
     user: null,
     profile: null,
@@ -113,12 +130,14 @@ const applySignedOutState = () => {
 };
 
 const applyNoSessionState = () => {
+  const isGuest = localStorage.getItem(GUEST_MODE_KEY) === 'true';
+
   useAuthStore.setState({
     user: null,
-    profile: null,
+    profile: isGuest ? loadGuestProfile() : null,
     session: null,
     loading: false,
-    isGuest: localStorage.getItem(GUEST_MODE_KEY) === 'true',
+    isGuest,
   });
 };
 
@@ -168,6 +187,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         (await loadProfile(user.id)) ?? buildFallbackProfileFromUser(user);
 
       localStorage.removeItem(GUEST_MODE_KEY);
+      localStorage.removeItem(GUEST_PROFILE_KEY);
 
       set({
         user,
@@ -219,6 +239,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       localStorage.removeItem(GUEST_MODE_KEY);
+      localStorage.removeItem(GUEST_PROFILE_KEY);
 
       const nextState: Pick<AuthState, 'user' | 'isGuest' | 'loading'> & {
         session?: AuthSessionState;
@@ -283,6 +304,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const { data: { session } } = await getSupabaseClient().auth.getSession();
     localStorage.removeItem(GUEST_MODE_KEY);
+    localStorage.removeItem(GUEST_PROFILE_KEY);
     set({
       user: session?.user ?? null,
       profile,
@@ -325,10 +347,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setGuestMode: () => {
     localStorage.setItem(GUEST_MODE_KEY, 'true');
-    set({ isGuest: true, user: null, profile: null, session: null, loading: false });
+    set({ isGuest: true, user: null, profile: loadGuestProfile(), session: null, loading: false });
   },
 
   setProfile: (profile) => {
+    if (get().isGuest) saveGuestProfile(profile);
     set({ profile });
   },
 
@@ -354,7 +377,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         initialized: true,
         loading: false,
         user: null,
-        profile: null,
+        profile: localStorage.getItem(GUEST_MODE_KEY) === 'true' ? loadGuestProfile() : null,
         session: null,
         isGuest: localStorage.getItem(GUEST_MODE_KEY) === 'true',
       });

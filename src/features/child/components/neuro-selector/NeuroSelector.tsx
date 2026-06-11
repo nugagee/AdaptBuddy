@@ -23,76 +23,100 @@ interface NeuroSelectorProps {
 
 const CARD_ACCENTS: Record<
   string,
-  { ring: string; icon: string; chip: string; glow: string }
+  { ring: string; border: string; surface: string; icon: string; chip: string; glow: string }
 > = {
   autism: {
     ring: 'ring-sky-400/50',
+    border: 'border-sky-300/80',
+    surface: 'from-sky-50/95 via-white/90 to-indigo-50/80 dark:from-sky-950/35 dark:via-gray-900/85 dark:to-indigo-950/30',
     icon: 'from-sky-400 to-indigo-500',
     chip: 'bg-sky-100 text-sky-900 dark:bg-sky-950/60 dark:text-sky-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(56,189,248,0.45)]',
   },
   adhd: {
     ring: 'ring-amber-400/50',
+    border: 'border-amber-300/80',
+    surface: 'from-amber-50/95 via-white/90 to-orange-50/80 dark:from-amber-950/35 dark:via-gray-900/85 dark:to-orange-950/30',
     icon: 'from-amber-400 to-orange-500',
     chip: 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(251,191,36,0.45)]',
   },
   dyslexia: {
     ring: 'ring-violet-400/50',
+    border: 'border-violet-300/80',
+    surface: 'from-violet-50/95 via-white/90 to-purple-50/80 dark:from-violet-950/35 dark:via-gray-900/85 dark:to-purple-950/30',
     icon: 'from-violet-400 to-purple-500',
     chip: 'bg-violet-100 text-violet-900 dark:bg-violet-950/60 dark:text-violet-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(167,139,250,0.45)]',
   },
   dysgraphia: {
     ring: 'ring-emerald-400/50',
+    border: 'border-emerald-300/80',
+    surface: 'from-emerald-50/95 via-white/90 to-teal-50/80 dark:from-emerald-950/35 dark:via-gray-900/85 dark:to-teal-950/30',
     icon: 'from-emerald-400 to-teal-500',
     chip: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(52,211,153,0.45)]',
   },
   dyscalculia: {
     ring: 'ring-rose-400/50',
+    border: 'border-rose-300/80',
+    surface: 'from-rose-50/95 via-white/90 to-red-50/80 dark:from-rose-950/35 dark:via-gray-900/85 dark:to-red-950/30',
     icon: 'from-rose-400 to-red-500',
     chip: 'bg-rose-100 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(251,113,133,0.45)]',
   },
   dyspraxia: {
     ring: 'ring-teal-400/50',
+    border: 'border-teal-300/80',
+    surface: 'from-teal-50/95 via-white/90 to-cyan-50/80 dark:from-teal-950/35 dark:via-gray-900/85 dark:to-cyan-950/30',
     icon: 'from-teal-400 to-cyan-500',
     chip: 'bg-teal-100 text-teal-900 dark:bg-teal-950/60 dark:text-teal-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(45,212,191,0.45)]',
   },
   tourettes: {
     ring: 'ring-purple-400/50',
+    border: 'border-purple-300/80',
+    surface: 'from-purple-50/95 via-white/90 to-violet-50/80 dark:from-purple-950/35 dark:via-gray-900/85 dark:to-violet-950/30',
     icon: 'from-purple-400 to-violet-600',
     chip: 'bg-purple-100 text-purple-900 dark:bg-purple-950/60 dark:text-purple-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(192,132,252,0.45)]',
   },
   'speech-language': {
     ring: 'ring-cyan-400/50',
+    border: 'border-cyan-300/80',
+    surface: 'from-cyan-50/95 via-white/90 to-blue-50/80 dark:from-cyan-950/35 dark:via-gray-900/85 dark:to-blue-950/30',
     icon: 'from-cyan-400 to-blue-500',
     chip: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-950/60 dark:text-cyan-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(34,211,238,0.45)]',
   },
   auditory: {
     ring: 'ring-indigo-400/50',
+    border: 'border-indigo-300/80',
+    surface: 'from-indigo-50/95 via-white/90 to-blue-50/80 dark:from-indigo-950/35 dark:via-gray-900/85 dark:to-blue-950/30',
     icon: 'from-indigo-400 to-blue-500',
     chip: 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(129,140,248,0.45)]',
   },
   spd: {
     ring: 'ring-pink-400/50',
+    border: 'border-pink-300/80',
+    surface: 'from-pink-50/95 via-white/90 to-fuchsia-50/80 dark:from-pink-950/35 dark:via-gray-900/85 dark:to-fuchsia-950/30',
     icon: 'from-pink-400 to-fuchsia-500',
     chip: 'bg-pink-100 text-pink-900 dark:bg-pink-950/60 dark:text-pink-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(244,114,182,0.45)]',
   },
   'visual-stress': {
     ring: 'ring-yellow-400/50',
+    border: 'border-yellow-300/80',
+    surface: 'from-yellow-50/95 via-white/90 to-amber-50/80 dark:from-yellow-950/35 dark:via-gray-900/85 dark:to-amber-950/30',
     icon: 'from-yellow-300 to-amber-500',
     chip: 'bg-yellow-100 text-yellow-900 dark:bg-yellow-950/60 dark:text-yellow-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(250,204,21,0.4)]',
   },
   'executive-function': {
     ring: 'ring-slate-400/50',
+    border: 'border-slate-300/80',
+    surface: 'from-slate-50/95 via-white/90 to-gray-100/80 dark:from-slate-900/70 dark:via-gray-900/85 dark:to-gray-800/80',
     icon: 'from-slate-500 to-gray-700',
     chip: 'bg-slate-100 text-slate-900 dark:bg-slate-900/80 dark:text-slate-200',
     glow: 'shadow-[0_8px_32px_-8px_rgba(100,116,139,0.45)]',
@@ -203,14 +227,23 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
                 role="radio"
                 aria-checked={isSelected}
                 onClick={() => toggleSelection(option.id)}
-                className={`group relative flex flex-col rounded-3xl border-2 p-5 text-left transition-all duration-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-adapt-indigo/30 ${
+                className={`neuro-profile-card group relative flex flex-col overflow-hidden rounded-3xl border-2 bg-gradient-to-br p-5 text-left transition-all duration-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-adapt-indigo/30 ${
                   isSelected
-                    ? `border-adapt-indigo/60 bg-white/90 ring-4 ${accent.ring} ${accent.glow} dark:border-adapt-cyan/50 dark:bg-gray-900/85 ${
+                    ? `${accent.border} ${accent.surface} ring-4 ${accent.ring} ${accent.glow} ${
                         !reducedMotion ? 'neuro-card-selected' : ''
                       }`
-                    : 'border-white/70 bg-white/55 hover:border-adapt-indigo/30 hover:bg-white/75 hover:shadow-lg dark:border-gray-700/80 dark:bg-gray-900/45 dark:hover:border-adapt-cyan/30 dark:hover:bg-gray-900/65 sepia:border-amber-200/70 sepia:bg-amber-50/60'
+                    : `${accent.border} ${accent.surface} opacity-90 hover:opacity-100 hover:shadow-xl dark:border-opacity-50 sepia:border-amber-200/70 sepia:from-amber-50/90 sepia:via-white/80 sepia:to-orange-50/60`
                 }`}
               >
+                <span
+                  className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 ${
+                    isSelected ? 'opacity-100' : ''
+                  }`}
+                  aria-hidden
+                >
+                  <span className="neuro-card-sheen absolute -left-1/2 top-0 h-full w-1/2 rotate-12 bg-white/35 blur-xl" />
+                </span>
+
                 {isSelected && (
                   <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-md">
                     <Check className="h-4 w-4" strokeWidth={3} aria-hidden />

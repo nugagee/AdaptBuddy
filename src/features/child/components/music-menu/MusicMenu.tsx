@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Music, Volume2, VolumeX, Play, Pause, 
-  Waves, Cloud, Wind, Moon, Sun, Coffee,
-  Heart, Bell, SkipForward, SkipBack
+  Waves, Cloud, Wind, Sun,
 } from 'lucide-react';
 import { useTheme } from 'hooks/useTheme';
 
@@ -14,14 +13,15 @@ interface SoundTrack {
   duration: string;
   description: string;
   suitableFor: string[];
+  src: string;
 }
 
 const MusicMenu: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTrack, setCurrentTrack] = useState<string | null>(null);
   const [volume, setVolume] = useState(50);
+  const [playbackError, setPlaybackError] = useState('');
   const [showVisualizer, setShowVisualizer] = useState(true);
-  const [timer, setTimer] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { theme } = useTheme();
@@ -35,7 +35,8 @@ const MusicMenu: React.FC = () => {
       color: 'blue',
       duration: '∞ Loop',
       description: 'Calming rain sounds for focus and relaxation',
-      suitableFor: ['spd', 'anxiety', 'adhd']
+      suitableFor: ['spd', 'anxiety', 'adhd'],
+      src: '/music/rain.mp3',
     },
     {
       id: 'ocean',
@@ -44,7 +45,8 @@ const MusicMenu: React.FC = () => {
       color: 'teal',
       duration: '∞ Loop',
       description: 'Soothing waves crashing on shore',
-      suitableFor: ['spd', 'autism', 'sleep']
+      suitableFor: ['spd', 'autism', 'sleep'],
+      src: '/music/ocean.mp3',
     },
     {
       id: 'forest',
@@ -53,7 +55,8 @@ const MusicMenu: React.FC = () => {
       color: 'green',
       duration: '∞ Loop',
       description: 'Gentle forest sounds with crickets',
-      suitableFor: ['anxiety', 'adhd', 'relaxation']
+      suitableFor: ['anxiety', 'adhd', 'relaxation'],
+      src: '/music/forest.mp3',
     },
     {
       id: 'lofi',
@@ -62,7 +65,8 @@ const MusicMenu: React.FC = () => {
       color: 'purple',
       duration: '∞ Loop',
       description: 'Calm study beats for focus',
-      suitableFor: ['adhd', 'dyslexia', 'study']
+      suitableFor: ['adhd', 'dyslexia', 'study'],
+      src: '/music/lofi.mp3',
     },
     {
       id: 'white-noise',
@@ -71,7 +75,8 @@ const MusicMenu: React.FC = () => {
       color: 'gray',
       duration: '∞ Loop',
       description: 'Consistent sound for sensory blocking',
-      suitableFor: ['spd', 'autism', 'sleep']
+      suitableFor: ['spd', 'autism', 'sleep'],
+      src: '/music/meditation.mp3',
     },
     {
       id: 'morning',
@@ -80,9 +85,13 @@ const MusicMenu: React.FC = () => {
       color: 'yellow',
       duration: '∞ Loop',
       description: 'Gentle birdsong for morning calm',
-      suitableFor: ['morning', 'anxiety']
+      suitableFor: ['morning', 'anxiety'],
+      src: '/music/forest.mp3',
     }
   ];
+
+  const getTrackById = (trackId: string | null) =>
+    soundTracks.find((track) => track.id === trackId);
 
   // Check if user has SPD for recommendation
   useEffect(() => {
@@ -101,26 +110,80 @@ const MusicMenu: React.FC = () => {
     }
   }, []);
 
-  // Simulate audio playback (in real app, connect to actual audio files)
-  const togglePlay = (trackId: string) => {
-    if (currentTrack === trackId && isPlaying) {
-      setIsPlaying(false);
-      // In real app: audioRef.current?.pause();
-    } else {
-      setCurrentTrack(trackId);
+  const playTrack = async (track: SoundTrack) => {
+    setPlaybackError('');
+
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.loop = true;
+      audioRef.current.preload = 'auto';
+      audioRef.current.addEventListener('ended', () => setIsPlaying(false));
+      audioRef.current.addEventListener('error', () => {
+        setIsPlaying(false);
+        setPlaybackError('This sound could not load. Please try another calming sound.');
+      });
+    }
+
+    const audio = audioRef.current;
+    const sourceChanged = audio.src !== new URL(track.src, window.location.origin).href;
+
+    if (sourceChanged) {
+      audio.pause();
+      audio.src = track.src;
+      audio.load();
+    }
+
+    audio.volume = Math.min(1, Math.max(0, volume / 100));
+
+    try {
+      await audio.play();
+      setCurrentTrack(track.id);
       setIsPlaying(true);
-      // In real app: audioRef.current = new Audio(`/sounds/${trackId}.mp3`);
-      // audioRef.current?.play();
+    } catch {
+      setIsPlaying(false);
+      setPlaybackError('Tap the play button again if your browser blocked the sound.');
     }
   };
 
+  const pauseTrack = () => {
+    audioRef.current?.pause();
+    setIsPlaying(false);
+  };
+
+  const togglePlay = (trackId: string) => {
+    const track = getTrackById(trackId);
+    if (!track) return;
+
+    if (currentTrack === trackId && isPlaying) {
+      pauseTrack();
+      return;
+    }
+
+    void playTrack(track);
+  };
+
   const stopAll = () => {
+    audioRef.current?.pause();
+    if (audioRef.current) audioRef.current.currentTime = 0;
     setIsPlaying(false);
     setCurrentTrack(null);
   };
 
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = Math.min(1, Math.max(0, volume / 100));
+    }
+  }, [volume]);
+
+  useEffect(
+    () => () => {
+      audioRef.current?.pause();
+      audioRef.current = null;
+    },
+    [],
+  );
+
   const startTimer = (minutes: number) => {
-    setTimer(minutes);
     setTimeRemaining(minutes * 60);
   };
 
@@ -129,7 +192,6 @@ const MusicMenu: React.FC = () => {
     if (timeRemaining === null || timeRemaining <= 0) {
       if (timeRemaining === 0) {
         stopAll();
-        setTimer(null);
       }
       return;
     }
@@ -184,7 +246,7 @@ const MusicMenu: React.FC = () => {
               30 min
             </button>
             <button 
-              onClick={() => setTimer(null)}
+              onClick={() => setTimeRemaining(null)}
               className="px-4 py-2 bg-white/80 dark:bg-gray-800 rounded-full text-sm shadow-sm hover:scale-105 transition"
             >
               No timer
@@ -219,8 +281,16 @@ const MusicMenu: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => setIsPlaying(!isPlaying)}
+                <button
+                  onClick={() => {
+                    const activeTrack = getTrackById(currentTrack);
+                    if (!activeTrack) return;
+                    if (isPlaying) {
+                      pauseTrack();
+                    } else {
+                      void playTrack(activeTrack);
+                    }
+                  }}
                   className="w-12 h-12 rounded-full bg-purple-600 text-white flex items-center justify-center hover:scale-110 transition"
                 >
                   {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
@@ -233,6 +303,12 @@ const MusicMenu: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {playbackError && (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+            {playbackError}
           </div>
         )}
 

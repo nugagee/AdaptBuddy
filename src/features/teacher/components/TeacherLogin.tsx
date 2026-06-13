@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // ✅ IMPORT useNavigate
+import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, School, Eye, EyeOff } from 'lucide-react';
 import { useTheme } from 'hooks/useTheme';
+import { ROUTES } from 'constants/routes';
 
 const TeacherLogin: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -132,9 +133,12 @@ const TeacherLogin: React.FC = () => {
               />
               <span className="text-sm text-gray-600 dark:text-gray-400">Remember me</span>
             </label>
-            <button type="button" className="text-sm text-neuro-blue hover:underline">
+            <Link
+              to={ROUTES.FORGOT_PASSWORD}
+              className="text-sm text-neuro-blue hover:underline"
+            >
               Forgot password?
-            </button>
+            </Link>
           </div>
 
           {/* Login Button */}

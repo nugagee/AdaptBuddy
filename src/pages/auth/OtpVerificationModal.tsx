@@ -14,6 +14,10 @@ interface OtpVerificationModalProps {
   onClose: () => void;
   onVerify: (otp: string) => void;
   onResend: () => void;
+  title?: string;
+  description?: React.ReactNode;
+  submitLabel?: string;
+  verifyingLabel?: string;
 }
 
 const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
@@ -24,6 +28,10 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
   onClose,
   onVerify,
   onResend,
+  title = 'Verify your email',
+  description,
+  submitLabel = 'Verify & create account',
+  verifyingLabel = 'Verifying…',
 }) => {
   const [digits, setDigits] = useState<string[]>(() => Array(OTP_LENGTH).fill(''));
   const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_SEC);
@@ -134,19 +142,23 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
             id="otp-modal-title"
             className="text-xl font-bold text-adapt-navy dark:text-gray-100"
           >
-            Verify your email
+            {title}
           </h2>
           <p className="mt-2 text-sm text-slate-600 dark:text-gray-400">
-            We sent an 8-digit code to{' '}
-            <span className="font-semibold text-adapt-navy dark:text-gray-200">{email}</span>
+            {description ?? (
+              <>
+                We sent a {OTP_LENGTH}-digit code to{' '}
+                <span className="font-semibold text-adapt-navy dark:text-gray-200">{email}</span>
+              </>
+            )}
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
           <fieldset disabled={loading}>
-            <legend className="sr-only">Enter 8-digit verification code</legend>
+            <legend className="sr-only">Enter {OTP_LENGTH}-digit verification code</legend>
             <div
-              className="mb-6 grid grid-cols-8 gap-1 sm:gap-1.5"
+              className="mb-6 grid grid-cols-6 gap-1.5 sm:gap-2"
               onPaste={handlePaste}
             >
               {digits.map((digit, index) => (
@@ -183,10 +195,10 @@ const OtpVerificationModal: React.FC<OtpVerificationModalProps> = ({
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                Verifying…
+                {verifyingLabel}
               </>
             ) : (
-              'Verify & create account'
+              submitLabel
             )}
           </button>
         </form>

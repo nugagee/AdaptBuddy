@@ -162,6 +162,14 @@ const LoginPage: React.FC = () => {
                 required
                 autoComplete="current-password"
               />
+              <div className="flex justify-end">
+                <Link
+                  to={ROUTES.FORGOT_PASSWORD}
+                  className="text-sm font-medium text-adapt-indigo transition hover:text-adapt-purple dark:text-adapt-cyan"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <button type="submit" disabled={loading} className={authPrimaryBtnClass}>
                 {loading ? 'Signing in…' : 'Sign in'}
                 {!loading && <ArrowRight className="h-4 w-4" aria-hidden />}

@@ -243,6 +243,16 @@ export function useAudioPlayer({
     void attemptPlay();
   }, [playing, error, attemptPlay, retryStream]);
 
+  const pausePlayback = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || !readyRef.current) return;
+    audio.pause();
+  }, []);
+
+  const resumePlayback = useCallback(async (): Promise<boolean> => {
+    return attemptPlay();
+  }, [attemptPlay]);
+
   const seekBy = useCallback(
     (delta: number) => {
       const audio = audioRef.current;
@@ -320,6 +330,8 @@ export function useAudioPlayer({
     isMobile: isMobileMusicContext(),
     retryStream,
     togglePlay,
+    pausePlayback,
+    resumePlayback,
     rewind,
     fastForward,
     seekTo,

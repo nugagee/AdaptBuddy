@@ -7,6 +7,10 @@ export interface MusicPlayerContextValue extends YouTubePlayerApi {
   expanded: boolean;
   expandPlayer: () => void;
   collapsePlayer: () => void;
+  /** True while /music soundscape has taken over playback */
+  soundscapeOverrideActive: boolean;
+  beginSoundscapeOverride: () => void;
+  endSoundscapeOverride: () => void;
 }
 
 export const MusicPlayerContext = createContext<MusicPlayerContextValue | null>(null);

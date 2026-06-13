@@ -4,6 +4,7 @@ export const ROUTES = {
   NEURO_SELECTOR: '/neuro-selector',
   LOGIN: '/login',
   SIGNUP: '/signup',
+  FORGOT_PASSWORD: '/forgot-password',
   CHILD_DASHBOARD: '/dashboard',
   AUTISM_SPACE: '/autism-space',
   CHILD_SETTINGS: '/settings',

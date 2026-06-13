@@ -32,6 +32,25 @@
   }
 }
 
+@keyframes neuro-card-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes neuro-sheen-pass {
+  0% {
+    transform: translateX(-140%) rotate(12deg);
+  }
+  100% {
+    transform: translateX(360%) rotate(12deg);
+  }
+}
+
 .neuro-ambient-blob {
   animation: neuro-breathe 18s ease-in-out infinite;
 }
@@ -44,6 +63,15 @@
   animation: neuro-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
+.neuro-profile-card:hover {
+  animation: neuro-card-drift 2.8s ease-in-out infinite;
+}
+
+.neuro-profile-card:hover .neuro-card-sheen,
+.neuro-card-selected .neuro-card-sheen {
+  animation: neuro-sheen-pass 1.8s ease-in-out;
+}
+
 .neuro-cta-shimmer {
   background-size: 200% 200%;
   animation: neuro-shimmer 6s ease infinite;
@@ -52,6 +80,8 @@
 @media (prefers-reduced-motion: reduce) {
   .neuro-ambient-blob,
   .neuro-ambient-blob-delayed,
+  .neuro-profile-card:hover,
+  .neuro-card-sheen,
   .neuro-card-selected,
   .neuro-cta-shimmer {
     animation: none;

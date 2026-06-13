@@ -183,6 +183,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'focus',
     icon: LayoutGrid,
     inspiration: 'Visual schedules reduce anxiety (UDL / Tiimo-style)',
+    route: ROUTES.AUTISM_SPACE,
     starsReward: 3,
   },
   {
@@ -194,6 +195,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'social',
     icon: BookOpen,
     inspiration: 'Carol Gray social stories framework',
+    route: ROUTES.AUTISM_SPACE,
     starsReward: 4,
   },
   {
@@ -205,7 +207,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'regulation',
     icon: Wind,
     inspiration: 'Calm Corner regulation (Vedyx-style)',
-    action: 'music',
+    route: ROUTES.AUTISM_SPACE,
     starsReward: 2,
   },
   {
@@ -217,6 +219,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'focus',
     icon: Brain,
     inspiration: 'Structured visual learning paths',
+    route: ROUTES.AUTISM_SPACE,
     starsReward: 3,
   },
 

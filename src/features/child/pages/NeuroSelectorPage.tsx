@@ -7,11 +7,37 @@ import { saveNeuroSelection } from 'services/supabase/profileService';
 
 const NeuroSelectorPage: React.FC = () => {
   const navigate = useNavigate();
-  const { profile, user, setProfile } = useAuth();
+  const { profile, user, isGuest, setProfile } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const handleContinue = async (selected: string[]) => {
+    if (isGuest) {
+      const now = new Date().toISOString();
+      setProfile({
+        id: 'guest-child',
+        email: 'guest@adaptbuddy.local',
+        role: 'child',
+        first_name: profile?.first_name || 'Friend',
+        last_name: profile?.last_name || '',
+        full_name: profile?.full_name || 'Friend',
+        child_name: profile?.child_name ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+        bio: profile?.bio ?? null,
+        age: profile?.age ?? null,
+        neuro_types: selected,
+        onboarding_completed: true,
+        email_verified_at: null,
+        created_at: profile?.created_at || now,
+        updated_at: now,
+      });
+      navigate(ROUTES.CHILD_DASHBOARD, {
+        replace: true,
+        state: { message: 'Your space is ready to explore.' },
+      });
+      return;
+    }
+
     if (!user?.id) {
       setError('You need to be signed in to continue. Please log in and try again.');
       return;

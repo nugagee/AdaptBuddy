@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Sparkles, Shield, Accessibility } from 'lucide-react';
 import { ROUTES } from 'constants/routes';
 import { useAuth } from 'hooks/useAuth';
@@ -8,10 +8,11 @@ import TypingBuddyMessage from 'components/animations/TypingBuddyMessage';
 
 const HeroSection: React.FC = () => {
   const { setGuestMode } = useAuth();
+  const navigate = useNavigate();
 
   const handleDemo = () => {
     setGuestMode();
-    window.location.href = ROUTES.NEURO_SELECTOR;
+    navigate(ROUTES.NEURO_SELECTOR);
   };
 
   return (
@@ -47,7 +48,7 @@ const HeroSection: React.FC = () => {
               onClick={handleDemo}
               className="rounded-full border-2 border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-adapt-navy transition hover:border-adapt-indigo/30 hover:bg-adapt-mist"
             >
-              Try a demo account
+              Enter as guest
             </button>
           </span>
 

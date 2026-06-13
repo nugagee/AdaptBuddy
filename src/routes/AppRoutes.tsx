@@ -7,6 +7,7 @@ import ChildOnboardedRoute from 'features/child/components/layout/ChildOnboarded
 import LandingPage from 'pages/LandingPage';
 import NeuroSelectorPage from 'features/child/pages/NeuroSelectorPage';
 import ChildDashboardPage from 'features/child/pages/ChildDashboardPage';
+import AutismSpacePage from 'features/child/pages/AutismSpacePage';
 import SettingsPage from 'features/child/pages/SettingsPage';
 import WritingPad from 'features/child/components/writing-pad/WritingPad';
 import ParentHubPage from 'features/parent/pages/ParentHubPage';
@@ -36,6 +37,7 @@ const AppRoutes: React.FC = () => (
     <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
     <Route path={ROUTES.NEURO_SELECTOR} element={withAuth(<NeuroSelectorPage />)} />
     <Route path={ROUTES.CHILD_DASHBOARD} element={withChildAuth(<ChildDashboardPage />)} />
+    <Route path={ROUTES.AUTISM_SPACE} element={withChildAuth(<AutismSpacePage />)} />
     <Route path={ROUTES.CHILD_SETTINGS} element={withChildAuth(<SettingsPage />)} />
     <Route path={ROUTES.WRITING_PAD} element={withChildAuth(<WritingPad />)} />
     <Route path={ROUTES.PARENT_HUB} element={withAuth(<ParentHubPage />)} />

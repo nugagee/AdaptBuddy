@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { LockFunc } from '@supabase/auth-js';
 
 // Types
 export type UserRole = 'child' | 'parent' | 'teacher';
@@ -47,6 +48,23 @@ const supabaseEnv = resolveSupabaseEnv();
 export const isSupabaseConfigured = supabaseEnv !== null;
 
 let supabaseInstance: SupabaseClient | null = null;
+let supabaseAuthLock = Promise.resolve();
+
+const inAppAuthLock: LockFunc = async (_name, _acquireTimeout, fn) => {
+  const previous = supabaseAuthLock;
+  let release: () => void;
+  supabaseAuthLock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await previous;
+
+  try {
+    return await fn();
+  } finally {
+    release!();
+  }
+};
 
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseEnv) {
@@ -55,7 +73,11 @@ export function getSupabaseClient(): SupabaseClient {
     );
   }
   if (!supabaseInstance) {
-    supabaseInstance = createClient(supabaseEnv.url, supabaseEnv.key);
+    supabaseInstance = createClient(supabaseEnv.url, supabaseEnv.key, {
+      auth: {
+        lock: inAppAuthLock,
+      },
+    });
   }
   return supabaseInstance;
 }

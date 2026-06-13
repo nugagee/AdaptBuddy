@@ -37,7 +37,10 @@ const ChildDashboardPage: React.FC = () => {
   const completions = useChildProgressStore((s) => s.completions);
 
   const firstName = profile?.first_name || 'Friend';
-  const neuroTypes = profile?.neuro_types?.length ? profile.neuro_types : ['autism', 'adhd'];
+  const neuroTypes = useMemo(
+    () => (profile?.neuro_types?.length ? profile.neuro_types : ['autism']),
+    [profile?.neuro_types],
+  );
   const dailyActivities = useMemo(() => getActivitiesForNeuros(neuroTypes), [neuroTypes]);
   const welcomeMessage = (location.state as { message?: string } | null)?.message;
 

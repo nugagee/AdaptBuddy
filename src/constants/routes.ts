@@ -5,6 +5,7 @@ export const ROUTES = {
   LOGIN: '/login',
   SIGNUP: '/signup',
   CHILD_DASHBOARD: '/dashboard',
+  AUTISM_SPACE: '/autism-space',
   CHILD_SETTINGS: '/settings',
   WRITING_PAD: '/writing-pad',
   PARENT_HUB: '/parent-hub',

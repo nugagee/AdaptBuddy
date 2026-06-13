@@ -7,6 +7,7 @@ import { getPostSignupRoute, getRouteForUser, type SignupDetails } from 'service
 import { useAuthStore } from 'store/authStore';
 import { ROUTES } from 'constants/routes';
 import { toAuthErrorMessage } from 'services/supabase/authErrors';
+import { isPasswordValid } from 'utils/passwordValidation';
 import AuthBackground, { AuthLogo } from 'pages/auth/AuthBackground';
 import PasswordRequirements from 'pages/auth/PasswordRequirements';
 import OtpVerificationModal from 'pages/auth/OtpVerificationModal';

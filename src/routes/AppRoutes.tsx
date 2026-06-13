@@ -20,6 +20,7 @@ import Reports from 'features/teacher/components/Reports';
 import Settings from 'features/teacher/components/Settings';
 import LoginPage from 'pages/LoginPage';
 import SignupPage from 'pages/SignupPage';
+import ForgotPasswordPage from 'pages/ForgotPasswordPage';
 
 const withAuth = (page: React.ReactNode) => (
   <ProtectedRoute>
@@ -35,6 +36,7 @@ const AppRoutes: React.FC = () => (
     <Route path={ROUTES.HOME} element={<LandingPage />} />
     <Route path={ROUTES.LOGIN} element={<LoginPage />} />
     <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
+    <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
     <Route path={ROUTES.NEURO_SELECTOR} element={withAuth(<NeuroSelectorPage />)} />
     <Route path={ROUTES.CHILD_DASHBOARD} element={withChildAuth(<ChildDashboardPage />)} />
     <Route path={ROUTES.AUTISM_SPACE} element={withChildAuth(<AutismSpacePage />)} />

@@ -22,6 +22,10 @@ import {
   setSignupPassword,
   buildFallbackProfile,
   buildFallbackProfileFromUser,
+  requestPasswordResetOtp,
+  verifyPasswordResetOtp,
+  resendPasswordResetOtp,
+  updatePasswordAfterReset,
   type SignupDetails,
 } from 'services/supabase/authService';
 import { toAuthSessionState } from 'services/supabase/sessionUtils';
@@ -51,6 +55,11 @@ interface AuthState {
   saveSignupProfile: (details: SignupDetails, userId: string) => Promise<Profile>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  verifyPasswordReset: (email: string, otp: string) => Promise<void>;
+  resendPasswordReset: (email: string) => Promise<void>;
+  completePasswordReset: (newPassword: string) => Promise<User>;
+  /** @deprecated Use requestPasswordReset — kept for legacy modal */
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   setGuestMode: () => void;
@@ -326,11 +335,90 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (error) throw error;
   },
 
+  requestPasswordReset: async (email) => {
+    if (!isSupabaseConfigured) {
+      throw new Error('Authentication is not configured on this deployment.');
+    }
+    await requestPasswordResetOtp(email);
+  },
+
+  verifyPasswordReset: async (email, otp) => {
+    if (!isSupabaseConfigured) {
+      throw new Error('Authentication is not configured on this deployment.');
+    }
+
+    completingAuthFlow = true;
+    try {
+      const { session, user } = await verifyPasswordResetOtp(email, otp);
+      const authUser = user ?? session?.user;
+
+      if (!authUser) {
+        throw new Error('Verification succeeded but no user was returned.');
+      }
+
+      localStorage.removeItem(GUEST_MODE_KEY);
+      localStorage.removeItem(GUEST_PROFILE_KEY);
+
+      set({
+        user: authUser,
+        session: session ? toAuthSessionState(session) : null,
+        isGuest: false,
+        loading: false,
+      });
+    } finally {
+      window.setTimeout(() => {
+        completingAuthFlow = false;
+      }, 300);
+    }
+  },
+
+  resendPasswordReset: async (email) => {
+    if (!isSupabaseConfigured) {
+      throw new Error('Authentication is not configured on this deployment.');
+    }
+    await resendPasswordResetOtp(email);
+  },
+
+  completePasswordReset: async (newPassword) => {
+    if (!isSupabaseConfigured) {
+      throw new Error('Authentication is not configured on this deployment.');
+    }
+
+    completingAuthFlow = true;
+    try {
+      await updatePasswordAfterReset(newPassword);
+
+      const { data: { session } } = await getSupabaseClient().auth.getSession();
+      const user = session?.user;
+
+      if (!user) {
+        throw new Error('Password updated but no session was found. Please sign in.');
+      }
+
+      const profile =
+        (await loadProfile(user.id)) ?? buildFallbackProfileFromUser(user);
+
+      localStorage.removeItem(GUEST_MODE_KEY);
+      localStorage.removeItem(GUEST_PROFILE_KEY);
+
+      set({
+        user,
+        profile,
+        session: session ? toAuthSessionState(session) : null,
+        isGuest: false,
+        loading: false,
+      });
+
+      return user;
+    } finally {
+      window.setTimeout(() => {
+        completingAuthFlow = false;
+      }, 300);
+    }
+  },
+
   resetPassword: async (email) => {
-    const { error } = await getSupabaseClient().auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    if (error) throw error;
+    await get().requestPasswordReset(email);
   },
 
   signOut: async () => {

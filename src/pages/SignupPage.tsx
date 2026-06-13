@@ -2,10 +2,22 @@ import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Check, GraduationCap, Heart, Smile, X } from 'lucide-react';
 import { useAuth } from 'hooks/useAuth';
-import { UserRole, isSupabaseConfigured } from 'services/supabase/client';
+import { UserRole, isSupabaseConfigured, type UserGender, type UserSex } from 'services/supabase/client';
 import { getPostSignupRoute, getRouteForUser, type SignupDetails } from 'services/supabase/authService';
 import { useAuthStore } from 'store/authStore';
 import { ROUTES } from 'constants/routes';
+import {
+  CHILD_MAX_AGE,
+  CHILD_MIN_AGE,
+  UK_GENDER_FIELD_HINT,
+  UK_GENDER_FIELD_LABEL,
+  UK_GENDER_OPTIONS,
+  UK_SEX_FIELD_HINT,
+  UK_SEX_FIELD_LABEL,
+  UK_SEX_OPTIONS,
+  isValidChildAge,
+  parseChildAge,
+} from 'constants/signup';
 import { toAuthErrorMessage } from 'services/supabase/authErrors';
 import { isPasswordValid } from 'utils/passwordValidation';
 import AuthBackground, { AuthLogo } from 'pages/auth/AuthBackground';
@@ -13,6 +25,7 @@ import PasswordRequirements from 'pages/auth/PasswordRequirements';
 import OtpVerificationModal from 'pages/auth/OtpVerificationModal';
 import {
   AuthField,
+  AuthSelect,
   PasswordField,
   authCardClass,
   authErrorClass,
@@ -37,6 +50,9 @@ interface RoleSignupForm {
   firstName: string;
   lastName: string;
   childName: string;
+  sex: UserSex | '';
+  gender: UserGender | '';
+  age: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -46,6 +62,9 @@ const emptyRoleForm = (): RoleSignupForm => ({
   firstName: '',
   lastName: '',
   childName: '',
+  sex: '',
+  gender: '',
+  age: '',
   email: '',
   password: '',
   confirmPassword: '',
@@ -55,12 +74,14 @@ const initialFormsByRole = (): Record<UserRole, RoleSignupForm> => ({
   child: emptyRoleForm(),
   parent: emptyRoleForm(),
   teacher: emptyRoleForm(),
+  admin: emptyRoleForm(),
 });
 
 const namePlaceholders: Record<UserRole, { first: string; last: string }> = {
   child: { first: 'e.g. Alex', last: 'e.g. Morgan' },
   parent: { first: 'e.g. Sarah', last: 'e.g. Johnson' },
   teacher: { first: 'e.g. James', last: 'e.g. Okonkwo' },
+  admin: { first: 'e.g. Admin', last: 'e.g. User' },
 };
 
 const SignupPage: React.FC = () => {
@@ -79,7 +100,7 @@ const SignupPage: React.FC = () => {
   const [pendingSignup, setPendingSignup] = useState<SignupDetails | null>(null);
 
   const form = formsByRole[role];
-  const { firstName, lastName, childName, email, password, confirmPassword } = form;
+  const { firstName, lastName, childName, sex, gender, age, email, password, confirmPassword } = form;
 
   const updateForm = <K extends keyof RoleSignupForm>(field: K, value: RoleSignupForm[K]) => {
     setFormsByRole((prev) => ({
@@ -101,9 +122,17 @@ const SignupPage: React.FC = () => {
   const confirmTouched = confirmPassword.length > 0;
   const confirmMismatch = confirmTouched && !passwordsMatch;
 
+  const parsedChildAge = role === 'child' ? parseChildAge(age) : null;
+  const childAgeValid = role !== 'child' || (parsedChildAge !== null && isValidChildAge(parsedChildAge));
+  const childAgeTouched = role === 'child' && age.trim().length > 0;
+  const childAgeInvalid = role === 'child' && childAgeTouched && !childAgeValid;
+
   const canSubmit =
     firstName.trim().length > 0 &&
     lastName.trim().length > 0 &&
+    sex !== '' &&
+    gender !== '' &&
+    childAgeValid &&
     passwordValid &&
     passwordsMatch &&
     !loading;
@@ -114,6 +143,9 @@ const SignupPage: React.FC = () => {
     firstName: firstName.trim(),
     lastName: lastName.trim(),
     childName: childName.trim() || undefined,
+    sex: sex as UserSex,
+    gender: gender as UserGender,
+    age: role === 'child' && parsedChildAge !== null ? parsedChildAge : undefined,
     role,
   });
 
@@ -294,6 +326,54 @@ const SignupPage: React.FC = () => {
                 placeholder="e.g. Lily"
                 autoComplete="off"
               />
+            )}
+
+            <div>
+              <AuthSelect
+                id={`signup-sex-${role}`}
+                label={UK_SEX_FIELD_LABEL}
+                value={sex}
+                onChange={(v) => updateForm('sex', v as UserSex | '')}
+                options={UK_SEX_OPTIONS}
+                placeholder="Select sex"
+                required
+              />
+              <p className="mt-1.5 text-xs text-slate-500 dark:text-gray-400">{UK_SEX_FIELD_HINT}</p>
+            </div>
+
+            <div>
+              <AuthSelect
+                id={`signup-gender-${role}`}
+                label={UK_GENDER_FIELD_LABEL}
+                value={gender}
+                onChange={(v) => updateForm('gender', v as UserGender | '')}
+                options={UK_GENDER_OPTIONS}
+                placeholder="Select gender identity"
+                required
+              />
+              <p className="mt-1.5 text-xs text-slate-500 dark:text-gray-400">{UK_GENDER_FIELD_HINT}</p>
+            </div>
+
+            {role === 'child' && (
+              <div>
+                <AuthField
+                  id={`signup-age-${role}`}
+                  label="Age"
+                  type="number"
+                  value={age}
+                  onChange={(v) => updateForm('age', v)}
+                  placeholder={`${CHILD_MIN_AGE}–${CHILD_MAX_AGE}`}
+                  required
+                  min={CHILD_MIN_AGE}
+                  max={CHILD_MAX_AGE}
+                  autoComplete="off"
+                />
+                {childAgeInvalid && (
+                  <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
+                    Please enter an age between {CHILD_MIN_AGE} and {CHILD_MAX_AGE}.
+                  </p>
+                )}
+              </div>
             )}
 
             <AuthField

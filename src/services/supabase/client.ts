@@ -2,7 +2,18 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { LockFunc } from '@supabase/auth-js';
 
 // Types
-export type UserRole = 'child' | 'parent' | 'teacher';
+export type UserRole = 'child' | 'parent' | 'teacher' | 'admin';
+
+export type UserSex = 'male' | 'female' | 'intersex' | 'prefer_not_to_say';
+
+export type UserGender =
+  | 'woman'
+  | 'man'
+  | 'non_binary'
+  | 'other'
+  | 'prefer_not_to_say';
+
+export type UserStatus = 'active' | 'suspended' | 'pending';
 
 export interface Profile {
   id: string;
@@ -15,6 +26,10 @@ export interface Profile {
   avatar_url?: string | null;
   bio?: string | null;
   age?: number | null;
+  sex?: UserSex | null;
+  gender?: UserGender | null;
+  is_authorized?: boolean;
+  status?: UserStatus;
   neuro_types: string[];
   onboarding_completed: boolean;
   email_verified_at?: string | null;
@@ -28,6 +43,8 @@ export function normalizeProfile(raw: Profile): Profile {
     ...raw,
     neuro_types: Array.isArray(raw.neuro_types) ? raw.neuro_types : [],
     onboarding_completed: raw.onboarding_completed === true,
+    is_authorized: raw.is_authorized !== false,
+    status: raw.status ?? 'active',
   };
 }
 

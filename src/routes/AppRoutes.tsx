@@ -21,6 +21,10 @@ import Settings from 'features/teacher/components/Settings';
 import LoginPage from 'pages/LoginPage';
 import SignupPage from 'pages/SignupPage';
 import ForgotPasswordPage from 'pages/ForgotPasswordPage';
+import AdminLoginPage from 'features/admin/pages/AdminLoginPage';
+import AdminDashboardPage from 'features/admin/pages/AdminDashboardPage';
+import AdminUsersPage from 'features/admin/pages/AdminUsersPage';
+import RequireAdminRoute from 'features/admin/components/RequireAdminRoute';
 
 const withAuth = (page: React.ReactNode) => (
   <ProtectedRoute>
@@ -31,12 +35,21 @@ const withAuth = (page: React.ReactNode) => (
 const withChildAuth = (page: React.ReactNode) =>
   withAuth(<ChildOnboardedRoute>{page}</ChildOnboardedRoute>);
 
+const withAdmin = (page: React.ReactNode) => (
+  <ProtectedRoute>
+    <RequireAdminRoute>{page}</RequireAdminRoute>
+  </ProtectedRoute>
+);
+
 const AppRoutes: React.FC = () => (
   <Routes>
     <Route path={ROUTES.HOME} element={<LandingPage />} />
     <Route path={ROUTES.LOGIN} element={<LoginPage />} />
     <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
     <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
+    <Route path={ROUTES.ADMIN_LOGIN} element={<AdminLoginPage />} />
+    <Route path={ROUTES.ADMIN_DASHBOARD} element={withAdmin(<AdminDashboardPage />)} />
+    <Route path={ROUTES.ADMIN_USERS} element={withAdmin(<AdminUsersPage />)} />
     <Route path={ROUTES.NEURO_SELECTOR} element={withAuth(<NeuroSelectorPage />)} />
     <Route path={ROUTES.CHILD_DASHBOARD} element={withChildAuth(<ChildDashboardPage />)} />
     <Route path={ROUTES.AUTISM_SPACE} element={withChildAuth(<AutismSpacePage />)} />

@@ -272,6 +272,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           firstName: details.firstName,
           lastName: details.lastName,
           childName: details.childName,
+          sex: details.sex,
+          gender: details.gender,
+          age: details.age,
           emailVerified: true,
         });
         set({ profile });
@@ -308,6 +311,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       firstName: details.firstName,
       lastName: details.lastName,
       childName: details.childName,
+      sex: details.sex,
+      gender: details.gender,
+      age: details.age,
       emailVerified: true,
     });
 

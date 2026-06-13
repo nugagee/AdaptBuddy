@@ -38,7 +38,9 @@ To empower neurodivergent children (Autism, ADHD, Dyslexia, Dyspraxia, etc.) thr
 
 4. Optional: **Authentication → Providers → Email** — you can turn **Confirm email** off; OTP verification in the app replaces it.
 
-5. After signup, users enter the code in the OTP modal; verified accounts are saved to `profiles` and routed by role.
+5. **Custom SMTP (production):** To send more than the built-in ~2 emails/hour, connect your own mail server in **Authentication → Emails → SMTP Settings**. See `supabase/SMTP_SETUP.md` (e.g. `mail.nugagee.com.ng`, port `465`).
+
+6. After signup, users enter the code in the OTP modal; verified accounts are saved to `profiles` and routed by role.
 
 ## Tech Stack
 - **Frontend**: React 18 + TypeScript + Tailwind CSS (Create React App)

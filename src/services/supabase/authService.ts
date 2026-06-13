@@ -38,8 +38,10 @@ function buildSignupMetadata(details: SignupDetails) {
 }
 
 /**
- * Sends an email OTP via signInWithOtp (uses the Magic Link email template).
- * Supabase currently sends 8-digit codes. Template must include {{ .Token }} only.
+ * Sends an email OTP via signInWithOtp.
+ * Hosted Supabase uses the **Confirm signup** template for brand-new emails
+ * and **Magic Link** for existing users — both must include {{ .Token }} only.
+ * See supabase/email-templates/README.md
  */
 export async function requestSignupOtp(details: SignupDetails): Promise<SignupOtpResult> {
   const email = details.email.trim();
@@ -76,7 +78,11 @@ function isExistingUserError(error: AuthError): boolean {
   );
 }
 
-async function tryVerifyOtp(email: string, token: string, type: 'email' | 'signup') {
+async function tryVerifyOtp(
+  email: string,
+  token: string,
+  type: 'email' | 'signup' | 'recovery',
+) {
   const { data, error } = await getSupabaseClient().auth.verifyOtp({
     email: email.trim(),
     token: token.trim(),
@@ -150,10 +156,10 @@ export async function verifySignupOtp(email: string, token: string) {
   const trimmedEmail = email.trim();
   const trimmedToken = token.trim();
 
-  // signInWithOtp → type 'email'; legacy signUp → type 'signup'
-  let data = await tryVerifyOtp(trimmedEmail, trimmedToken, 'email');
+  // New signups on hosted Supabase use Confirm signup template → type 'signup'
+  let data = await tryVerifyOtp(trimmedEmail, trimmedToken, 'signup');
   if (!data) {
-    data = await tryVerifyOtp(trimmedEmail, trimmedToken, 'signup');
+    data = await tryVerifyOtp(trimmedEmail, trimmedToken, 'email');
   }
 
   if (!data) {
@@ -170,6 +176,40 @@ export async function setSignupPassword(password: string) {
   if (error) {
     console.warn('Password update after signup failed:', error.message);
   }
+}
+
+/**
+ * Sends a password-reset OTP via resetPasswordForEmail.
+ * Uses the **Reset password** email template — must include {{ .Token }} only.
+ * Paste supabase/email-templates/reset-password-otp.html in the Supabase dashboard.
+ */
+export async function requestPasswordResetOtp(email: string): Promise<void> {
+  const trimmedEmail = email.trim();
+  const { error } = await getSupabaseClient().auth.resetPasswordForEmail(trimmedEmail, {
+    redirectTo: `${window.location.origin}${ROUTES.FORGOT_PASSWORD}`,
+  });
+  if (error) throw error;
+}
+
+export async function verifyPasswordResetOtp(email: string, token: string) {
+  const trimmedEmail = email.trim();
+  const trimmedToken = token.trim();
+
+  const data = await tryVerifyOtp(trimmedEmail, trimmedToken, 'recovery');
+  if (!data) {
+    throw new Error('Invalid or expired code. Please try again.');
+  }
+
+  return persistVerifiedAuth(data);
+}
+
+export async function resendPasswordResetOtp(email: string): Promise<void> {
+  await requestPasswordResetOtp(email);
+}
+
+export async function updatePasswordAfterReset(password: string): Promise<void> {
+  const { error } = await getSupabaseClient().auth.updateUser({ password });
+  if (error) throw error;
 }
 
 export async function resendSignupOtp(email: string) {

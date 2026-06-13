@@ -14,13 +14,18 @@ interface MusicPlayerProviderProps {
 /** Provides global music player state — UI is rendered by GlobalMusicPlayer */
 export const MusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({ children }) => {
   const [expanded, setExpanded] = useState(true);
+  const [soundscapeOverrideActive, setSoundscapeOverrideActive] = useState(false);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const soundscapeOverrideRef = useRef(false);
+  const wasPlayingBeforeOverrideRef = useRef(false);
 
   const player = useAudioPlayer({
     seekStep: 10,
     autoPlayDelayMs: 2000,
     initialVolume: 35,
   });
+
+  const { playing, pausePlayback, resumePlayback } = player;
 
   const clearCollapseTimer = useCallback(() => {
     if (collapseTimerRef.current) {
@@ -46,6 +51,34 @@ export const MusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({ childr
     setExpanded(false);
   }, [clearCollapseTimer]);
 
+  const beginSoundscapeOverride = useCallback(() => {
+    if (soundscapeOverrideRef.current) return;
+
+    soundscapeOverrideRef.current = true;
+    setSoundscapeOverrideActive(true);
+    wasPlayingBeforeOverrideRef.current = playing;
+
+    if (playing) {
+      pausePlayback();
+    }
+
+    collapsePlayer();
+  }, [playing, pausePlayback, collapsePlayer]);
+
+  const endSoundscapeOverride = useCallback(() => {
+    if (!soundscapeOverrideRef.current) return;
+
+    soundscapeOverrideRef.current = false;
+    setSoundscapeOverrideActive(false);
+
+    const shouldResume = wasPlayingBeforeOverrideRef.current;
+    wasPlayingBeforeOverrideRef.current = false;
+
+    if (shouldResume) {
+      void resumePlayback();
+    }
+  }, [resumePlayback]);
+
   useEffect(() => {
     if (!expanded) return undefined;
     scheduleCollapse();
@@ -53,12 +86,19 @@ export const MusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({ childr
   }, [expanded, scheduleCollapse, clearCollapseTimer]);
 
   useEffect(() => {
+    if (soundscapeOverrideActive) {
+      document.documentElement.style.setProperty('--music-player-offset', '0px');
+      return () => {
+        document.documentElement.style.removeProperty('--music-player-offset');
+      };
+    }
+
     const offset = expanded ? '9.5rem' : '4.75rem';
     document.documentElement.style.setProperty('--music-player-offset', offset);
     return () => {
       document.documentElement.style.removeProperty('--music-player-offset');
     };
-  }, [expanded]);
+  }, [expanded, soundscapeOverrideActive]);
 
   const value = useMemo<MusicPlayerContextValue>(
     () => ({
@@ -66,8 +106,19 @@ export const MusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({ childr
       expanded,
       expandPlayer,
       collapsePlayer,
+      soundscapeOverrideActive,
+      beginSoundscapeOverride,
+      endSoundscapeOverride,
     }),
-    [player, expanded, expandPlayer, collapsePlayer],
+    [
+      player,
+      expanded,
+      expandPlayer,
+      collapsePlayer,
+      soundscapeOverrideActive,
+      beginSoundscapeOverride,
+      endSoundscapeOverride,
+    ],
   );
 
   return (

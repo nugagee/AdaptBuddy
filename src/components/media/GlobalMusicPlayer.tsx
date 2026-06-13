@@ -6,8 +6,12 @@ import MusicPlayerBar from 'components/media/MusicPlayerBar';
 
 /** Fixed music player shell (panel + FAB) — separate from provider to avoid circular imports */
 const GlobalMusicPlayer: React.FC = () => {
-  const { expanded, expandPlayer, playing } = useMusicPlayer();
+  const { expanded, expandPlayer, playing, soundscapeOverrideActive } = useMusicPlayer();
   const reducedMotion = useUiStore((s) => s.reducedMotion);
+
+  if (soundscapeOverrideActive) {
+    return null;
+  }
 
   const panelTransition = reducedMotion
     ? ''

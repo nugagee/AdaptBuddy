@@ -17,4 +17,7 @@ export const ROUTES = {
   TEACHER_STUDENTS: '/teacher/students',
   TEACHER_REPORTS: '/teacher/reports',
   TEACHER_SETTINGS: '/teacher/settings',
+  ADMIN_LOGIN: '/admin/login',
+  ADMIN_DASHBOARD: '/admin',
+  ADMIN_USERS: '/admin/users',
 } as const;

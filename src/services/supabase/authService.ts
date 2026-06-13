@@ -1,6 +1,6 @@
 import { AuthError, type Session, type User } from '@supabase/supabase-js';
 import { ROUTES } from 'constants/routes';
-import type { Profile } from './client';
+import type { Profile, UserGender, UserSex } from './client';
 import { getSupabaseClient, type UserRole } from './client';
 import { resolveAuthSession } from './sessionUtils';
 
@@ -10,6 +10,9 @@ export interface SignupDetails {
   firstName: string;
   lastName: string;
   childName?: string;
+  sex: UserSex;
+  gender: UserGender;
+  age?: number;
   role: UserRole;
 }
 
@@ -34,6 +37,9 @@ function buildSignupMetadata(details: SignupDetails) {
     full_name: fullName,
     role: details.role,
     child_name: childName,
+    sex: details.sex,
+    gender: details.gender,
+    age: details.age ?? null,
   };
 }
 
@@ -103,11 +109,24 @@ async function persistVerifiedAuth(data: {
 
 export function getRoleFromUser(user: User): UserRole {
   const role = user.user_metadata?.role;
-  if (role === 'child' || role === 'parent' || role === 'teacher') return role;
+  if (role === 'child' || role === 'parent' || role === 'teacher' || role === 'admin') {
+    return role;
+  }
   return 'parent';
 }
 
+export function isAdminProfile(profile: Profile | null | undefined): boolean {
+  return profile?.role === 'admin' && profile?.is_authorized !== false;
+}
+
 export function getRouteForProfile(profile: Profile): string {
+  if (profile.role === 'admin') {
+    if (profile.is_authorized === false || profile.status === 'suspended') {
+      return ROUTES.ADMIN_LOGIN;
+    }
+    return ROUTES.ADMIN_DASHBOARD;
+  }
+
   switch (profile.role) {
     case 'child':
       return profile.onboarding_completed && profile.neuro_types.length > 0
@@ -142,6 +161,8 @@ export function buildFallbackProfileFromUser(user: User): Profile {
     last_name: lastName,
     full_name: String(meta.full_name ?? `${firstName} ${lastName}`.trim()),
     child_name: meta.child_name ? String(meta.child_name) : null,
+    sex: meta.sex ? (String(meta.sex) as Profile['sex']) : null,
+    gender: meta.gender ? (String(meta.gender) as Profile['gender']) : null,
     bio: null,
     age: null,
     neuro_types: [],
@@ -238,6 +259,9 @@ export interface ProfileUpsertPayload {
   firstName: string;
   lastName: string;
   childName?: string;
+  sex?: UserSex | null;
+  gender?: UserGender | null;
+  age?: number | null;
   emailVerified?: boolean;
 }
 
@@ -256,6 +280,9 @@ export async function upsertUserProfile(payload: ProfileUpsertPayload) {
     last_name: lastName,
     full_name: fullName,
     child_name: childName,
+    sex: payload.sex ?? null,
+    gender: payload.gender ?? null,
+    age: payload.age ?? null,
     neuro_types: [],
     onboarding_completed: false,
     email_verified_at: payload.emailVerified ? new Date().toISOString() : null,
@@ -285,6 +312,9 @@ export function buildFallbackProfile(details: SignupDetails, userId: string): Pr
     last_name: lastName,
     full_name: buildFullName(firstName, lastName),
     child_name: details.childName?.trim() || null,
+    sex: details.sex,
+    gender: details.gender,
+    age: details.age ?? null,
     neuro_types: [],
     onboarding_completed: false,
     email_verified_at: now,
@@ -301,6 +331,8 @@ export function getPostSignupRoute(role: UserRole): string {
       return ROUTES.PARENT_HUB;
     case 'teacher':
       return ROUTES.TEACHER_DASHBOARD;
+    case 'admin':
+      return ROUTES.ADMIN_DASHBOARD;
     default:
       return ROUTES.LOGIN;
   }

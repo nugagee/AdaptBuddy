@@ -25,6 +25,7 @@ const demoRoutes: Record<UserRole, string> = {
   child: ROUTES.NEURO_SELECTOR,
   parent: ROUTES.PARENT_HUB,
   teacher: ROUTES.TEACHER_DASHBOARD,
+  admin: ROUTES.ADMIN_DASHBOARD,
 };
 
 const LoginPage: React.FC = () => {
@@ -194,6 +195,11 @@ const LoginPage: React.FC = () => {
               >
                 Enter as guest
               </button>
+            </p>
+            <p className="mt-3 text-center text-xs text-slate-400 dark:text-gray-500">
+              <Link to={ROUTES.ADMIN_LOGIN} className="hover:text-adapt-indigo dark:hover:text-adapt-cyan">
+                Admin console
+              </Link>
             </p>
           </div>
         </div>

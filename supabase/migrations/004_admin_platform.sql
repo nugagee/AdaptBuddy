@@ -1,0 +1,8 @@
+-- DEPRECATED — do not run this file as one script.
+-- PostgreSQL error 55P04: new enum values must be committed before use.
+--
+-- Run these TWO files separately in Supabase SQL Editor:
+--   1. 004_admin_role_enum.sql   (only the ALTER TYPE line)
+--   2. 005_admin_platform.sql    (everything else)
+--
+-- See supabase/ADMIN_SETUP.md

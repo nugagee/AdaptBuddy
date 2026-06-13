@@ -16,6 +16,8 @@ interface AuthFieldProps {
   placeholder?: string;
   required?: boolean;
   autoComplete?: string;
+  min?: number;
+  max?: number;
 }
 
 export const AuthField: React.FC<AuthFieldProps> = ({
@@ -27,6 +29,8 @@ export const AuthField: React.FC<AuthFieldProps> = ({
   placeholder,
   required,
   autoComplete,
+  min,
+  max,
 }) => (
   <div>
     <label htmlFor={id} className={labelClass}>
@@ -40,8 +44,50 @@ export const AuthField: React.FC<AuthFieldProps> = ({
       placeholder={placeholder}
       required={required}
       autoComplete={autoComplete}
+      min={min}
+      max={max}
       className={inputClass}
     />
+  </div>
+);
+
+interface AuthSelectProps {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  required?: boolean;
+  placeholder?: string;
+}
+
+export const AuthSelect: React.FC<AuthSelectProps> = ({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+  required,
+  placeholder = 'Select an option',
+}) => (
+  <div>
+    <label htmlFor={id} className={labelClass}>
+      {label}
+    </label>
+    <select
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      required={required}
+      className={inputClass}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
   </div>
 );
 

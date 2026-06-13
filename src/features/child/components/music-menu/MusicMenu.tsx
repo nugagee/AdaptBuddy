@@ -1,173 +1,117 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Music, Volume2, VolumeX, Play, Pause, 
-  Waves, Cloud, Wind, Sun,
-} from 'lucide-react';
-import { useTheme } from 'hooks/useTheme';
-
-interface SoundTrack {
-  id: string;
-  name: string;
-  icon: React.ReactNode;
-  color: string;
-  duration: string;
-  description: string;
-  suitableFor: string[];
-  src: string;
-}
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Headphones, Sparkles, Timer, Waves } from 'lucide-react';
+import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
+import {
+  getTrackById,
+  MUSIC_TRACKS,
+  TIMER_PRESETS,
+  type MusicTrack,
+} from 'features/child/data/musicTracks';
+import { useAuth } from 'hooks/useAuth';
+import { useMusicPlayer } from 'contexts/musicPlayerContext';
+import MusicNowPlaying from './MusicNowPlaying';
+import SoundscapeCard from './SoundscapeCard';
+import './music-menu.css';
 
 const MusicMenu: React.FC = () => {
+  const { profile } = useAuth();
+  const { beginSoundscapeOverride, endSoundscapeOverride } = useMusicPlayer();
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState<string | null>(null);
-  const [volume, setVolume] = useState(50);
+  const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
+  const [volume, setVolume] = useState(55);
   const [playbackError, setPlaybackError] = useState('');
-  const [showVisualizer, setShowVisualizer] = useState(true);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [activeTimerPreset, setActiveTimerPreset] = useState<number | null>(null);
+  const [showSensoryTip, setShowSensoryTip] = useState(false);
+  const [dismissedSensoryTip, setDismissedSensoryTip] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const { theme } = useTheme();
 
-  // Sound tracks with metadata
-  const soundTracks: SoundTrack[] = [
-    {
-      id: 'rain',
-      name: 'Gentle Rain',
-      icon: <Cloud className="w-8 h-8" />,
-      color: 'blue',
-      duration: '∞ Loop',
-      description: 'Calming rain sounds for focus and relaxation',
-      suitableFor: ['spd', 'anxiety', 'adhd'],
-      src: '/music/rain.mp3',
-    },
-    {
-      id: 'ocean',
-      name: 'Ocean Waves',
-      icon: <Waves className="w-8 h-8" />,
-      color: 'teal',
-      duration: '∞ Loop',
-      description: 'Soothing waves crashing on shore',
-      suitableFor: ['spd', 'autism', 'sleep'],
-      src: '/music/ocean.mp3',
-    },
-    {
-      id: 'forest',
-      name: 'Forest Night',
-      icon: <Wind className="w-8 h-8" />,
-      color: 'green',
-      duration: '∞ Loop',
-      description: 'Gentle forest sounds with crickets',
-      suitableFor: ['anxiety', 'adhd', 'relaxation'],
-      src: '/music/forest.mp3',
-    },
-    {
-      id: 'lofi',
-      name: 'Lofi Beats',
-      icon: <Music className="w-8 h-8" />,
-      color: 'purple',
-      duration: '∞ Loop',
-      description: 'Calm study beats for focus',
-      suitableFor: ['adhd', 'dyslexia', 'study'],
-      src: '/music/lofi.mp3',
-    },
-    {
-      id: 'white-noise',
-      name: 'White Noise',
-      icon: <Volume2 className="w-8 h-8" />,
-      color: 'gray',
-      duration: '∞ Loop',
-      description: 'Consistent sound for sensory blocking',
-      suitableFor: ['spd', 'autism', 'sleep'],
-      src: '/music/meditation.mp3',
-    },
-    {
-      id: 'morning',
-      name: 'Morning Birds',
-      icon: <Sun className="w-8 h-8" />,
-      color: 'yellow',
-      duration: '∞ Loop',
-      description: 'Gentle birdsong for morning calm',
-      suitableFor: ['morning', 'anxiety'],
-      src: '/music/forest.mp3',
-    }
-  ];
+  const currentTrack = getTrackById(currentTrackId);
+  const firstName = profile?.first_name || 'Friend';
 
-  const getTrackById = (trackId: string | null) =>
-    soundTracks.find((track) => track.id === trackId);
+  const greeting = (() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  })();
 
-  // Check if user has SPD for recommendation
   useEffect(() => {
-    const userNeurotypes = localStorage.getItem('userNeurotypes');
-    if (userNeurotypes) {
-      const neurotypes = JSON.parse(userNeurotypes);
-      if (neurotypes.includes('spd')) {
-        // Show SPD recommendation
-        setTimeout(() => {
-          if (window.confirm('👂 We notice you have Sensory Processing Disorder. Would you like to try our calming sounds?')) {
-            // Auto-suggest first track
-            setCurrentTrack('rain');
-          }
-        }, 2000);
+    const neuroTypes = profile?.neuro_types ?? [];
+    if (neuroTypes.includes('spd') && !dismissedSensoryTip) {
+      const timer = window.setTimeout(() => setShowSensoryTip(true), 1200);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [profile?.neuro_types, dismissedSensoryTip]);
+
+  const playTrack = useCallback(
+    async (track: MusicTrack) => {
+      setPlaybackError('');
+
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+        audioRef.current.loop = true;
+        audioRef.current.preload = 'auto';
+        audioRef.current.addEventListener('ended', () => setIsPlaying(false));
+        audioRef.current.addEventListener('error', () => {
+          setIsPlaying(false);
+          setPlaybackError('This sound could not load. Please try another calming sound.');
+        });
       }
-    }
-  }, []);
 
-  const playTrack = async (track: SoundTrack) => {
-    setPlaybackError('');
+      const audio = audioRef.current;
+      const sourceChanged = audio.src !== new URL(track.src, window.location.origin).href;
 
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
-      audioRef.current.loop = true;
-      audioRef.current.preload = 'auto';
-      audioRef.current.addEventListener('ended', () => setIsPlaying(false));
-      audioRef.current.addEventListener('error', () => {
+      if (sourceChanged) {
+        audio.pause();
+        audio.src = track.src;
+        audio.load();
+      }
+
+      audio.volume = Math.min(1, Math.max(0, volume / 100));
+
+      try {
+        await audio.play();
+        setCurrentTrackId(track.id);
+        setIsPlaying(true);
+        beginSoundscapeOverride();
+      } catch {
         setIsPlaying(false);
-        setPlaybackError('This sound could not load. Please try another calming sound.');
-      });
-    }
+        setPlaybackError('Tap play again if your browser blocked the sound.');
+      }
+    },
+    [volume, beginSoundscapeOverride],
+  );
 
-    const audio = audioRef.current;
-    const sourceChanged = audio.src !== new URL(track.src, window.location.origin).href;
-
-    if (sourceChanged) {
-      audio.pause();
-      audio.src = track.src;
-      audio.load();
-    }
-
-    audio.volume = Math.min(1, Math.max(0, volume / 100));
-
-    try {
-      await audio.play();
-      setCurrentTrack(track.id);
-      setIsPlaying(true);
-    } catch {
-      setIsPlaying(false);
-      setPlaybackError('Tap the play button again if your browser blocked the sound.');
-    }
-  };
-
-  const pauseTrack = () => {
+  const pauseTrack = useCallback(() => {
     audioRef.current?.pause();
     setIsPlaying(false);
-  };
+    endSoundscapeOverride();
+  }, [endSoundscapeOverride]);
 
-  const togglePlay = (trackId: string) => {
-    const track = getTrackById(trackId);
-    if (!track) return;
+  const toggleTrack = useCallback(
+    (trackId: string) => {
+      const track = getTrackById(trackId);
+      if (!track) return;
 
-    if (currentTrack === trackId && isPlaying) {
-      pauseTrack();
-      return;
-    }
+      if (currentTrackId === trackId && isPlaying) {
+        pauseTrack();
+        return;
+      }
 
-    void playTrack(track);
-  };
+      void playTrack(track);
+    },
+    [currentTrackId, isPlaying, pauseTrack, playTrack],
+  );
 
-  const stopAll = () => {
+  const stopAll = useCallback(() => {
     audioRef.current?.pause();
     if (audioRef.current) audioRef.current.currentTime = 0;
     setIsPlaying(false);
-    setCurrentTrack(null);
-  };
+    setCurrentTrackId(null);
+    endSoundscapeOverride();
+  }, [endSoundscapeOverride]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -179,259 +123,227 @@ const MusicMenu: React.FC = () => {
     () => () => {
       audioRef.current?.pause();
       audioRef.current = null;
+      endSoundscapeOverride();
     },
-    [],
+    [endSoundscapeOverride],
   );
 
-  const startTimer = (minutes: number) => {
-    setTimeRemaining(minutes * 60);
-  };
-
-  // Timer countdown effect
   useEffect(() => {
     if (timeRemaining === null || timeRemaining <= 0) {
       if (timeRemaining === 0) {
         stopAll();
+        setActiveTimerPreset(null);
       }
-      return;
+      return undefined;
     }
 
-    const interval = setInterval(() => {
-      setTimeRemaining(prev => prev !== null ? prev - 1 : null);
+    const interval = window.setInterval(() => {
+      setTimeRemaining((prev) => (prev !== null ? prev - 1 : null));
     }, 1000);
 
-    return () => clearInterval(interval);
-  }, [timeRemaining]);
+    return () => window.clearInterval(interval);
+  }, [timeRemaining, stopAll]);
 
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  const handleSensorySuggestion = () => {
+    setDismissedSensoryTip(true);
+    setShowSensoryTip(false);
+    void playTrack(getTrackById('rain')!);
   };
 
   return (
-    <div className={`min-h-screen p-4 md:p-8 transition-colors duration-300 ${
-      theme === 'light' ? 'bg-gradient-to-br from-purple-50 to-pink-50' :
-      theme === 'dark' ? 'bg-gradient-to-br from-gray-900 to-purple-900' :
-      'bg-gradient-to-br from-amber-50 to-sepia-100'
-    }`}>
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="mb-8 text-center">
-          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
-            🎵 Calming Sounds
-          </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300">
-            Find your calm. Focus, relax, or drift to sleep.
-          </p>
-          
-          {/* Timer buttons */}
-          <div className="mt-4 flex justify-center gap-3">
-            <button 
-              onClick={() => startTimer(5)}
-              className="px-4 py-2 bg-white/80 dark:bg-gray-800 rounded-full text-sm shadow-sm hover:scale-105 transition"
-            >
-              5 min
-            </button>
-            <button 
-              onClick={() => startTimer(15)}
-              className="px-4 py-2 bg-white/80 dark:bg-gray-800 rounded-full text-sm shadow-sm hover:scale-105 transition"
-            >
-              15 min
-            </button>
-            <button 
-              onClick={() => startTimer(30)}
-              className="px-4 py-2 bg-white/80 dark:bg-gray-800 rounded-full text-sm shadow-sm hover:scale-105 transition"
-            >
-              30 min
-            </button>
-            <button 
-              onClick={() => setTimeRemaining(null)}
-              className="px-4 py-2 bg-white/80 dark:bg-gray-800 rounded-full text-sm shadow-sm hover:scale-105 transition"
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900 sepia:from-amber-50 sepia:via-amber-50/90 sepia:to-amber-100/60">
+      <div
+        className="pointer-events-none absolute -left-24 top-32 h-72 w-72 rounded-full bg-adapt-indigo/15 blur-3xl animate-auth-neon-drift"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -right-20 top-64 h-64 w-64 rounded-full bg-adapt-teal/15 blur-3xl animate-auth-neon-drift-slow"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute bottom-32 left-1/3 h-56 w-56 rounded-full bg-adapt-cyan/10 blur-3xl animate-auth-neon-pulse"
+        aria-hidden
+      />
+
+      <ChildDashboardNavbar />
+
+      <main className="relative mx-auto max-w-6xl space-y-8 px-4 pb-20 pt-6 sm:px-6 sm:pt-8">
+        {/* Hero */}
+        <section className="relative overflow-hidden rounded-[2rem] border border-white/60 bg-gradient-to-br from-adapt-indigo/10 via-white/85 to-adapt-teal/10 p-6 shadow-card backdrop-blur-sm dark:border-white/10 dark:from-adapt-indigo/20 dark:via-gray-900/90 dark:to-adapt-teal/10 sm:p-8">
+          <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-adapt-cyan/20 blur-2xl" aria-hidden />
+
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-adapt-indigo/80 dark:text-adapt-cyan">
+                {greeting}, {firstName}
+              </p>
+              <h1 className="mt-2 text-3xl font-extrabold leading-tight text-adapt-navy dark:text-gray-50 sm:text-4xl">
+                Your calm{' '}
+                <span className="bg-gradient-to-r from-adapt-indigo to-adapt-teal bg-clip-text text-transparent">
+                  soundscape
+                </span>
+              </h1>
+              <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-gray-400 sm:text-base">
+                Gentle loops to help you focus, unwind, or drift into rest. Pick a sound,
+                breathe, and let the noise fade away.
+              </p>
+            </div>
+
+            <div className="music-orb-float flex shrink-0 items-center justify-center">
+              <div className="relative flex h-28 w-28 items-center justify-center rounded-full border border-white/70 bg-white/50 shadow-glow backdrop-blur-md dark:border-gray-700 dark:bg-gray-800/50">
+                <div className="absolute inset-2 rounded-full bg-gradient-to-br from-adapt-indigo/20 to-adapt-teal/20 music-breathe" />
+                <Waves className="relative h-10 w-10 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {showSensoryTip && (
+          <div
+            className="animate-theme-hint-down flex flex-col gap-3 rounded-2xl border border-sky-200/80 bg-sky-50/90 p-4 shadow-soft dark:border-sky-900/50 dark:bg-sky-950/30 sm:flex-row sm:items-center sm:justify-between"
+            role="status"
+          >
+            <div className="flex items-start gap-3">
+              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-sky-500" aria-hidden />
+              <p className="text-sm text-sky-900 dark:text-sky-100">
+                Gentle sounds can help when the world feels loud. Try{' '}
+                <span className="font-semibold">Gentle Rain</span> — a soft place to start.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleSensorySuggestion}
+                className="rounded-full bg-adapt-navy px-4 py-2 text-xs font-semibold text-white transition hover:bg-adapt-purple dark:bg-adapt-indigo"
+              >
+                Try Gentle Rain
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDismissedSensoryTip(true);
+                  setShowSensoryTip(false);
+                }}
+                className="rounded-full border border-sky-200 px-4 py-2 text-xs font-semibold text-sky-700 transition hover:bg-white/80 dark:border-sky-800 dark:text-sky-200"
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Relax timer */}
+        <section
+          className="rounded-[1.75rem] border border-white/60 bg-white/60 p-5 backdrop-blur-sm dark:border-white/10 dark:bg-gray-900/50"
+          aria-label="Relaxation timer"
+        >
+          <div className="mb-4 flex items-center gap-2">
+            <Timer className="h-4 w-4 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+            <h2 className="text-sm font-bold text-adapt-navy dark:text-gray-100">
+              Session timer
+            </h2>
+            <span className="text-xs text-slate-500 dark:text-gray-400">
+              — sounds fade when time is up
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {TIMER_PRESETS.map((minutes) => (
+                <button
+                  key={minutes}
+                  type="button"
+                  onClick={() => {
+                    setActiveTimerPreset(minutes);
+                    setTimeRemaining(minutes * 60);
+                  }}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    activeTimerPreset === minutes
+                      ? 'bg-adapt-navy text-white shadow-soft dark:bg-adapt-indigo'
+                      : 'border border-white/80 bg-white/80 text-slate-600 hover:border-adapt-indigo/30 hover:text-adapt-navy dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-300 dark:hover:text-gray-100'
+                  }`}
+                >
+                  {minutes} min
+                </button>
+              ))}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTimerPreset(null);
+                setTimeRemaining(null);
+              }}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                activeTimerPreset === null
+                  ? 'bg-adapt-indigo/15 text-adapt-indigo dark:bg-adapt-cyan/15 dark:text-adapt-cyan'
+                  : 'border border-white/80 bg-white/80 text-slate-600 hover:text-adapt-navy dark:border-gray-700 dark:bg-gray-800/80 dark:text-gray-300'
+              }`}
             >
               No timer
             </button>
           </div>
+        </section>
 
-          {/* Timer display */}
-          {timeRemaining !== null && timeRemaining > 0 && (
-            <div className="mt-3 text-lg font-bold text-purple-600 dark:text-purple-400">
-              Time remaining: {formatTime(timeRemaining)}
-            </div>
-          )}
-        </header>
-
-        {/* Now Playing Bar */}
         {currentTrack && (
-          <div className="mb-6 p-4 bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl backdrop-blur-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full bg-${
-                  soundTracks.find(t => t.id === currentTrack)?.color || 'purple'
-                }-500 flex items-center justify-center text-white`}>
-                  {soundTracks.find(t => t.id === currentTrack)?.icon}
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg">
-                    {soundTracks.find(t => t.id === currentTrack)?.name}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    {isPlaying ? 'Playing...' : 'Paused'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    const activeTrack = getTrackById(currentTrack);
-                    if (!activeTrack) return;
-                    if (isPlaying) {
-                      pauseTrack();
-                    } else {
-                      void playTrack(activeTrack);
-                    }
-                  }}
-                  className="w-12 h-12 rounded-full bg-purple-600 text-white flex items-center justify-center hover:scale-110 transition"
-                >
-                  {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
-                </button>
-                <button 
-                  onClick={stopAll}
-                  className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center hover:scale-110 transition"
-                >
-                  <VolumeX className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-          </div>
+          <MusicNowPlaying
+            track={currentTrack}
+            isPlaying={isPlaying}
+            volume={volume}
+            timeRemaining={timeRemaining}
+            onTogglePlay={() => {
+              if (isPlaying) {
+                pauseTrack();
+              } else {
+                void playTrack(currentTrack);
+              }
+            }}
+            onStop={stopAll}
+            onVolumeChange={setVolume}
+          />
         )}
 
         {playbackError && (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+          <p
+            className="rounded-2xl border border-red-200/80 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+            role="alert"
+          >
             {playbackError}
-          </div>
+          </p>
         )}
 
-        {/* Sound Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {soundTracks.map((track) => {
-            const isCurrentTrack = currentTrack === track.id;
-            
-            return (
-              <button
+        {/* Soundscape grid */}
+        <section>
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-adapt-indigo/10 dark:bg-adapt-cyan/10">
+              <Headphones className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-adapt-navy dark:text-gray-100">
+                Choose your soundscape
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-gray-400">
+                Tap any card to play — sounds loop softly until you pause
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {MUSIC_TRACKS.map((track) => (
+              <SoundscapeCard
                 key={track.id}
-                onClick={() => togglePlay(track.id)}
-                className={`group relative p-6 rounded-2xl border-2 transition-all duration-300 ${
-                  theme === 'light' ? `bg-${track.color}-50` :
-                  theme === 'dark' ? 'bg-gray-800' :
-                  'bg-sepia-50'
-                } ${
-                  isCurrentTrack && isPlaying
-                    ? `border-${track.color}-500 scale-[1.02] shadow-xl ring-4 ring-${track.color}-500/20` 
-                    : 'border-gray-200 hover:border-gray-400 hover:scale-[1.02] hover:shadow-lg'
-                }`}
-              >
-                {/* Animated playing indicator */}
-                {isCurrentTrack && isPlaying && (
-                  <div className="absolute -top-3 -right-3 flex gap-1">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-ping animation-delay-200" />
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-ping animation-delay-400" />
-                  </div>
-                )}
-
-                {/* Icon */}
-                <div className={`flex justify-center mb-4 transform group-hover:scale-110 transition-transform text-${track.color}-600`}>
-                  {track.icon}
-                </div>
-
-                {/* Title */}
-                <h3 className="text-xl font-bold mb-2">{track.name}</h3>
-
-                {/* Duration badge */}
-                <span className="inline-block px-3 py-1 bg-white/80 dark:bg-gray-700 rounded-full text-xs font-medium mb-3 shadow-sm">
-                  {track.duration}
-                </span>
-
-                {/* Description */}
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                  {track.description}
-                </p>
-
-                {/* Suitable for badges */}
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {track.suitableFor.map((tag) => (
-                    <span key={tag} className="px-2 py-1 bg-white/60 dark:bg-gray-700/60 rounded-full text-xs">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Play/Pause indicator */}
-                {isCurrentTrack && (
-                  <div className="mt-3 flex items-center justify-center gap-1 text-sm font-medium text-purple-600">
-                    {isPlaying ? (
-                      <>🔊 Now Playing</>
-                    ) : (
-                      <>⏸️ Paused</>
-                    )}
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Visualizer (optional) */}
-        {showVisualizer && isPlaying && (
-          <div className="mt-8 p-6 bg-white/80 dark:bg-gray-800/80 rounded-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold">Sound Visualizer</h3>
-              <button 
-                onClick={() => setShowVisualizer(false)}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                Hide
-              </button>
-            </div>
-            <div className="flex items-end justify-center gap-1 h-32">
-              {[...Array(20)].map((_, i) => (
-                <div
-                  key={i}
-                  className="w-4 bg-gradient-to-t from-purple-500 to-pink-500 rounded-t-lg animate-pulse"
-                  style={{
-                    height: `${Math.random() * 100}%`,
-                    animationDelay: `${i * 0.1}s`,
-                    animationDuration: '1s'
-                  }}
-                />
-              ))}
-            </div>
+                track={track}
+                isActive={currentTrackId === track.id}
+                isPlaying={currentTrackId === track.id && isPlaying}
+                onSelect={() => toggleTrack(track.id)}
+              />
+            ))}
           </div>
-        )}
+        </section>
 
-        {/* Volume Control */}
-        <div className="mt-6 p-4 bg-white/80 dark:bg-gray-800/80 rounded-2xl">
-          <div className="flex items-center gap-4">
-            <Volume2 className="w-6 h-6 text-gray-500" />
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={volume}
-              onChange={(e) => setVolume(parseInt(e.target.value))}
-              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            />
-            <span className="text-sm text-gray-600 w-12">{volume}%</span>
-          </div>
-        </div>
-
-        {/* Footer note */}
-        <footer className="mt-8 text-center text-sm text-gray-500">
-          <p>🎧 Use headphones for best experience • Sounds loop continuously</p>
-          <p className="mt-2">Perfect for: Sensory breaks • Focus time • Bedtime • Calm moments</p>
+        <footer className="rounded-2xl border border-dashed border-adapt-indigo/20 bg-adapt-indigo/5 px-5 py-4 text-center dark:border-adapt-cyan/20 dark:bg-adapt-cyan/5">
+          <p className="text-sm text-slate-600 dark:text-gray-400">
+            <Headphones className="mr-1.5 inline h-4 w-4 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+            Headphones work best for a cocoon of calm · Perfect for sensory breaks, focus, and bedtime
+          </p>
         </footer>
-      </div>
+      </main>
     </div>
   );
 };

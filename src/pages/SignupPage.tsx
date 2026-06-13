@@ -6,7 +6,7 @@ import { UserRole, isSupabaseConfigured } from 'services/supabase/client';
 import { getPostSignupRoute, getRouteForUser, type SignupDetails } from 'services/supabase/authService';
 import { useAuthStore } from 'store/authStore';
 import { ROUTES } from 'constants/routes';
-import { isPasswordValid } from 'utils/passwordValidation';
+import { toAuthErrorMessage } from 'services/supabase/authErrors';
 import AuthBackground, { AuthLogo } from 'pages/auth/AuthBackground';
 import PasswordRequirements from 'pages/auth/PasswordRequirements';
 import OtpVerificationModal from 'pages/auth/OtpVerificationModal';
@@ -154,11 +154,7 @@ const SignupPage: React.FC = () => {
       }
       finishSignup(details.role);
     } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message?: string }).message)
-          : 'Failed to create account';
-      setError(message);
+      setError(toAuthErrorMessage(err, 'Failed to create account'));
     } finally {
       setLoading(false);
     }

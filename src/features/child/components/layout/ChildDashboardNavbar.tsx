@@ -6,6 +6,7 @@ import {
   Music,
   PenTool,
   Settings,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
@@ -14,6 +15,7 @@ import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
 
 const navItems = [
   { to: ROUTES.CHILD_DASHBOARD, label: 'Home', icon: Home },
+  { to: ROUTES.COMPANION_BUDDY, label: 'Buddy', icon: Sparkles },
   { to: ROUTES.MUSIC, label: 'Music', icon: Music },
   { to: ROUTES.WRITING_PAD, label: 'Writing', icon: PenTool },
   { to: ROUTES.CHILD_SETTINGS, label: 'Settings', icon: Settings },
@@ -29,12 +31,14 @@ const ChildDashboardNavbar: React.FC = () => {
   const initials = firstName.charAt(0).toUpperCase();
 
   const neuroLabel =
-    profile?.neuro_types?.length
-      ? profile.neuro_types
-          .slice(0, 2)
-          .map((id) => NEURO_OPTION_MAP[id]?.name.split(' ').slice(1).join(' ') || id)
-          .join(' · ')
-      : 'Set up your profile';
+    profile?.companion_onboarding_completed || profile?.neuro_types?.includes('autism')
+      ? 'Autism companion'
+      : profile?.neuro_types?.length
+        ? profile.neuro_types
+            .slice(0, 2)
+            .map((id) => NEURO_OPTION_MAP[id]?.name.split(' ').slice(1).join(' ') || id)
+            .join(' · ')
+        : 'Set up your profile';
 
   const handleSignOut = async () => {
     await signOut();

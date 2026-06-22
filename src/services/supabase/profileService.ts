@@ -11,6 +11,7 @@ export interface ProfileUpdatePayload {
   avatar_url?: string | null;
   neuro_types?: string[];
   onboarding_completed?: boolean;
+  companion_onboarding_completed?: boolean;
   child_name?: string | null;
 }
 
@@ -28,6 +29,7 @@ function profileToRow(profile: Profile, overrides: ProfileUpdatePayload = {}) {
     avatar_url: profile.avatar_url ?? null,
     neuro_types: profile.neuro_types ?? [],
     onboarding_completed: profile.onboarding_completed ?? false,
+    companion_onboarding_completed: profile.companion_onboarding_completed ?? false,
     ...overrides,
   };
 }
@@ -91,6 +93,21 @@ export async function updateUserProfile(
   }
 
   return upserted as Profile;
+}
+
+export async function completeCompanionOnboarding(
+  userId: string,
+  existingProfile?: Profile | null,
+): Promise<Profile> {
+  return updateUserProfile(
+    userId,
+    {
+      neuro_types: ['autism'],
+      onboarding_completed: true,
+      companion_onboarding_completed: true,
+    },
+    existingProfile,
+  );
 }
 
 export async function saveNeuroSelection(

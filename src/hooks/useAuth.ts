@@ -9,6 +9,7 @@ export const useAuth = () =>
       profile: s.profile,
       session: s.session,
       loading: s.loading,
+      initialized: s.initialized,
       isGuest: s.isGuest,
       signIn: s.signIn,
       signUp: s.signUp,

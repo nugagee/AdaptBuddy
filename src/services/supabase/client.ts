@@ -32,6 +32,7 @@ export interface Profile {
   status?: UserStatus;
   neuro_types: string[];
   onboarding_completed: boolean;
+  companion_onboarding_completed?: boolean;
   email_verified_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -43,6 +44,7 @@ export function normalizeProfile(raw: Profile): Profile {
     ...raw,
     neuro_types: Array.isArray(raw.neuro_types) ? raw.neuro_types : [],
     onboarding_completed: raw.onboarding_completed === true,
+    companion_onboarding_completed: raw.companion_onboarding_completed === true,
     is_authorized: raw.is_authorized !== false,
     status: raw.status ?? 'active',
   };

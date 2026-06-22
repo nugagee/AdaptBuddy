@@ -1,40 +1,32 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NeuroSelector from 'features/child/components/neuro-selector/NeuroSelector';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
 import { saveNeuroSelection } from 'services/supabase/profileService';
+import { ACTIVE_NEURO_IDS } from 'constants/neuroOptions';
 
 const NeuroSelectorPage: React.FC = () => {
   const navigate = useNavigate();
-  const { profile, user, isGuest, setProfile } = useAuth();
+  const { profile, user, setProfile } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (!profile) return;
+    if (profile.companion_onboarding_completed) {
+      navigate(ROUTES.CHILD_DASHBOARD, { replace: true });
+      return;
+    }
+    if (profile.neuro_types.length > 0) {
+      navigate(ROUTES.COMPANION_ONBOARDING, { replace: true });
+    }
+  }, [profile, navigate]);
+
   const handleContinue = async (selected: string[]) => {
-    if (isGuest) {
-      const now = new Date().toISOString();
-      setProfile({
-        id: 'guest-child',
-        email: 'guest@adaptbuddy.local',
-        role: 'child',
-        first_name: profile?.first_name || 'Friend',
-        last_name: profile?.last_name || '',
-        full_name: profile?.full_name || 'Friend',
-        child_name: profile?.child_name ?? null,
-        avatar_url: profile?.avatar_url ?? null,
-        bio: profile?.bio ?? null,
-        age: profile?.age ?? null,
-        neuro_types: selected,
-        onboarding_completed: true,
-        email_verified_at: null,
-        created_at: profile?.created_at || now,
-        updated_at: now,
-      });
-      navigate(ROUTES.CHILD_DASHBOARD, {
-        replace: true,
-        state: { message: 'Your space is ready to explore.' },
-      });
+    const activeSelection = selected.filter((id) => ACTIVE_NEURO_IDS.has(id));
+    if (activeSelection.length === 0) {
+      setError('Please select Autism to continue.');
       return;
     }
 
@@ -46,11 +38,11 @@ const NeuroSelectorPage: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      const updated = await saveNeuroSelection(user.id, selected, true, profile);
+      const updated = await saveNeuroSelection(user.id, activeSelection, false, profile);
       setProfile(updated);
-      navigate(ROUTES.CHILD_DASHBOARD, {
+      navigate(ROUTES.COMPANION_ONBOARDING, {
         replace: true,
-        state: { message: 'Your learning space is ready! Welcome aboard.' },
+        state: { message: 'Great choice! Let AdaptBuddy get to know you.' },
       });
     } catch (err: unknown) {
       const message =
@@ -71,11 +63,11 @@ const NeuroSelectorPage: React.FC = () => {
         </div>
       )}
       <NeuroSelector
-        initialSelected={profile?.neuro_types ?? []}
+        initialSelected={profile?.neuro_types?.length ? profile.neuro_types : ['autism']}
         userName={profile?.first_name || user?.user_metadata?.first_name || 'friend'}
         onContinue={handleContinue}
         saving={saving}
-        submitLabel="Create My Calm Space"
+        submitLabel="Continue to meet AdaptBuddy"
       />
     </>
   );

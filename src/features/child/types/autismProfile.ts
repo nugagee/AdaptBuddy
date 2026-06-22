@@ -13,6 +13,7 @@ export interface CommunicationSection {
   supportFormat: CommunicationSupport[];
   quickButtons: QuickButton[];
   customPhrases: string[];
+  difficulties?: string[];
 }
 
 export type SensorySensitivity = 'sound' | 'light' | 'touch' | 'smell' | 'crowds' | 'movement';
@@ -47,6 +48,31 @@ export interface LearningSection {
   oneInstructionAtATime: boolean;
 }
 
+export interface AboutMeSection {
+  preferredName: string;
+  favouriteThings: string[];
+  happyTriggers: string[];
+}
+
+export interface EmotionalSection {
+  worryTopics: string;
+  frustrationTriggers: string;
+  calmStrategies: CalmingTool[];
+  helpBehaviour: string;
+}
+
+export interface ExecutiveFunctionSection {
+  startingTasks: boolean;
+  finishingTasks: boolean;
+  rememberingInstructions: boolean;
+  switchingActivities: boolean;
+  managingTime: boolean;
+}
+
+export interface GoalsSection {
+  selected: string[];
+}
+
 export interface SafetySection {
   helpAlertContacts: string[];
   overwhelmSigns: string;
@@ -55,11 +81,17 @@ export interface SafetySection {
 
 export interface AutismProfile {
   childId: string;
+  aboutMe?: AboutMeSection;
   communication: CommunicationSection;
   sensory: SensorySection;
   routine: RoutineSection;
   learning: LearningSection;
+  emotional?: EmotionalSection;
+  executiveFunction?: ExecutiveFunctionSection;
+  goals?: GoalsSection;
   safety: SafetySection;
+  companionOnboardingCompleted?: boolean;
+  onboardedWithParent?: boolean;
   completedAt: string | null;
   updatedAt: string;
 }

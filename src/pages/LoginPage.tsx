@@ -31,7 +31,16 @@ const demoRoutes: Record<UserRole, string> = {
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const signupMessage = (location.state as { message?: string } | null)?.message;
+  const locationState = (location.state as {
+    message?: string;
+    unauthorized?: boolean;
+    from?: string;
+  } | null);
+  const signupMessage = locationState?.message;
+  const unauthorizedNotice = locationState?.unauthorized
+    ? locationState.message ?? 'Please sign in to access this page.'
+    : '';
+  const redirectFrom = locationState?.from;
   const { signIn, setGuestMode, user, loading: authLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
@@ -42,12 +51,16 @@ const LoginPage: React.FC = () => {
   const redirectAfterAuth = useCallback(
     (authUser: NonNullable<typeof user>, message: string) => {
       const { profile } = useAuthStore.getState();
-      navigate(getRouteForUser(authUser, profile), {
+      const destination =
+        redirectFrom && redirectFrom !== ROUTES.LOGIN && redirectFrom !== ROUTES.SIGNUP
+          ? redirectFrom
+          : getRouteForUser(authUser, profile);
+      navigate(destination, {
         replace: true,
         state: { message },
       });
     },
-    [navigate],
+    [navigate, redirectFrom],
   );
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -88,7 +101,7 @@ const LoginPage: React.FC = () => {
 
   const handleGuestEntry = () => {
     setGuestMode();
-    navigate(ROUTES.NEURO_SELECTOR);
+    navigate(ROUTES.HOME);
   };
 
   return (
@@ -130,8 +143,20 @@ const LoginPage: React.FC = () => {
               A gentle return to your dashboard.
             </p>
 
-            {signupMessage && (
+            {unauthorizedNotice && (
+              <p className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-200" role="alert">
+                {unauthorizedNotice}
+              </p>
+            )}
+
+            {signupMessage && !unauthorizedNotice && (
               <p className="mt-6 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                {signupMessage}
+              </p>
+            )}
+
+            {signupMessage && unauthorizedNotice && (
+              <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
                 {signupMessage}
               </p>
             )}

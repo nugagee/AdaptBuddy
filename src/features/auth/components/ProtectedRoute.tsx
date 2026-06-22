@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
 
@@ -8,20 +8,31 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, session, isGuest, loading } = useAuth();
+  const location = useLocation();
+  const { user, session, loading, initialized } = useAuth();
 
   const isAuthenticated = Boolean(user ?? session?.user);
 
-  if (loading && !isAuthenticated && !isGuest) {
+  if ((loading || !initialized) && !isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center">
         <p className="text-gray-500">Loading…</p>
       </div>
     );
   }
 
-  if (!isAuthenticated && !isGuest) {
-    return <Navigate to={ROUTES.LOGIN} replace />;
+  if (!isAuthenticated) {
+    return (
+      <Navigate
+        to={ROUTES.LOGIN}
+        replace
+        state={{
+          unauthorized: true,
+          message: 'Please sign in to access this page.',
+          from: location.pathname,
+        }}
+      />
+    );
   }
 
   return <>{children}</>;

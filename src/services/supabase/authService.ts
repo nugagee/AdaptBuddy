@@ -129,9 +129,13 @@ export function getRouteForProfile(profile: Profile): string {
 
   switch (profile.role) {
     case 'child':
-      return profile.onboarding_completed && profile.neuro_types.length > 0
-        ? ROUTES.CHILD_DASHBOARD
-        : ROUTES.NEURO_SELECTOR;
+      if (profile.companion_onboarding_completed && profile.neuro_types.length > 0) {
+        return ROUTES.CHILD_DASHBOARD;
+      }
+      if (profile.neuro_types.length > 0) {
+        return ROUTES.COMPANION_ONBOARDING;
+      }
+      return ROUTES.NEURO_SELECTOR;
     case 'parent':
       return ROUTES.PARENT_HUB;
     case 'teacher':

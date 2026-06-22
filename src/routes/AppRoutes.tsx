@@ -6,6 +6,8 @@ import AuthenticatedLayout from 'layouts/AuthenticatedLayout';
 import ChildOnboardedRoute from 'features/child/components/layout/ChildOnboardedRoute';
 import LandingPage from 'pages/LandingPage';
 import NeuroSelectorPage from 'features/child/pages/NeuroSelectorPage';
+import CompanionOnboardingPage from 'features/child/pages/CompanionOnboardingPage';
+import CompanionBuddyPage from 'features/child/pages/CompanionBuddyPage';
 import ChildDashboardPage from 'features/child/pages/ChildDashboardPage';
 import AutismSpacePage from 'features/child/pages/AutismSpacePage';
 import SettingsPage from 'features/child/pages/SettingsPage';
@@ -41,6 +43,12 @@ const withAdmin = (page: React.ReactNode) => (
   </ProtectedRoute>
 );
 
+const withTeacherAuth = (page: React.ReactNode) => (
+  <ProtectedRoute>
+    <AuthenticatedLayout>{page}</AuthenticatedLayout>
+  </ProtectedRoute>
+);
+
 const AppRoutes: React.FC = () => (
   <Routes>
     <Route path={ROUTES.HOME} element={<LandingPage />} />
@@ -51,6 +59,8 @@ const AppRoutes: React.FC = () => (
     <Route path={ROUTES.ADMIN_DASHBOARD} element={withAdmin(<AdminDashboardPage />)} />
     <Route path={ROUTES.ADMIN_USERS} element={withAdmin(<AdminUsersPage />)} />
     <Route path={ROUTES.NEURO_SELECTOR} element={withAuth(<NeuroSelectorPage />)} />
+    <Route path={ROUTES.COMPANION_ONBOARDING} element={withAuth(<CompanionOnboardingPage />)} />
+    <Route path={ROUTES.COMPANION_BUDDY} element={withChildAuth(<CompanionBuddyPage />)} />
     <Route path={ROUTES.CHILD_DASHBOARD} element={withChildAuth(<ChildDashboardPage />)} />
     <Route path={ROUTES.AUTISM_SPACE} element={withChildAuth(<AutismSpacePage />)} />
     <Route path={ROUTES.CHILD_SETTINGS} element={withChildAuth(<SettingsPage />)} />
@@ -58,11 +68,11 @@ const AppRoutes: React.FC = () => (
     <Route path={ROUTES.PARENT_HUB} element={withAuth(<ParentHubPage />)} />
     <Route path={ROUTES.MUSIC} element={withChildAuth(<MusicMenu />)} />
     <Route path={ROUTES.TEACHER_LOGIN} element={<AuthenticatedLayout><TeacherLogin /></AuthenticatedLayout>} />
-    <Route path={ROUTES.TEACHER_DASHBOARD} element={<AuthenticatedLayout><TeacherDashboard /></AuthenticatedLayout>} />
-    <Route path={ROUTES.TEACHER_CLASSES} element={<AuthenticatedLayout><Classes /></AuthenticatedLayout>} />
-    <Route path={ROUTES.TEACHER_STUDENTS} element={<AuthenticatedLayout><Students /></AuthenticatedLayout>} />
-    <Route path={ROUTES.TEACHER_REPORTS} element={<AuthenticatedLayout><Reports /></AuthenticatedLayout>} />
-    <Route path={ROUTES.TEACHER_SETTINGS} element={<AuthenticatedLayout><Settings /></AuthenticatedLayout>} />
+    <Route path={ROUTES.TEACHER_DASHBOARD} element={withTeacherAuth(<TeacherDashboard />)} />
+    <Route path={ROUTES.TEACHER_CLASSES} element={withTeacherAuth(<Classes />)} />
+    <Route path={ROUTES.TEACHER_STUDENTS} element={withTeacherAuth(<Students />)} />
+    <Route path={ROUTES.TEACHER_REPORTS} element={withTeacherAuth(<Reports />)} />
+    <Route path={ROUTES.TEACHER_SETTINGS} element={withTeacherAuth(<Settings />)} />
     <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
   </Routes>
 );

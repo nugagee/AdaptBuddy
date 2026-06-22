@@ -7,17 +7,17 @@ interface ChildOnboardedRouteProps {
   children: React.ReactNode;
 }
 
-/** Redirects new child users to neuro selection before dashboard access. */
+/** Redirects child users through neuro selection → companion onboarding before dashboard. */
 const ChildOnboardedRoute: React.FC<ChildOnboardedRouteProps> = ({ children }) => {
-  const { profile, isGuest } = useAuth();
+  const { profile } = useAuth();
 
-  if (isGuest) return <>{children}</>;
-
-  if (
-    profile?.role === 'child' &&
-    (!profile.onboarding_completed || profile.neuro_types.length === 0)
-  ) {
-    return <Navigate to={ROUTES.NEURO_SELECTOR} replace />;
+  if (profile?.role === 'child') {
+    if (!profile.neuro_types.length) {
+      return <Navigate to={ROUTES.NEURO_SELECTOR} replace />;
+    }
+    if (!profile.companion_onboarding_completed || !profile.onboarding_completed) {
+      return <Navigate to={ROUTES.COMPANION_ONBOARDING} replace />;
+    }
   }
 
   return <>{children}</>;

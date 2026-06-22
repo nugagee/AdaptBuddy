@@ -2,6 +2,8 @@
 export const ROUTES = {
   HOME: '/',
   NEURO_SELECTOR: '/neuro-selector',
+  COMPANION_ONBOARDING: '/companion-onboarding',
+  COMPANION_BUDDY: '/companion-buddy',
   LOGIN: '/login',
   SIGNUP: '/signup',
   FORGOT_PASSWORD: '/forgot-password',

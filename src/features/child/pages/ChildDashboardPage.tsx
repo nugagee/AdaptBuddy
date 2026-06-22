@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Layers, Rocket } from 'lucide-react';
+import { Layers, Rocket, Sparkles } from 'lucide-react';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import FeelingsJournal from 'features/child/components/journal/FeelingsJournal';
 import DashboardHero from 'features/child/components/dashboard/DashboardHero';
@@ -138,8 +138,34 @@ const ChildDashboardPage: React.FC = () => {
 
         <DailyOrbitProgress
           totalActivities={dailyActivities.length}
-          onMoodCheck={() => setShowJournal(true)}
+          onMoodCheck={() => navigate(ROUTES.COMPANION_BUDDY)}
         />
+
+        <section className="overflow-hidden rounded-3xl border border-adapt-indigo/20 bg-gradient-to-br from-adapt-indigo/10 via-white to-adapt-purple/10 p-6 shadow-sm dark:border-adapt-cyan/20 dark:from-adapt-cyan/10 dark:via-gray-900 dark:to-adapt-purple/10 sm:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-adapt-indigo/15 text-adapt-indigo dark:bg-adapt-cyan/15 dark:text-adapt-cyan">
+                <Sparkles className="h-6 w-6" aria-hidden />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">
+                  Your AI companion
+                </h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
+                  Simplify confusing words, check in on your mood, or create a social story —
+                  AdaptBuddy understands you.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate(ROUTES.COMPANION_BUDDY)}
+              className="shrink-0 rounded-2xl bg-adapt-indigo px-5 py-3 text-sm font-semibold text-white hover:bg-adapt-purple dark:bg-adapt-cyan dark:text-gray-900"
+            >
+              Open AdaptBuddy
+            </button>
+          </div>
+        </section>
 
         <section>
           <div className="mb-5 flex items-center gap-3">

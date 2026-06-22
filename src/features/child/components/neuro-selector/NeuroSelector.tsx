@@ -8,7 +8,7 @@ import {
   Star,
   Wand2,
 } from 'lucide-react';
-import { NEURO_OPTIONS } from 'constants/neuroOptions';
+import { NEURO_OPTIONS, ACTIVE_NEURO_IDS } from 'constants/neuroOptions';
 import { useUiStore } from 'store/uiStore';
 import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
 import './neuro-selector.css';
@@ -133,7 +133,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
   saving = false,
 }) => {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
-    initialSelected[0] ?? null,
+    initialSelected[0] ?? 'autism',
   );
   const reducedMotion = useUiStore((s) => s.reducedMotion);
 
@@ -144,8 +144,11 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
   );
 
   const toggleSelection = (id: string) => {
+    if (!ACTIVE_NEURO_IDS.has(id)) return;
     setSelectedProfileId((currentId) => (currentId === id ? null : id));
   };
+
+  const availableCount = NEURO_OPTIONS.filter((o) => ACTIVE_NEURO_IDS.has(o.id)).length;
 
   const encouragement = selectedProfileId
     ? 'Great start. You can continue, or choose a different main support profile.'
@@ -177,7 +180,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
 
           <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-adapt-indigo/20 bg-white/60 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-adapt-indigo backdrop-blur-sm dark:border-adapt-cyan/25 dark:bg-gray-900/60 dark:text-adapt-cyan sepia:border-amber-300/50 sepia:bg-amber-50/80 sepia:text-amber-900">
             <Sparkles className="h-3.5 w-3.5" aria-hidden />
-            12 support profiles
+            {availableCount} available · more coming soon
           </p>
 
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-adapt-navy sm:text-4xl md:text-5xl dark:text-gray-100 sepia:text-amber-950">
@@ -188,8 +191,8 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-gray-300 sepia:text-amber-900/80 sm:text-lg">
-            Choose the main support profile you want to start with. We&apos;ll gently shape
-            your space around it.
+            We&apos;re starting with Autism support. Choose it to begin — other profiles are on
+            the way.
           </p>
 
           <div className="mx-auto mt-6 flex max-w-md flex-col items-center gap-3">
@@ -217,6 +220,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
         >
           {NEURO_OPTIONS.map((option) => {
             const isSelected = selectedProfileId === option.id;
+            const isAvailable = ACTIVE_NEURO_IDS.has(option.id);
             const accent = CARD_ACCENTS[option.id] ?? defaultAccent;
             const IconComponent = option.icon;
 
@@ -226,13 +230,17 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
                 type="button"
                 role="radio"
                 aria-checked={isSelected}
+                aria-disabled={!isAvailable}
+                disabled={!isAvailable}
                 onClick={() => toggleSelection(option.id)}
                 className={`neuro-profile-card group relative flex flex-col overflow-hidden rounded-3xl border-2 bg-gradient-to-br p-5 text-left transition-all duration-300 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-adapt-indigo/30 ${
-                  isSelected
-                    ? `${accent.border} ${accent.surface} ring-4 ${accent.ring} ${accent.glow} ${
-                        !reducedMotion ? 'neuro-card-selected' : ''
-                      }`
-                    : `${accent.border} ${accent.surface} opacity-90 hover:opacity-100 hover:shadow-xl dark:border-opacity-50 sepia:border-amber-200/70 sepia:from-amber-50/90 sepia:via-white/80 sepia:to-orange-50/60`
+                  !isAvailable
+                    ? `${accent.border} ${accent.surface} cursor-not-allowed opacity-55 grayscale-[0.35]`
+                    : isSelected
+                      ? `${accent.border} ${accent.surface} ring-4 ${accent.ring} ${accent.glow} ${
+                          !reducedMotion ? 'neuro-card-selected' : ''
+                        }`
+                      : `${accent.border} ${accent.surface} opacity-90 hover:opacity-100 hover:shadow-xl dark:border-opacity-50 sepia:border-amber-200/70 sepia:from-amber-50/90 sepia:via-white/80 sepia:to-orange-50/60`
                 }`}
               >
                 <span
@@ -244,9 +252,15 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
                   <span className="neuro-card-sheen absolute -left-1/2 top-0 h-full w-1/2 rotate-12 bg-white/35 blur-xl" />
                 </span>
 
-                {isSelected && (
+                {isSelected && isAvailable && (
                   <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-md">
                     <Check className="h-4 w-4" strokeWidth={3} aria-hidden />
+                  </span>
+                )}
+
+                {!isAvailable && (
+                  <span className="absolute right-3 top-3 rounded-full bg-slate-800/80 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-gray-950/90">
+                    Coming soon
                   </span>
                 )}
 

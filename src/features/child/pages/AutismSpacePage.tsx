@@ -22,6 +22,7 @@ import {
   Wind,
 } from 'lucide-react';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
+import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
 import { useTrustedAdultStore } from 'features/child/store/trustedAdultStore';
 import type {
@@ -34,6 +35,7 @@ import type {
   WarningTime,
 } from 'features/child/types/autismProfile';
 import { useUiStore } from 'store/uiStore';
+import { useAuth } from 'hooks/useAuth';
 
 type AutismTab = 'profile' | 'schedule' | 'transition' | 'calm' | 'story' | 'communication';
 
@@ -106,14 +108,13 @@ const AutismSpacePage: React.FC = () => {
   const [worryNote, setWorryNote] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
 
+  const { profile: authProfile } = useAuth();
   const profile = useAutismProfileStore((s) => s.profile);
   const schedule = useAutismProfileStore((s) => s.schedule);
-  const nowNextLater = useAutismProfileStore((s) => s.nowNextLater);
   const socialStories = useAutismProfileStore((s) => s.socialStories);
   const updateProfile = useAutismProfileStore((s) => s.updateProfile);
   const updateSchedule = useAutismProfileStore((s) => s.updateSchedule);
   const toggleScheduleDone = useAutismProfileStore((s) => s.toggleScheduleDone);
-  const updateNowNextLater = useAutismProfileStore((s) => s.updateNowNextLater);
   const addSocialStory = useAutismProfileStore((s) => s.addSocialStory);
   const trustedAdults = useTrustedAdultStore((s) => s.trustedAdults);
   const selectedTrustedAdultId = useTrustedAdultStore((s) => s.selectedTrustedAdultId);
@@ -124,6 +125,7 @@ const AutismSpacePage: React.FC = () => {
     () => trustedAdults.find((adult) => adult.id === selectedTrustedAdultId) ?? trustedAdults[0],
     [selectedTrustedAdultId, trustedAdults],
   );
+  const childId = authProfile?.id ?? profile.childId ?? 'guest-child';
 
   const saveProfile = () => {
     const now = new Date().toISOString();
@@ -411,52 +413,50 @@ const AutismSpacePage: React.FC = () => {
       </section>
 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-soft dark:border-gray-800 dark:bg-gray-900">
-        <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">Now / Next / Later</h2>
-        <div className="mt-5 space-y-3">
-          {(['now', 'next', 'later'] as const).map((slot) => (
-            <label key={slot} className="block rounded-2xl bg-slate-50 p-4 dark:bg-gray-800">
-              <span className="text-xs font-bold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">{slot}</span>
-              <input
-                value={nowNextLater[slot]}
-                onChange={(e) => updateNowNextLater({ ...nowNextLater, [slot]: e.target.value })}
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-              />
-            </label>
-          ))}
+        <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">Why visual schedules help</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-400">
+          A visible order lowers guesswork. Move cards up or down, mark them done, and keep the day predictable.
+        </p>
+        <div className="mt-5 rounded-2xl bg-sky-50 p-4 text-sm font-semibold text-sky-900 dark:bg-sky-950/30 dark:text-sky-200">
+          For transitions, open the Now / Next / Later tab to show only the current step, the next step, and what comes after.
         </div>
       </section>
     </div>
   );
 
   const renderTransition = () => (
-    <section className="rounded-3xl border border-slate-100 bg-white p-6 text-center shadow-soft dark:border-gray-800 dark:bg-gray-900">
-      <Clock className="mx-auto h-10 w-10 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
-      <h2 className="mt-3 text-xl font-bold text-adapt-navy dark:text-gray-100">Transition Timer</h2>
-      <p className="mt-1 text-sm text-slate-500">Give warning before a change happens.</p>
-      <div className="mt-6 grid grid-cols-4 gap-2">
-        {([2, 5, 10, 15] as WarningTime[]).map((minutes) => (
-          <button
-            key={minutes}
-            type="button"
-            onClick={() => setTimerMinutes(minutes)}
-            className={`rounded-2xl border-2 p-3 text-sm font-bold ${timerMinutes === minutes ? 'border-adapt-indigo bg-adapt-indigo/10 text-adapt-indigo' : 'border-slate-100 bg-slate-50 dark:border-gray-700 dark:bg-gray-800'}`}
-          >
-            {minutes} min
-          </button>
-        ))}
-      </div>
-      <div className="mx-auto mt-6 flex h-36 w-36 items-center justify-center rounded-full bg-gradient-to-br from-adapt-indigo to-adapt-teal text-4xl font-black text-white shadow-glow">
-        {timerMinutes}
-      </div>
-      <button
-        type="button"
-        onClick={() => setTimerRunning((running) => !running)}
-        className="mt-6 inline-flex items-center gap-2 rounded-full bg-adapt-navy px-6 py-3 text-sm font-bold text-white"
-      >
-        {timerRunning ? <Pause className="h-4 w-4" aria-hidden /> : <Timer className="h-4 w-4" aria-hidden />}
-        {timerRunning ? 'Pause warning' : 'Start warning'}
-      </button>
-    </section>
+    <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+      <NowNextLaterBoard childId={childId} mode="child" editable />
+
+      <section className="rounded-3xl border border-slate-100 bg-white p-6 text-center shadow-soft dark:border-gray-800 dark:bg-gray-900">
+        <Clock className="mx-auto h-10 w-10 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+        <h2 className="mt-3 text-xl font-bold text-adapt-navy dark:text-gray-100">Transition Timer</h2>
+        <p className="mt-1 text-sm text-slate-500">Give warning before a change happens.</p>
+        <div className="mt-6 grid grid-cols-4 gap-2">
+          {([2, 5, 10, 15] as WarningTime[]).map((minutes) => (
+            <button
+              key={minutes}
+              type="button"
+              onClick={() => setTimerMinutes(minutes)}
+              className={`rounded-2xl border-2 p-3 text-sm font-bold ${timerMinutes === minutes ? 'border-adapt-indigo bg-adapt-indigo/10 text-adapt-indigo' : 'border-slate-100 bg-slate-50 dark:border-gray-700 dark:bg-gray-800'}`}
+            >
+              {minutes} min
+            </button>
+          ))}
+        </div>
+        <div className="mx-auto mt-6 flex h-36 w-36 items-center justify-center rounded-full bg-gradient-to-br from-adapt-indigo to-adapt-teal text-4xl font-black text-white shadow-glow">
+          {timerMinutes}
+        </div>
+        <button
+          type="button"
+          onClick={() => setTimerRunning((running) => !running)}
+          className="mt-6 inline-flex items-center gap-2 rounded-full bg-adapt-navy px-6 py-3 text-sm font-bold text-white"
+        >
+          {timerRunning ? <Pause className="h-4 w-4" aria-hidden /> : <Timer className="h-4 w-4" aria-hidden />}
+          {timerRunning ? 'Pause warning' : 'Start warning'}
+        </button>
+      </section>
+    </div>
   );
 
   const renderCalmCorner = () => (

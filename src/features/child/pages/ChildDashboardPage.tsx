@@ -11,6 +11,7 @@ import AccessibilityDock from 'features/child/components/dashboard/Accessibility
 import SmartRecommendationsPanel from 'features/child/components/dashboard/SmartRecommendationsPanel';
 import FocusTimerModal from 'features/child/components/dashboard/FocusTimerModal';
 import ActivitySessionModal from 'features/child/components/dashboard/ActivitySessionModal';
+import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import AuthSuccessBanner from 'components/auth/AuthSuccessBanner';
 import {
   getActivitiesForNeuros,
@@ -37,6 +38,7 @@ const ChildDashboardPage: React.FC = () => {
   const completions = useChildProgressStore((s) => s.completions);
 
   const firstName = profile?.first_name || 'Friend';
+  const childId = profile?.id ?? 'guest-child';
   const neuroTypes = useMemo(
     () => (profile?.neuro_types?.length ? profile.neuro_types : ['autism']),
     [profile?.neuro_types],
@@ -140,6 +142,18 @@ const ChildDashboardPage: React.FC = () => {
           totalActivities={dailyActivities.length}
           onMoodCheck={() => navigate(ROUTES.COMPANION_BUDDY)}
         />
+
+        {neuroTypes.includes('autism') && (
+          <NowNextLaterBoard
+            childId={childId}
+            mode="child"
+            compact
+            onActivityComplete={(activity) => {
+              setCelebration(`${activity.emoji} ${activity.label} complete! Great transition.`);
+              window.setTimeout(() => setCelebration(null), 3500);
+            }}
+          />
+        )}
 
         <section className="overflow-hidden rounded-3xl border border-adapt-indigo/20 bg-gradient-to-br from-adapt-indigo/10 via-white to-adapt-purple/10 p-6 shadow-sm dark:border-adapt-cyan/20 dark:from-adapt-cyan/10 dark:via-gray-900 dark:to-adapt-purple/10 sm:p-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

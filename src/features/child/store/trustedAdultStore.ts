@@ -14,7 +14,8 @@ export interface TrustedAdult {
 interface TrustedAdultState {
   trustedAdults: TrustedAdult[];
   selectedTrustedAdultId: string | null;
-  addTrustedAdult: (adult: Omit<TrustedAdult, 'id' | 'status'>) => TrustedAdult;
+  addTrustedAdult: (adult: Omit<TrustedAdult, 'id' | 'status'> & Partial<Pick<TrustedAdult, 'id' | 'status'>>) => TrustedAdult;
+  setTrustedAdults: (adults: TrustedAdult[]) => void;
   selectTrustedAdult: (adultId: string) => void;
 }
 
@@ -42,16 +43,29 @@ export const useTrustedAdultStore = create<TrustedAdultState>()(
       addTrustedAdult: (adult) => {
         const created: TrustedAdult = {
           ...adult,
-          id: `trusted-${Date.now()}`,
-          status: 'pending',
+          id: adult.id ?? `trusted-${Date.now()}`,
+          status: adult.status ?? 'pending',
         };
 
         set((state) => ({
-          trustedAdults: [...state.trustedAdults, created],
+          trustedAdults: [
+            ...state.trustedAdults.filter((existing) => existing.id !== created.id),
+            created,
+          ],
           selectedTrustedAdultId: created.id,
         }));
 
         return created;
+      },
+
+      setTrustedAdults: (adults) => {
+        const nextAdults = adults.length > 0 ? adults : defaultTrustedAdults;
+        const currentSelected = get().selectedTrustedAdultId;
+        const selectedTrustedAdultId = nextAdults.some((adult) => adult.id === currentSelected)
+          ? currentSelected
+          : nextAdults[0]?.id ?? null;
+
+        set({ trustedAdults: nextAdults, selectedTrustedAdultId });
       },
 
       selectTrustedAdult: (adultId) => {

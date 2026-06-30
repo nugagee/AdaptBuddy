@@ -21,13 +21,6 @@ const demoRoles: { role: UserRole; label: string }[] = [
   { role: 'teacher', label: 'Teacher' },
 ];
 
-const demoRoutes: Record<UserRole, string> = {
-  child: ROUTES.NEURO_SELECTOR,
-  parent: ROUTES.PARENT_HUB,
-  teacher: ROUTES.TEACHER_DASHBOARD,
-  admin: ROUTES.ADMIN_DASHBOARD,
-};
-
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -41,7 +34,7 @@ const LoginPage: React.FC = () => {
     ? locationState.message ?? 'Please sign in to access this page.'
     : '';
   const redirectFrom = locationState?.from;
-  const { signIn, setGuestMode, user, loading: authLoading } = useAuth();
+  const { signIn, user, loading: authLoading, setGuestMode } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -94,16 +87,6 @@ const LoginPage: React.FC = () => {
     redirectAfterAuth(user, "Welcome back! You're signed in.");
   }, [authLoading, user, location.pathname, redirectAfterAuth]);
 
-  const handleDemoRole = (role: UserRole) => {
-    setGuestMode();
-    navigate(demoRoutes[role]);
-  };
-
-  const handleGuestEntry = () => {
-    setGuestMode();
-    navigate(ROUTES.HOME);
-  };
-
   return (
     <AuthBackground variant="login">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-8 sm:px-6 lg:px-8">
@@ -120,14 +103,14 @@ const LoginPage: React.FC = () => {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               {demoRoles.map(({ role, label }) => (
-                <button
+                <Link
                   key={role}
-                  type="button"
-                  onClick={() => handleDemoRole(role)}
+                  to={`${ROUTES.GUEST_ENTRY}?role=${role}`}
+                  onClick={() => setGuestMode(role)}
                   className="rounded-full border border-white/60 bg-white/60 px-5 py-2.5 text-sm font-semibold text-adapt-navy shadow-soft backdrop-blur-sm transition hover:border-adapt-indigo/50 hover:bg-white/80 hover:shadow-[0_0_20px_-4px_rgba(99,102,241,0.35)] dark:border-white/10 dark:bg-gray-800/50 dark:text-gray-100 dark:hover:bg-gray-800/70 sepia:border-amber-200/70 sepia:bg-amber-50/60"
                 >
                   {label}
-                </button>
+                </Link>
               ))}
             </div>
           </div>
@@ -213,13 +196,13 @@ const LoginPage: React.FC = () => {
               <span className="mx-2 text-slate-300" aria-hidden>
                 |
               </span>
-              <button
-                type="button"
-                onClick={handleGuestEntry}
+              <Link
+                to={`${ROUTES.GUEST_ENTRY}?role=child`}
+                onClick={() => setGuestMode('child')}
                 className="font-semibold text-adapt-indigo transition-colors hover:text-adapt-purple dark:text-adapt-cyan"
               >
                 Enter as guest
-              </button>
+              </Link>
             </p>
             <p className="mt-3 text-center text-xs text-slate-400 dark:text-gray-500">
               <Link to={ROUTES.ADMIN_LOGIN} className="hover:text-adapt-indigo dark:hover:text-adapt-cyan">

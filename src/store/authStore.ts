@@ -62,7 +62,8 @@ interface AuthState {
   /** @deprecated Use requestPasswordReset — kept for legacy modal */
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
-  setGuestMode: () => void;
+  setGuestMode: (role?: UserRole) => void;
+  restoreGuestMode: () => boolean;
   setProfile: (profile: Profile) => void;
   refreshProfile: () => Promise<Profile | null>;
   initialize: () => () => void;
@@ -95,10 +96,64 @@ const getInitialSession = () => {
   return initialSessionRequest;
 };
 
-const loadGuestProfile = (): Profile | null => {
+const createGuestProfile = (role: UserRole = 'child'): Profile => {
+  const now = new Date().toISOString();
+  const names: Record<UserRole, { first: string; last: string; full: string; email: string }> = {
+    child: {
+      first: 'Alex',
+      last: 'Guest',
+      full: 'Alex Guest',
+      email: 'guest-child@adaptbuddy.local',
+    },
+    parent: {
+      first: 'Parent',
+      last: 'Guest',
+      full: 'Parent Guest',
+      email: 'guest-parent@adaptbuddy.local',
+    },
+    teacher: {
+      first: 'Teacher',
+      last: 'Guest',
+      full: 'Teacher Guest',
+      email: 'guest-teacher@adaptbuddy.local',
+    },
+    admin: {
+      first: 'Admin',
+      last: 'Guest',
+      full: 'Admin Guest',
+      email: 'guest-admin@adaptbuddy.local',
+    },
+  };
+  const name = names[role];
+
+  return {
+    id: `guest-${role}`,
+    email: name.email,
+    role,
+    first_name: name.first,
+    last_name: name.last,
+    full_name: name.full,
+    child_name: role === 'parent' ? 'Alex' : null,
+    avatar_url: null,
+    bio: null,
+    age: role === 'child' ? 10 : null,
+    sex: null,
+    gender: null,
+    neuro_types: [],
+    onboarding_completed: false,
+    companion_onboarding_completed: false,
+    email_verified_at: now,
+    created_at: now,
+    updated_at: now,
+  };
+};
+
+const loadGuestProfile = (role?: UserRole): Profile | null => {
   try {
     const raw = localStorage.getItem(GUEST_PROFILE_KEY);
-    return raw ? (JSON.parse(raw) as Profile) : null;
+    const profile = raw ? (JSON.parse(raw) as Profile) : null;
+    if (role && profile?.role !== role) return null;
+    return profile;
   } catch {
     localStorage.removeItem(GUEST_PROFILE_KEY);
     return null;
@@ -109,7 +164,15 @@ const saveGuestProfile = (profile: Profile) => {
   localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(profile));
 };
 
+export const hasStoredGuestMode = () =>
+  typeof window !== 'undefined' && localStorage.getItem(GUEST_MODE_KEY) === 'true';
+
 const applyAuthSession = async (session: Session) => {
+  if (hasStoredGuestMode()) {
+    applyNoSessionState();
+    return;
+  }
+
   const profile =
     (await loadProfile(session.user.id)) ?? buildFallbackProfileFromUser(session.user);
 
@@ -139,20 +202,27 @@ const applySignedOutState = () => {
 };
 
 const applyNoSessionState = () => {
-  const isGuest = localStorage.getItem(GUEST_MODE_KEY) === 'true';
+  const isGuest = hasStoredGuestMode();
+  const guestProfile = isGuest ? loadGuestProfile() ?? createGuestProfile('child') : null;
+  if (guestProfile) saveGuestProfile(guestProfile);
 
   useAuthStore.setState({
     user: null,
-    profile: isGuest ? loadGuestProfile() : null,
+    profile: guestProfile,
     session: null,
     loading: false,
     isGuest,
+    initialized: true,
   });
 };
 
 const handleAuthStateChange = async (event: AuthChangeEvent, session: Session | null) => {
   if (event === 'SIGNED_OUT') {
-    applySignedOutState();
+    if (hasStoredGuestMode()) {
+      applyNoSessionState();
+    } else {
+      applySignedOutState();
+    }
     return;
   }
 
@@ -439,9 +509,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     applySignedOutState();
   },
 
-  setGuestMode: () => {
+  setGuestMode: (role = 'child') => {
+    const guestProfile = createGuestProfile(role);
     localStorage.setItem(GUEST_MODE_KEY, 'true');
-    set({ isGuest: true, user: null, profile: loadGuestProfile(), session: null, loading: false });
+    saveGuestProfile(guestProfile);
+    set({
+      isGuest: true,
+      user: null,
+      profile: guestProfile,
+      session: null,
+      loading: false,
+      initialized: true,
+    });
+  },
+
+  restoreGuestMode: () => {
+    if (!hasStoredGuestMode()) return false;
+
+    const guestProfile = loadGuestProfile() ?? createGuestProfile('child');
+    saveGuestProfile(guestProfile);
+    set({
+      isGuest: true,
+      user: null,
+      profile: guestProfile,
+      session: null,
+      loading: false,
+      initialized: true,
+    });
+    return true;
   },
 
   setProfile: (profile) => {
@@ -471,9 +566,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         initialized: true,
         loading: false,
         user: null,
-        profile: localStorage.getItem(GUEST_MODE_KEY) === 'true' ? loadGuestProfile() : null,
+        profile:
+          hasStoredGuestMode()
+            ? loadGuestProfile() ?? createGuestProfile('child')
+            : null,
         session: null,
-        isGuest: localStorage.getItem(GUEST_MODE_KEY) === 'true',
+        isGuest: hasStoredGuestMode(),
       });
       return () => {
         if (authInitializeVersion === version) set({ initialized: false });
@@ -485,7 +583,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     getInitialSession().then((session) => {
       if (authInitializeVersion !== version) return;
 
-      if (session?.user) {
+      if (session?.user && !hasStoredGuestMode()) {
         void applyAuthSession(session);
       } else {
         applyNoSessionState();

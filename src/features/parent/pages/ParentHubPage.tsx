@@ -31,6 +31,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useAuth } from 'hooks/useAuth';
+import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import {
   ParentDashboardService,
   type CareMeeting,
@@ -916,6 +917,16 @@ const ParentHubPage: React.FC = () => {
 
             {activeTab === 'overview' && (
               <>
+            <NowNextLaterBoard
+              childId={currentChild.childId}
+              mode="adult"
+              editable
+              onActivityComplete={(activity) => {
+                setActionStatus(`${activity.label} marked complete on ${currentChild.childName}'s plan.`);
+                window.setTimeout(() => setActionStatus(''), 3500);
+              }}
+            />
+
             <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <article className="rounded-3xl border border-adapt-indigo/15 bg-gradient-to-br from-adapt-indigo/10 via-white to-adapt-teal/10 p-6 shadow-card dark:border-adapt-cyan/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950">
                 <div className="flex items-start gap-4">

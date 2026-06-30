@@ -8,7 +8,7 @@ import { ACTIVE_NEURO_IDS } from 'constants/neuroOptions';
 
 const NeuroSelectorPage: React.FC = () => {
   const navigate = useNavigate();
-  const { profile, user, setProfile } = useAuth();
+  const { profile, user, isGuest, setProfile } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -30,7 +30,7 @@ const NeuroSelectorPage: React.FC = () => {
       return;
     }
 
-    if (!user?.id) {
+    if (!user?.id && !isGuest) {
       setError('You need to be signed in to continue. Please log in and try again.');
       return;
     }
@@ -38,6 +38,22 @@ const NeuroSelectorPage: React.FC = () => {
     setSaving(true);
     setError('');
     try {
+      if (isGuest && profile) {
+        setProfile({
+          ...profile,
+          neuro_types: activeSelection,
+          onboarding_completed: false,
+          companion_onboarding_completed: false,
+          updated_at: new Date().toISOString(),
+        });
+        navigate(ROUTES.COMPANION_ONBOARDING, {
+          replace: true,
+          state: { message: 'Great choice! Let AdaptBuddy get to know you.' },
+        });
+        return;
+      }
+
+      if (!user?.id) return;
       const updated = await saveNeuroSelection(user.id, activeSelection, false, profile);
       setProfile(updated);
       navigate(ROUTES.COMPANION_ONBOARDING, {

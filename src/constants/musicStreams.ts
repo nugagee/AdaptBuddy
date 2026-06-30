@@ -45,6 +45,7 @@ export const YOUTUBE_LOFI_URL = 'https://youtu.be/jfKfPfyJRdk';
 
 function isMobileDevice(): boolean {
   if (typeof window === 'undefined') return false;
+  if (typeof window.matchMedia !== 'function') return false;
   return (
     window.matchMedia('(max-width: 768px)').matches ||
     window.matchMedia('(pointer: coarse)').matches

@@ -31,7 +31,7 @@ const chipClass = (selected: boolean) =>
 
 const CompanionOnboardingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { profile, user, setProfile } = useAuth();
+  const { profile, user, isGuest, setProfile } = useAuth();
   const updateAutismProfile = useAutismProfileStore((s) => s.updateProfile);
 
   useEffect(() => {
@@ -103,13 +103,29 @@ const CompanionOnboardingPage: React.FC = () => {
     setSaving(true);
     setError('');
 
-    const childId = user?.id ?? 'guest-child';
+    const childId = user?.id ?? profile?.id ?? 'guest-child';
     const autismProfile = buildAutismProfileFromOnboarding(childId, {
       ...answers,
       onboardedWithParent: needsParentCopilot,
     });
 
     updateAutismProfile(autismProfile);
+
+    if (isGuest && profile) {
+      setProfile({
+        ...profile,
+        neuro_types: profile.neuro_types.length > 0 ? profile.neuro_types : ['autism'],
+        onboarding_completed: true,
+        companion_onboarding_completed: true,
+        updated_at: new Date().toISOString(),
+      });
+      navigate(ROUTES.CHILD_DASHBOARD, {
+        replace: true,
+        state: { message: 'AdaptBuddy understands you now. Welcome!' },
+      });
+      setSaving(false);
+      return;
+    }
 
     if (!user?.id) {
       setError('Please sign in to continue.');

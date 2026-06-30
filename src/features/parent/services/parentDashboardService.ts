@@ -1,0 +1,1199 @@
+import { getSupabaseClient, isSupabaseConfigured } from 'services/supabase/client';
+
+export type RiskLevel = 'low' | 'medium' | 'high';
+export type TrustedAdultStatus = 'active' | 'connected' | 'pending' | 'inactive';
+
+export interface ChildSummary {
+  childId: string;
+  childName: string;
+  age?: number;
+  neurotypes: string[];
+  totalEntries: number;
+  entriesLast7Days: number;
+  totalAlerts: number;
+  highAlerts: number;
+  trustedAdultsCount: number;
+  profileCompletion: number;
+  wellbeingScore: number | null;
+  wellbeingChange: number | null;
+}
+
+export interface JournalEntry {
+  id: string;
+  childId: string;
+  emotion: string;
+  text: string;
+  riskLevel: RiskLevel;
+  createdAt: string;
+  childName?: string;
+  moodScore: number | null;
+  focusScore: number | null;
+  calmScore: number | null;
+}
+
+export interface Alert {
+  id: string;
+  childId: string;
+  riskLevel: RiskLevel;
+  journalEntryText: string;
+  createdAt: string;
+  acknowledged: boolean;
+}
+
+export interface TrustedAdult {
+  id: string;
+  childId: string;
+  name: string;
+  email: string;
+  phone?: string;
+  relationship: string;
+  status: TrustedAdultStatus;
+}
+
+export interface ParentMessage {
+  id: string;
+  childId: string;
+  senderId: string;
+  recipientId?: string;
+  body: string;
+  urgency: 'normal' | 'support' | 'urgent';
+  aiSummary?: string;
+  aiTalkingPoints: string[];
+  createdAt: string;
+  readAt?: string;
+}
+
+export interface CareMeeting {
+  id: string;
+  childId: string;
+  requestedBy: string;
+  assignedTo?: string;
+  meetingType: string;
+  status: 'requested' | 'scheduled' | 'completed' | 'cancelled';
+  urgency: 'routine' | 'soon' | 'urgent';
+  proposedTimes: string[];
+  scheduledAt?: string;
+  agenda: string[];
+  notes?: string;
+  actionItems: string[];
+  createdAt: string;
+}
+
+export interface SupportGoal {
+  id: string;
+  childId: string;
+  title: string;
+  category: string;
+  description?: string;
+  progress: number;
+  status: 'active' | 'paused' | 'completed';
+  targetDate?: string;
+  aiSuggestion?: string;
+  createdAt: string;
+}
+
+export interface ParentResource {
+  id: string;
+  childId: string;
+  title: string;
+  resourceType: 'article' | 'video' | 'worksheet' | 'strategy' | 'printable';
+  url?: string;
+  summary: string;
+  neurotypes: string[];
+  reason?: string;
+  readingLevel: 'child' | 'parent' | 'teacher' | 'clinician';
+  generated?: boolean;
+}
+
+export interface ChildSignal {
+  id: string;
+  childId: string;
+  emotion: string;
+  color: string;
+  note?: string;
+  createdAt: string;
+  seenAt?: string;
+}
+
+export interface ParentAiDigest {
+  headline: string;
+  happyWeekPercentage: number | null;
+  highestEmotion: string;
+  alertSummary: string;
+  learningProgress: string;
+  suggestion: string;
+  talkingPoints: string[];
+}
+
+export interface ProactiveInsight {
+  id: string;
+  childId: string;
+  priority: 'low' | 'medium' | 'high';
+  title: string;
+  detail: string;
+  suggestedAction: string;
+}
+
+export interface ParentFeedbackTheme {
+  theme: string;
+  count: number;
+  sentiment: 'positive' | 'neutral' | 'concerned';
+}
+
+export interface WellbeingTrendPoint {
+  day: string;
+  date: string;
+  mood: number;
+  focus: number;
+  calm: number;
+}
+
+export interface DashboardSummary {
+  children: ChildSummary[];
+  recentEntries: JournalEntry[];
+  recentAlerts: Alert[];
+  trustedAdults: TrustedAdult[];
+  wellbeingTrends: Record<string, WellbeingTrendPoint[]>;
+  messages: ParentMessage[];
+  meetings: CareMeeting[];
+  goals: SupportGoal[];
+  resources: ParentResource[];
+  childSignals: ChildSignal[];
+  aiDigest: ParentAiDigest;
+  proactiveInsights: ProactiveInsight[];
+  parentFeedbackThemes: ParentFeedbackTheme[];
+}
+
+interface ParentSummaryRow {
+  child_id: string;
+  child_name: string | null;
+  age: number | null;
+  neurotypes: string[] | null;
+  total_entries: number | string | null;
+  entries_last_7_days: number | string | null;
+  total_alerts: number | string | null;
+  high_alerts: number | string | null;
+  trusted_adults_count: number | string | null;
+  profile_completion: number | string | null;
+}
+
+type AiAnalysis = {
+  emotion?: unknown;
+  riskLevel?: unknown;
+  risk_level?: unknown;
+  sentimentScore?: unknown;
+  sentiment_score?: unknown;
+  mood?: unknown;
+  moodScore?: unknown;
+  mood_score?: unknown;
+  focus?: unknown;
+  focusScore?: unknown;
+  focus_score?: unknown;
+  calm?: unknown;
+  calmScore?: unknown;
+  calm_score?: unknown;
+};
+
+interface JournalEntryRow {
+  id: string;
+  child_id: string;
+  emotion: string | null;
+  text: string | null;
+  ai_analysis: AiAnalysis | null;
+  risk_level: string | null;
+  created_at: string;
+}
+
+interface AlertRow {
+  id: string;
+  child_id: string;
+  risk_level: string | null;
+  created_at: string;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+  journal_entries?: { text?: string | null } | { text?: string | null }[] | null;
+}
+
+interface TrustedAdultRow {
+  id: string;
+  child_id: string;
+  adult_id: string | null;
+  name: string | null;
+  role: string | null;
+  email: string | null;
+  phone: string | null;
+  status: string | null;
+}
+
+interface ParentMessageRow {
+  id: string;
+  child_id: string;
+  sender_id: string;
+  recipient_id: string | null;
+  body: string;
+  urgency: string | null;
+  ai_summary: string | null;
+  ai_talking_points: string[] | null;
+  created_at: string;
+  read_at: string | null;
+}
+
+interface CareMeetingRow {
+  id: string;
+  child_id: string;
+  requested_by: string;
+  assigned_to: string | null;
+  meeting_type: string;
+  status: string | null;
+  urgency: string | null;
+  proposed_times: unknown;
+  scheduled_at: string | null;
+  agenda: unknown;
+  notes: string | null;
+  action_items: unknown;
+  created_at: string;
+}
+
+interface SupportGoalRow {
+  id: string;
+  child_id: string;
+  title: string;
+  category: string | null;
+  description: string | null;
+  progress: number | null;
+  status: string | null;
+  target_date: string | null;
+  ai_suggestion: { suggestion?: unknown } | string | null;
+  created_at: string;
+}
+
+interface ParentResourceRow {
+  id: string;
+  child_id: string;
+  title: string;
+  resource_type: string | null;
+  url: string | null;
+  summary: string;
+  neurotypes: string[] | null;
+  reason: string | null;
+  reading_level: string | null;
+}
+
+interface ChildSignalRow {
+  id: string;
+  child_id: string;
+  emotion: string;
+  color: string | null;
+  note: string | null;
+  created_at: string;
+  seen_at: string | null;
+}
+
+interface ParentFeedbackRow {
+  sentiment: string | null;
+  themes: unknown;
+}
+
+const riskLevels: RiskLevel[] = ['low', 'medium', 'high'];
+const dayFormatter = new Intl.DateTimeFormat('en-GB', { weekday: 'short' });
+
+const toNumber = (value: number | string | null | undefined, fallback = 0): number => {
+  const next = typeof value === 'string' ? Number(value) : value;
+  return Number.isFinite(next) ? Number(next) : fallback;
+};
+
+const clampScore = (value: unknown): number | null => {
+  const numeric = typeof value === 'string' ? Number(value) : value;
+  if (typeof numeric !== 'number' || !Number.isFinite(numeric)) return null;
+
+  if (numeric >= -1 && numeric <= 1) {
+    return Math.round(((numeric + 1) / 2) * 100);
+  }
+
+  return Math.round(Math.min(100, Math.max(0, numeric)));
+};
+
+const normalizeRiskLevel = (value: unknown): RiskLevel =>
+  typeof value === 'string' && riskLevels.includes(value as RiskLevel)
+    ? (value as RiskLevel)
+    : 'low';
+
+const normalizeTrustedAdultStatus = (value: unknown): TrustedAdultStatus => {
+  if (value === 'active' || value === 'connected' || value === 'pending' || value === 'inactive') {
+    return value;
+  }
+
+  return 'pending';
+};
+
+const normalizeMessageUrgency = (value: unknown): ParentMessage['urgency'] => {
+  if (value === 'normal' || value === 'support' || value === 'urgent') return value;
+  return 'normal';
+};
+
+const normalizeMeetingStatus = (value: unknown): CareMeeting['status'] => {
+  if (value === 'requested' || value === 'scheduled' || value === 'completed' || value === 'cancelled') {
+    return value;
+  }
+
+  return 'requested';
+};
+
+const normalizeMeetingUrgency = (value: unknown): CareMeeting['urgency'] => {
+  if (value === 'routine' || value === 'soon' || value === 'urgent') return value;
+  return 'routine';
+};
+
+const normalizeGoalStatus = (value: unknown): SupportGoal['status'] => {
+  if (value === 'active' || value === 'paused' || value === 'completed') return value;
+  return 'active';
+};
+
+const normalizeResourceType = (value: unknown): ParentResource['resourceType'] => {
+  if (value === 'article' || value === 'video' || value === 'worksheet' || value === 'strategy' || value === 'printable') {
+    return value;
+  }
+
+  return 'article';
+};
+
+const normalizeReadingLevel = (value: unknown): ParentResource['readingLevel'] => {
+  if (value === 'child' || value === 'parent' || value === 'teacher' || value === 'clinician') return value;
+  return 'parent';
+};
+
+const normalizeFeedbackSentiment = (value: unknown): ParentFeedbackTheme['sentiment'] => {
+  if (value === 'positive' || value === 'neutral' || value === 'concerned') return value;
+  return 'neutral';
+};
+
+const toStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string');
+  }
+
+  return [];
+};
+
+const getAnalysisValue = (
+  analysis: AiAnalysis | null,
+  keys: Array<keyof AiAnalysis>,
+): unknown => {
+  if (!analysis) return undefined;
+  return keys.map((key) => analysis[key]).find((value) => value !== undefined && value !== null);
+};
+
+const scoreFromEmotion = (emotion: string): number | null => {
+  switch (emotion.toLowerCase()) {
+    case 'happy':
+    case 'excited':
+      return 88;
+    case 'calm':
+    case 'okay':
+      return 74;
+    case 'tired':
+      return 58;
+    case 'sad':
+    case 'angry':
+      return 38;
+    case 'anxious':
+    case 'worried':
+      return 32;
+    default:
+      return null;
+  }
+};
+
+const mapChildSummary = (row: ParentSummaryRow): ChildSummary => ({
+  childId: row.child_id,
+  childName: row.child_name || 'Child',
+  age: row.age ?? undefined,
+  neurotypes: Array.isArray(row.neurotypes) ? row.neurotypes : [],
+  totalEntries: toNumber(row.total_entries),
+  entriesLast7Days: toNumber(row.entries_last_7_days),
+  totalAlerts: toNumber(row.total_alerts),
+  highAlerts: toNumber(row.high_alerts),
+  trustedAdultsCount: toNumber(row.trusted_adults_count),
+  profileCompletion: toNumber(row.profile_completion),
+  wellbeingScore: null,
+  wellbeingChange: null,
+});
+
+const mapJournalEntry = (
+  row: JournalEntryRow,
+  childNames: Map<string, string>,
+): JournalEntry => {
+  const emotion = row.emotion || String(getAnalysisValue(row.ai_analysis, ['emotion']) ?? 'unspecified');
+  const moodScore =
+    clampScore(getAnalysisValue(row.ai_analysis, ['moodScore', 'mood_score', 'mood', 'sentimentScore', 'sentiment_score']))
+    ?? scoreFromEmotion(emotion);
+
+  return {
+    id: row.id,
+    childId: row.child_id,
+    childName: childNames.get(row.child_id),
+    emotion,
+    text: row.text || '',
+    riskLevel: normalizeRiskLevel(row.risk_level ?? getAnalysisValue(row.ai_analysis, ['riskLevel', 'risk_level'])),
+    createdAt: row.created_at,
+    moodScore,
+    focusScore: clampScore(getAnalysisValue(row.ai_analysis, ['focusScore', 'focus_score', 'focus'])),
+    calmScore: clampScore(getAnalysisValue(row.ai_analysis, ['calmScore', 'calm_score', 'calm'])),
+  };
+};
+
+const getJoinedJournalEntry = (row: AlertRow): { text?: string | null } | null => {
+  if (!row.journal_entries) return null;
+  return Array.isArray(row.journal_entries) ? row.journal_entries[0] ?? null : row.journal_entries;
+};
+
+const mapAlert = (row: AlertRow): Alert => ({
+  id: row.id,
+  childId: row.child_id,
+  riskLevel: normalizeRiskLevel(row.risk_level),
+  journalEntryText: getJoinedJournalEntry(row)?.text || 'No journal text attached.',
+  createdAt: row.created_at,
+  acknowledged: Boolean(row.acknowledged_at || row.acknowledged_by),
+});
+
+const mapTrustedAdult = (row: TrustedAdultRow): TrustedAdult => ({
+  id: row.adult_id || row.id,
+  childId: row.child_id,
+  name: row.name || 'Trusted adult',
+  email: row.email || '',
+  phone: row.phone || undefined,
+  relationship: row.role || 'trusted adult',
+  status: normalizeTrustedAdultStatus(row.status),
+});
+
+const mapParentMessage = (row: ParentMessageRow): ParentMessage => ({
+  id: row.id,
+  childId: row.child_id,
+  senderId: row.sender_id,
+  recipientId: row.recipient_id ?? undefined,
+  body: row.body,
+  urgency: normalizeMessageUrgency(row.urgency),
+  aiSummary: row.ai_summary ?? undefined,
+  aiTalkingPoints: row.ai_talking_points ?? [],
+  createdAt: row.created_at,
+  readAt: row.read_at ?? undefined,
+});
+
+const mapCareMeeting = (row: CareMeetingRow): CareMeeting => ({
+  id: row.id,
+  childId: row.child_id,
+  requestedBy: row.requested_by,
+  assignedTo: row.assigned_to ?? undefined,
+  meetingType: row.meeting_type,
+  status: normalizeMeetingStatus(row.status),
+  urgency: normalizeMeetingUrgency(row.urgency),
+  proposedTimes: toStringArray(row.proposed_times),
+  scheduledAt: row.scheduled_at ?? undefined,
+  agenda: toStringArray(row.agenda),
+  notes: row.notes ?? undefined,
+  actionItems: toStringArray(row.action_items),
+  createdAt: row.created_at,
+});
+
+const mapSupportGoal = (row: SupportGoalRow): SupportGoal => {
+  const suggestion =
+    typeof row.ai_suggestion === 'string'
+      ? row.ai_suggestion
+      : typeof row.ai_suggestion?.suggestion === 'string'
+        ? row.ai_suggestion.suggestion
+        : undefined;
+
+  return {
+    id: row.id,
+    childId: row.child_id,
+    title: row.title,
+    category: row.category ?? 'wellbeing',
+    description: row.description ?? undefined,
+    progress: Math.min(100, Math.max(0, row.progress ?? 0)),
+    status: normalizeGoalStatus(row.status),
+    targetDate: row.target_date ?? undefined,
+    aiSuggestion: suggestion,
+    createdAt: row.created_at,
+  };
+};
+
+const mapParentResource = (row: ParentResourceRow): ParentResource => ({
+  id: row.id,
+  childId: row.child_id,
+  title: row.title,
+  resourceType: normalizeResourceType(row.resource_type),
+  url: row.url ?? undefined,
+  summary: row.summary,
+  neurotypes: Array.isArray(row.neurotypes) ? row.neurotypes : [],
+  reason: row.reason ?? undefined,
+  readingLevel: normalizeReadingLevel(row.reading_level),
+});
+
+const mapChildSignal = (row: ChildSignalRow): ChildSignal => ({
+  id: row.id,
+  childId: row.child_id,
+  emotion: row.emotion,
+  color: row.color ?? 'blue',
+  note: row.note ?? undefined,
+  createdAt: row.created_at,
+  seenAt: row.seen_at ?? undefined,
+});
+
+const createEmptyTrendWindow = (): WellbeingTrendPoint[] => {
+  const today = new Date();
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(today.getDate() - (6 - index));
+    const isoDate = date.toISOString().slice(0, 10);
+
+    return {
+      day: dayFormatter.format(date),
+      date: isoDate,
+      mood: 0,
+      focus: 0,
+      calm: 0,
+    };
+  });
+};
+
+const buildWellbeingTrends = (entries: JournalEntry[]): Record<string, WellbeingTrendPoint[]> => {
+  const entriesByChild = entries.reduce<Record<string, JournalEntry[]>>((acc, entry) => {
+    acc[entry.childId] = acc[entry.childId] ?? [];
+    acc[entry.childId].push(entry);
+    return acc;
+  }, {});
+
+  return Object.fromEntries(
+    Object.entries(entriesByChild).map(([childId, childEntries]) => {
+      const window = createEmptyTrendWindow();
+
+      const next = window.map((point) => {
+        const entriesForDay = childEntries.filter((entry) => entry.createdAt.slice(0, 10) === point.date);
+        if (entriesForDay.length === 0) return point;
+
+        const average = (values: Array<number | null>) => {
+          const numbers = values.filter((value): value is number => value !== null);
+          if (numbers.length === 0) return 0;
+          return Math.round(numbers.reduce((sum, value) => sum + value, 0) / numbers.length);
+        };
+
+        const mood = average(entriesForDay.map((entry) => entry.moodScore));
+
+        return {
+          ...point,
+          mood,
+          focus: average(entriesForDay.map((entry) => entry.focusScore)) || Math.max(0, mood - 8),
+          calm: average(entriesForDay.map((entry) => entry.calmScore)) || Math.max(0, mood - 4),
+        };
+      });
+
+      return [childId, next.filter((point) => point.mood > 0 || point.focus > 0 || point.calm > 0)];
+    }),
+  );
+};
+
+const applyWellbeingToChildren = (
+  children: ChildSummary[],
+  trends: Record<string, WellbeingTrendPoint[]>,
+): ChildSummary[] =>
+  children.map((child) => {
+    const childTrends = trends[child.childId] ?? [];
+    if (childTrends.length === 0) return child;
+
+    const latest = childTrends[childTrends.length - 1];
+    const first = childTrends[0];
+    const wellbeingScore = Math.round((latest.mood + latest.focus + latest.calm) / 3);
+    const previousScore = Math.round((first.mood + first.focus + first.calm) / 3);
+
+    return {
+      ...child,
+      wellbeingScore,
+      wellbeingChange: wellbeingScore - previousScore,
+    };
+  });
+
+const buildAiDigest = (
+  children: ChildSummary[],
+  entries: JournalEntry[],
+  alerts: Alert[],
+  goals: SupportGoal[],
+): ParentAiDigest => {
+  const primaryChild = children[0];
+  const childName = primaryChild?.childName ?? 'your child';
+  const recentEntries = entries.slice(0, 20);
+  const scoredEntries = recentEntries.filter((entry) => entry.moodScore !== null);
+  const happyWeekPercentage =
+    scoredEntries.length > 0
+      ? Math.round((scoredEntries.filter((entry) => (entry.moodScore ?? 0) >= 70).length / scoredEntries.length) * 100)
+      : null;
+
+  const emotionCounts = recentEntries.reduce<Record<string, number>>((acc, entry) => {
+    acc[entry.emotion] = (acc[entry.emotion] ?? 0) + 1;
+    return acc;
+  }, {});
+  const highestEmotion =
+    Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'not enough data yet';
+
+  const unresolvedAlerts = alerts.filter((alert) => !alert.acknowledged);
+  const highAlerts = unresolvedAlerts.filter((alert) => alert.riskLevel === 'high').length;
+  const mediumAlerts = unresolvedAlerts.filter((alert) => alert.riskLevel === 'medium').length;
+  const completedGoals = goals.filter((goal) => goal.status === 'completed').length;
+  const activeGoals = goals.filter((goal) => goal.status === 'active').length;
+
+  const suggestion =
+    highAlerts > 0
+      ? `Check in gently with ${childName} today and consider involving a trusted adult.`
+      : mediumAlerts > 1
+        ? `Plan a short parent-teacher check-in to compare what home and school are seeing.`
+        : happyWeekPercentage !== null && happyWeekPercentage >= 70
+          ? `Keep the current routine steady; it seems to be supporting regulation.`
+          : `Try a predictable after-school reset: snack, movement, then one small task.`;
+
+  return {
+    headline:
+      happyWeekPercentage === null
+        ? `Buddy Digest is ready once ${childName} has a few check-ins.`
+        : `${childName} had a ${happyWeekPercentage}% regulated week.`,
+    happyWeekPercentage,
+    highestEmotion,
+    alertSummary:
+      unresolvedAlerts.length === 0
+        ? 'No unresolved safeguarding alerts.'
+        : `${unresolvedAlerts.length} unresolved alert${unresolvedAlerts.length === 1 ? '' : 's'}: ${highAlerts} high, ${mediumAlerts} medium.`,
+    learningProgress:
+      activeGoals + completedGoals === 0
+        ? 'No shared goals yet.'
+        : `${completedGoals} completed goal${completedGoals === 1 ? '' : 's'}, ${activeGoals} active.`,
+    suggestion,
+    talkingPoints: [
+      `What helped ${childName} feel most regulated this week?`,
+      highAlerts > 0 ? 'Which adult should follow up on the high-priority signal?' : 'Are home and school seeing the same pattern?',
+      activeGoals > 0 ? 'Which goal needs the smallest next step?' : 'What one goal should we agree together?',
+    ],
+  };
+};
+
+const buildProactiveInsights = (
+  children: ChildSummary[],
+  trends: Record<string, WellbeingTrendPoint[]>,
+  alerts: Alert[],
+): ProactiveInsight[] =>
+  children.flatMap((child) => {
+    const childTrends = trends[child.childId] ?? [];
+    const childAlerts = alerts.filter((alert) => alert.childId === child.childId && !alert.acknowledged);
+    const insights: ProactiveInsight[] = [];
+
+    if (childAlerts.some((alert) => alert.riskLevel === 'high')) {
+      insights.push({
+        id: `${child.childId}-high-alert`,
+        childId: child.childId,
+        priority: 'high',
+        title: 'High-priority support needed',
+        detail: `${child.childName} has an unresolved high-priority alert.`,
+        suggestedAction: 'Acknowledge the alert and choose a trusted adult to follow up today.',
+      });
+    }
+
+    if (childTrends.length >= 3) {
+      const lastThree = childTrends.slice(-3);
+      const average = Math.round(
+        lastThree.reduce((sum, point) => sum + (point.mood + point.focus + point.calm) / 3, 0) / lastThree.length,
+      );
+
+      if (average < 55) {
+        insights.push({
+          id: `${child.childId}-dip`,
+          childId: child.childId,
+          priority: 'medium',
+          title: 'Possible regulation dip',
+          detail: `${child.childName}'s recent mood/focus/calm average is ${average}%.`,
+          suggestedAction: 'Try a low-demand check-in and look for schedule changes around this period.',
+        });
+      }
+    }
+
+    if (child.entriesLast7Days === 0) {
+      insights.push({
+        id: `${child.childId}-no-checkins`,
+        childId: child.childId,
+        priority: 'low',
+        title: 'No journal check-ins this week',
+        detail: `${child.childName} has not shared a journal check-in in the last 7 days.`,
+        suggestedAction: 'Invite a pressure-free emoji check-in instead of asking for a long explanation.',
+      });
+    }
+
+    return insights;
+  });
+
+const buildGeneratedResources = (children: ChildSummary[]): ParentResource[] =>
+  children.flatMap((child) => {
+    const neurotypes = child.neurotypes.length > 0 ? child.neurotypes : ['neurodiverse'];
+    const hasAutism = neurotypes.includes('autism');
+    const hasAdhd = neurotypes.includes('adhd');
+    const hasDyslexia = neurotypes.includes('dyslexia');
+
+    const resources: ParentResource[] = [
+      {
+        id: `${child.childId}-resource-support-plan`,
+        childId: child.childId,
+        title: 'One-page support plan',
+        resourceType: 'printable',
+        summary: 'A simple home-school summary of triggers, calming tools, communication preferences, and trusted adults.',
+        neurotypes,
+        reason: 'Useful before teacher meetings and clinical conversations.',
+        readingLevel: 'parent',
+        generated: true,
+      },
+    ];
+
+    if (hasAutism) {
+      resources.push({
+        id: `${child.childId}-resource-transitions`,
+        childId: child.childId,
+        title: 'Visual transition routine',
+        resourceType: 'strategy',
+        summary: 'Use Now/Next/Later language with a short warning timer before changing activities.',
+        neurotypes: ['autism'],
+        reason: 'Recommended because visual predictability can reduce transition stress.',
+        readingLevel: 'parent',
+        generated: true,
+      });
+    }
+
+    if (hasAdhd) {
+      resources.push({
+        id: `${child.childId}-resource-movement`,
+        childId: child.childId,
+        title: 'Movement-before-work routine',
+        resourceType: 'strategy',
+        summary: 'Try a 5-minute movement reset before homework or focus-heavy tasks.',
+        neurotypes: ['adhd'],
+        reason: 'Recommended for energy regulation and task initiation.',
+        readingLevel: 'parent',
+        generated: true,
+      });
+    }
+
+    if (hasDyslexia) {
+      resources.push({
+        id: `${child.childId}-resource-reading`,
+        childId: child.childId,
+        title: 'Low-pressure reading support',
+        resourceType: 'strategy',
+        summary: 'Use read-aloud, tinted backgrounds, and short paired reading sessions.',
+        neurotypes: ['dyslexia'],
+        reason: 'Recommended to reduce reading fatigue and shame.',
+        readingLevel: 'parent',
+        generated: true,
+      });
+    }
+
+    return resources;
+  });
+
+const buildFeedbackThemes = (rows: ParentFeedbackRow[]): ParentFeedbackTheme[] => {
+  const themes = new Map<string, ParentFeedbackTheme>();
+
+  rows.forEach((row) => {
+    const sentiment = normalizeFeedbackSentiment(row.sentiment);
+    const rowThemes = toStringArray(row.themes);
+
+    rowThemes.forEach((theme) => {
+      const existing = themes.get(theme);
+      themes.set(theme, {
+        theme,
+        count: (existing?.count ?? 0) + 1,
+        sentiment: existing?.sentiment === 'concerned' || sentiment === 'concerned' ? 'concerned' : sentiment,
+      });
+    });
+  });
+
+  return Array.from(themes.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+};
+
+export class ParentDashboardService {
+  static async getChildren(): Promise<ChildSummary[]> {
+    if (!isSupabaseConfigured) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('parent_dashboard_summary')
+      .select('*')
+      .order('child_name', { ascending: true });
+
+    if (error) throw error;
+    return ((data ?? []) as ParentSummaryRow[]).map(mapChildSummary);
+  }
+
+  static async getRecentEntries(childId: string, limit = 10): Promise<JournalEntry[]> {
+    if (!isSupabaseConfigured || !childId) return [];
+
+    return this.getRecentEntriesForChildren([childId], new Map(), limit);
+  }
+
+  static async getAlerts(childId: string, limit = 20): Promise<Alert[]> {
+    if (!isSupabaseConfigured || !childId) return [];
+
+    return this.getAlertsForChildren([childId], limit);
+  }
+
+  static async getTrustedAdults(childId: string): Promise<TrustedAdult[]> {
+    if (!isSupabaseConfigured || !childId) return [];
+
+    return this.getTrustedAdultsForChildren([childId]);
+  }
+
+  static async acknowledgeAlert(alertId: string): Promise<void> {
+    if (!isSupabaseConfigured || !alertId) return;
+
+    const client = getSupabaseClient();
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError) throw userError;
+
+    const userId = userData.user?.id;
+    if (!userId) throw new Error('You must be signed in to acknowledge an alert.');
+
+    const { error } = await client
+      .from('alerts')
+      .update({
+        acknowledged_by: userId,
+        acknowledged_at: new Date().toISOString(),
+      })
+      .eq('id', alertId);
+
+    if (error) throw error;
+  }
+
+  static async getDashboardSummary(): Promise<DashboardSummary> {
+    const children = await this.getChildren();
+    const childNames = new Map(children.map((child) => [child.childId, child.childName]));
+    const childIds = children.map((child) => child.childId);
+
+    if (childIds.length === 0) {
+      return {
+        children,
+        recentEntries: [],
+        recentAlerts: [],
+        trustedAdults: [],
+        wellbeingTrends: {},
+        messages: [],
+        meetings: [],
+        goals: [],
+        resources: [],
+        childSignals: [],
+        aiDigest: buildAiDigest([], [], [], []),
+        proactiveInsights: [],
+        parentFeedbackThemes: [],
+      };
+    }
+
+    const [
+      recentEntries,
+      recentAlerts,
+      trustedAdults,
+      messages,
+      meetings,
+      goals,
+      savedResources,
+      childSignals,
+      parentFeedbackThemes,
+    ] = await Promise.all([
+      this.getRecentEntriesForChildren(childIds, childNames, 30),
+      this.getAlertsForChildren(childIds, 20),
+      this.getTrustedAdultsForChildren(childIds),
+      this.getMessagesForChildren(childIds, 12),
+      this.getMeetingsForChildren(childIds),
+      this.getGoalsForChildren(childIds),
+      this.getResourcesForChildren(childIds),
+      this.getSignalsForChildren(childIds),
+      this.getParentFeedbackThemes(),
+    ]);
+
+    const wellbeingTrends = buildWellbeingTrends(recentEntries);
+    const enrichedChildren = applyWellbeingToChildren(children, wellbeingTrends);
+    const resources = [...savedResources, ...buildGeneratedResources(enrichedChildren)];
+
+    return {
+      children: enrichedChildren,
+      recentEntries: recentEntries
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 12),
+      recentAlerts: recentAlerts
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 12),
+      trustedAdults,
+      wellbeingTrends,
+      messages,
+      meetings,
+      goals,
+      resources,
+      childSignals,
+      aiDigest: buildAiDigest(enrichedChildren, recentEntries, recentAlerts, goals),
+      proactiveInsights: buildProactiveInsights(enrichedChildren, wellbeingTrends, recentAlerts),
+      parentFeedbackThemes,
+    };
+  }
+
+  static async sendParentTeacherMessage(
+    childId: string,
+    body: string,
+    recipientId?: string,
+    urgency: ParentMessage['urgency'] = 'normal',
+  ): Promise<ParentMessage | null> {
+    if (!isSupabaseConfigured || !childId || !body.trim()) return null;
+
+    const client = getSupabaseClient();
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError) throw userError;
+    const userId = userData.user?.id;
+    if (!userId) throw new Error('You must be signed in to send a message.');
+
+    const talkingPoints = this.suggestMessageTalkingPoints(body);
+
+    const { data, error } = await client
+      .from('parent_teacher_messages')
+      .insert({
+        child_id: childId,
+        sender_id: userId,
+        recipient_id: recipientId ?? null,
+        body: body.trim(),
+        urgency,
+        ai_summary: this.summarizeMessage(body),
+        ai_talking_points: talkingPoints,
+      })
+      .select('id, child_id, sender_id, recipient_id, body, urgency, ai_summary, ai_talking_points, created_at, read_at')
+      .single();
+
+    if (error) throw error;
+    return mapParentMessage(data as ParentMessageRow);
+  }
+
+  static async requestMeeting(
+    childId: string,
+    meetingType: string,
+    agenda: string[],
+    urgency: CareMeeting['urgency'] = 'routine',
+  ): Promise<CareMeeting | null> {
+    if (!isSupabaseConfigured || !childId) return null;
+
+    const client = getSupabaseClient();
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError) throw userError;
+    const userId = userData.user?.id;
+    if (!userId) throw new Error('You must be signed in to request a meeting.');
+
+    const { data, error } = await client
+      .from('care_meetings')
+      .insert({
+        child_id: childId,
+        requested_by: userId,
+        meeting_type: meetingType,
+        urgency,
+        agenda,
+      })
+      .select('id, child_id, requested_by, assigned_to, meeting_type, status, urgency, proposed_times, scheduled_at, agenda, notes, action_items, created_at')
+      .single();
+
+    if (error) throw error;
+    return mapCareMeeting(data as CareMeetingRow);
+  }
+
+  static async submitParentFeedback(
+    childId: string | null,
+    feedbackText: string,
+  ): Promise<void> {
+    if (!isSupabaseConfigured || !feedbackText.trim()) return;
+
+    const client = getSupabaseClient();
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError) throw userError;
+    const userId = userData.user?.id;
+    if (!userId) throw new Error('You must be signed in to send feedback.');
+
+    const lower = feedbackText.toLowerCase();
+    const sentiment: ParentFeedbackTheme['sentiment'] =
+      /worried|hard|difficult|confusing|problem|issue|concern|stuck/.test(lower)
+        ? 'concerned'
+        : /love|great|helpful|easy|better|amazing|good/.test(lower)
+          ? 'positive'
+          : 'neutral';
+    const themes = [
+      lower.includes('reading') ? 'reading' : null,
+      lower.includes('teacher') || lower.includes('school') ? 'school communication' : null,
+      lower.includes('alert') || lower.includes('worry') ? 'safeguarding' : null,
+      lower.includes('music') || lower.includes('calm') ? 'calming tools' : null,
+      lower.includes('login') || lower.includes('account') ? 'account access' : null,
+    ].filter((theme): theme is string => Boolean(theme));
+
+    const { error } = await client.from('parent_feedback').insert({
+      parent_id: userId,
+      child_id: childId,
+      feedback_text: feedbackText.trim(),
+      sentiment,
+      themes,
+    });
+
+    if (error) throw error;
+  }
+
+  private static async getRecentEntriesForChildren(
+    childIds: string[],
+    childNames: Map<string, string>,
+    limit: number,
+  ): Promise<JournalEntry[]> {
+    if (!isSupabaseConfigured || childIds.length === 0) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('journal_entries')
+      .select('id, child_id, emotion, text, ai_analysis, risk_level, created_at')
+      .in('child_id', childIds)
+      .eq('is_shared', true)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return ((data ?? []) as JournalEntryRow[]).map((row) => mapJournalEntry(row, childNames));
+  }
+
+  private static async getAlertsForChildren(childIds: string[], limit: number): Promise<Alert[]> {
+    if (!isSupabaseConfigured || childIds.length === 0) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('alerts')
+      .select('id, child_id, risk_level, created_at, acknowledged_by, acknowledged_at, journal_entries(text)')
+      .in('child_id', childIds)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return ((data ?? []) as AlertRow[]).map(mapAlert);
+  }
+
+  private static async getTrustedAdultsForChildren(childIds: string[]): Promise<TrustedAdult[]> {
+    if (!isSupabaseConfigured || childIds.length === 0) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('trusted_adults')
+      .select('id, child_id, adult_id, name, role, email, phone, status')
+      .in('child_id', childIds)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return ((data ?? []) as TrustedAdultRow[]).map(mapTrustedAdult);
+  }
+
+  private static async getMessagesForChildren(childIds: string[], limit: number): Promise<ParentMessage[]> {
+    if (!isSupabaseConfigured || childIds.length === 0) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('parent_teacher_messages')
+      .select('id, child_id, sender_id, recipient_id, body, urgency, ai_summary, ai_talking_points, created_at, read_at')
+      .in('child_id', childIds)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return ((data ?? []) as ParentMessageRow[]).map(mapParentMessage);
+  }
+
+  private static async getMeetingsForChildren(childIds: string[]): Promise<CareMeeting[]> {
+    if (!isSupabaseConfigured || childIds.length === 0) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('care_meetings')
+      .select('id, child_id, requested_by, assigned_to, meeting_type, status, urgency, proposed_times, scheduled_at, agenda, notes, action_items, created_at')
+      .in('child_id', childIds)
+      .order('created_at', { ascending: false })
+      .limit(12);
+
+    if (error) throw error;
+    return ((data ?? []) as CareMeetingRow[]).map(mapCareMeeting);
+  }
+
+  private static async getGoalsForChildren(childIds: string[]): Promise<SupportGoal[]> {
+    if (!isSupabaseConfigured || childIds.length === 0) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('support_goals')
+      .select('id, child_id, title, category, description, progress, status, target_date, ai_suggestion, created_at')
+      .in('child_id', childIds)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+    return ((data ?? []) as SupportGoalRow[]).map(mapSupportGoal);
+  }
+
+  private static async getResourcesForChildren(childIds: string[]): Promise<ParentResource[]> {
+    if (!isSupabaseConfigured || childIds.length === 0) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('parent_resource_recommendations')
+      .select('id, child_id, title, resource_type, url, summary, neurotypes, reason, reading_level')
+      .in('child_id', childIds)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) throw error;
+    return ((data ?? []) as ParentResourceRow[]).map(mapParentResource);
+  }
+
+  private static async getSignalsForChildren(childIds: string[]): Promise<ChildSignal[]> {
+    if (!isSupabaseConfigured || childIds.length === 0) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('parent_child_signals')
+      .select('id, child_id, emotion, color, note, created_at, seen_at')
+      .in('child_id', childIds)
+      .order('created_at', { ascending: false })
+      .limit(12);
+
+    if (error) throw error;
+    return ((data ?? []) as ChildSignalRow[]).map(mapChildSignal);
+  }
+
+  private static async getParentFeedbackThemes(): Promise<ParentFeedbackTheme[]> {
+    if (!isSupabaseConfigured) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('parent_feedback')
+      .select('sentiment, themes')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    return buildFeedbackThemes((data ?? []) as ParentFeedbackRow[]);
+  }
+
+  private static summarizeMessage(body: string): string {
+    const words = body.trim().split(/\s+/);
+    if (words.length <= 18) return body.trim();
+    return `${words.slice(0, 18).join(' ')}...`;
+  }
+
+  private static suggestMessageTalkingPoints(body: string): string[] {
+    const lower = body.toLowerCase();
+    const points = new Set<string>();
+
+    if (/anxious|worry|worried|stress|stressed/.test(lower)) {
+      points.add('Ask what happens before the anxiety appears.');
+      points.add('Agree one calming support that works both at home and school.');
+    }
+    if (/math|reading|spell|homework|lesson/.test(lower)) {
+      points.add('Ask which learning format reduced frustration.');
+      points.add('Request one small adaptation for the next week.');
+    }
+    if (/noise|loud|crowd|sensory/.test(lower)) {
+      points.add('Discuss sensory triggers and quiet-space access.');
+    }
+
+    if (points.size === 0) {
+      points.add('Share one observation from home.');
+      points.add('Ask whether the same pattern appears at school.');
+    }
+
+    return Array.from(points).slice(0, 4);
+  }
+}

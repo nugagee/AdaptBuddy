@@ -5,6 +5,7 @@ export const ROUTES = {
   COMPANION_ONBOARDING: '/companion-onboarding',
   COMPANION_BUDDY: '/companion-buddy',
   LOGIN: '/login',
+  GUEST_ENTRY: '/guest',
   SIGNUP: '/signup',
   FORGOT_PASSWORD: '/forgot-password',
   CHILD_DASHBOARD: '/dashboard',

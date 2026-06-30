@@ -1,19 +1,13 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Sparkles, Shield, Accessibility } from 'lucide-react';
 import { ROUTES } from 'constants/routes';
-import { useAuth } from 'hooks/useAuth';
 import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
 import TypingBuddyMessage from 'components/animations/TypingBuddyMessage';
+import { useAuthStore } from 'store/authStore';
 
 const HeroSection: React.FC = () => {
-  const { setGuestMode } = useAuth();
-  const navigate = useNavigate();
-
-  const handleDemo = () => {
-    setGuestMode();
-    navigate(ROUTES.NEURO_SELECTOR);
-  };
+  const setGuestMode = useAuthStore((s) => s.setGuestMode);
 
   return (
     <section className="relative overflow-hidden pt-8 pb-16 sm:pt-12 sm:pb-24">
@@ -43,13 +37,13 @@ const HeroSection: React.FC = () => {
               <Sparkles className="h-4 w-4" aria-hidden />
               Start gently
             </Link>
-            <button
-              type="button"
-              onClick={handleDemo}
+            <Link
+              to={`${ROUTES.GUEST_ENTRY}?role=child`}
+              onClick={() => setGuestMode('child')}
               className="rounded-full border-2 border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-adapt-navy transition hover:border-adapt-indigo/30 hover:bg-adapt-mist"
             >
               Enter as guest
-            </button>
+            </Link>
           </span>
 
           <span className="mt-8 flex flex-wrap gap-6 text-sm text-slate-500 block">

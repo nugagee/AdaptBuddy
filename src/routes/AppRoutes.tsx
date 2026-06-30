@@ -21,6 +21,7 @@ import Students from 'features/teacher/components/Students';
 import Reports from 'features/teacher/components/Reports';
 import Settings from 'features/teacher/components/Settings';
 import LoginPage from 'pages/LoginPage';
+import GuestEntryPage from 'pages/GuestEntryPage';
 import SignupPage from 'pages/SignupPage';
 import ForgotPasswordPage from 'pages/ForgotPasswordPage';
 import AdminLoginPage from 'features/admin/pages/AdminLoginPage';
@@ -53,6 +54,7 @@ const AppRoutes: React.FC = () => (
   <Routes>
     <Route path={ROUTES.HOME} element={<LandingPage />} />
     <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+    <Route path={ROUTES.GUEST_ENTRY} element={<GuestEntryPage />} />
     <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
     <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
     <Route path={ROUTES.ADMIN_LOGIN} element={<AdminLoginPage />} />

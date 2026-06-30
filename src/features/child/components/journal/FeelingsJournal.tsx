@@ -2,6 +2,9 @@ import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Smile, Meh, Frown, Angry, Moon, Mic, Keyboard, Lock } from 'lucide-react';
 import { EmotionDetector } from 'services/ai/nlpEmotionDetector';
+import { saveJournalEntry } from 'services/supabase/autismProfileService';
+import { useAuth } from 'hooks/useAuth';
+import type { EmotionAnalysis } from 'types/ai.types';
 
 type JournalInputMode = 'voice' | 'text';
 
@@ -39,15 +42,18 @@ type SpeechWindow = Window & {
 
 interface FeelingsJournalProps {
   onClose: () => void;
-  onSave?: (mood: string) => void;
+  onSave?: (mood: string, note: string, analysis: EmotionAnalysis | null) => void;
 }
 
 const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) => {
+  const { user } = useAuth();
   const [selectedFeeling, setSelectedFeeling] = useState<string>('');
   const [note, setNote] = useState('');
   const [inputMode, setInputMode] = useState<JournalInputMode>('text');
   const [isListening, setIsListening] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const feelings = [
@@ -119,23 +125,39 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
     }
   };
 
-  const handleSave = () => {
-    if (!selectedFeeling) return;
+  const handleSave = async () => {
+    if (!selectedFeeling || isSaving) return;
     stopVoiceInput();
+    setIsSaving(true);
+    setSaveError('');
 
+    let analysis: EmotionAnalysis | null = null;
     if (note && note.trim().length > 0) {
       try {
-        const analysis = EmotionDetector.analyze(note);
-        alert(
-          `💖 Feeling saved: ${selectedFeeling.charAt(0).toUpperCase() + selectedFeeling.slice(1)}\nAI detected: ${analysis.emotion} (${(analysis.confidence * 100).toFixed(0)}% confidence)`,
-        );
+        analysis = EmotionDetector.analyze(note);
       } catch {
-        alert(`💖 Feeling saved: ${selectedFeeling.charAt(0).toUpperCase() + selectedFeeling.slice(1)}`);
+        analysis = null;
       }
     }
 
-    onSave?.(selectedFeeling);
-    onClose();
+    try {
+      if (user?.id) {
+        await saveJournalEntry({
+          childId: user.id,
+          emotion: analysis?.emotion ?? selectedFeeling,
+          text: note,
+          analysis,
+        });
+      }
+
+      onSave?.(selectedFeeling, note, analysis);
+      onClose();
+    } catch (error) {
+      console.error('Failed to save journal entry:', error);
+      setSaveError('Your feeling is safe here, but it could not sync yet. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const modal = (
@@ -239,6 +261,11 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
+            {saveError && (
+              <p className="mt-2 rounded-2xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 dark:bg-red-950/30 dark:text-red-200">
+                {saveError}
+              </p>
+            )}
           </div>
 
           <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-800/80">
@@ -267,10 +294,10 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
             <button
               type="button"
               onClick={handleSave}
-              disabled={!selectedFeeling}
+              disabled={!selectedFeeling || isSaving}
               className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-teal-400 py-3.5 font-bold text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-50 sm:py-4"
             >
-              Save & Continue
+              {isSaving ? 'Saving...' : 'Save & Continue'}
             </button>
           </div>
         </div>

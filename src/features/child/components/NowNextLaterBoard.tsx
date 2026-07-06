@@ -3,11 +3,15 @@ import {
   AlertCircle,
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   ChevronUp,
   Clock,
   GripVertical,
   Loader2,
+  Pause,
+  Play,
   Plus,
   RefreshCw,
   Save,
@@ -16,6 +20,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from 'hooks/useAuth';
 import { getSupabaseClient, isSupabaseConfigured } from 'services/supabase/client';
+import { saveJournalEntry } from 'services/supabase/autismProfileService';
+import type { EmotionAnalysis, EmotionType } from 'types/ai.types';
 
 export interface NowNextLaterActivity {
   id: string;
@@ -52,6 +58,19 @@ interface NowNextLaterBoardProps {
   onActivityComplete?: (activity: NowNextLaterActivity) => void;
   onScheduleChange?: (schedule: DailySchedule) => void;
 }
+
+type TaskMood = 'happy' | 'calm' | 'anxious';
+
+const taskMoodOptions: Array<{
+  value: TaskMood;
+  label: string;
+  emoji: string;
+  helper: string;
+}> = [
+  { value: 'happy', label: 'Great', emoji: '✨', helper: 'That felt good' },
+  { value: 'calm', label: 'Okay', emoji: '😌', helper: 'I feel steady' },
+  { value: 'anxious', label: 'Worried', emoji: '😟', helper: 'I need support' },
+];
 
 const ACTIVITY_LIBRARY: Array<Pick<NowNextLaterActivity, 'emoji' | 'label' | 'durationMinutes'>> = [
   { emoji: '🌅', label: 'Morning routine', durationMinutes: 10 },
@@ -105,8 +124,38 @@ const getLocalDateKey = () => {
   return new Date(localTime).toISOString().slice(0, 10);
 };
 
+const parseDateKey = (date: string) => new Date(`${date}T12:00:00`);
+
+const toDateKey = (date: Date) => {
+  const localTime = date.getTime() - date.getTimezoneOffset() * 60000;
+  return new Date(localTime).toISOString().slice(0, 10);
+};
+
+const getWeekDates = (date: string) => {
+  const selected = parseDateKey(date);
+  const weekday = selected.getDay();
+  const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+  const monday = new Date(selected);
+  monday.setDate(selected.getDate() + mondayOffset);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const next = new Date(monday);
+    next.setDate(monday.getDate() + index);
+    return toDateKey(next);
+  });
+};
+
+const shiftDateKey = (date: string, days: number) => {
+  const next = parseDateKey(date);
+  next.setDate(next.getDate() + days);
+  return toDateKey(next);
+};
+
 const storageKey = (childId: string, date: string) =>
   `adaptbuddy-now-next-later:${childId}:${date}`;
+
+const taskMoodStorageKey = (childId: string) =>
+  `adaptbuddy-now-next-later-moods:${childId}`;
 
 const getDefaultSchedule = (childId: string, date = getLocalDateKey()): DailySchedule => {
   const now = new Date().toISOString();
@@ -190,6 +239,58 @@ const formatDuration = (minutes?: number) => {
   return `${minutes} min`;
 };
 
+const formatWeekday = (date: string) =>
+  new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(parseDateKey(date));
+
+const formatDayNumber = (date: string) =>
+  new Intl.DateTimeFormat('en-GB', { day: 'numeric' }).format(parseDateKey(date));
+
+const formatCountdown = (seconds: number) => {
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${minutes}:${String(remaining).padStart(2, '0')}`;
+};
+
+interface TaskMoodLogEntry {
+  id: string;
+  childId: string;
+  activityId: string;
+  activityLabel: string;
+  mood: TaskMood;
+  note: string;
+  createdAt: string;
+}
+
+const writeLocalTaskMoodLog = (entry: TaskMoodLogEntry) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const raw = window.localStorage.getItem(taskMoodStorageKey(entry.childId));
+    const existing = raw ? (JSON.parse(raw) as TaskMoodLogEntry[]) : [];
+    const next = [entry, ...existing].slice(0, 60);
+    window.localStorage.setItem(taskMoodStorageKey(entry.childId), JSON.stringify(next));
+  } catch {
+    window.localStorage.setItem(taskMoodStorageKey(entry.childId), JSON.stringify([entry]));
+  }
+};
+
+const buildTaskMoodAnalysis = (
+  activity: NowNextLaterActivity,
+  mood: TaskMood,
+  note: string,
+): EmotionAnalysis => {
+  const hasWorry = mood === 'anxious' || note.trim().length > 0;
+
+  return {
+    emotion: mood as EmotionType,
+    confidence: hasWorry ? 0.78 : 0.72,
+    keywords: ['task-completion', activity.label, mood].filter(Boolean),
+    riskLevel: hasWorry ? 'medium' : 'low',
+    sentimentScore: mood === 'happy' ? 0.86 : mood === 'calm' ? 0.72 : 0.36,
+    timestamp: new Date(),
+  };
+};
+
 const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
   childId,
   mode,
@@ -208,10 +309,11 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
   const canEdit = editable ?? resolvedMode === 'adult';
   const canSyncRemote = isSupabaseConfigured && !isGuest && !childId.startsWith('guest-');
 
-  const [date] = useState(getLocalDateKey);
-  const [schedule, setSchedule] = useState<DailySchedule>(() =>
-    readLocalSchedule(childId, date) ?? getDefaultSchedule(childId, date),
-  );
+  const [date, setDate] = useState(getLocalDateKey);
+  const [schedule, setSchedule] = useState<DailySchedule>(() => {
+    const today = getLocalDateKey();
+    return readLocalSchedule(childId, today) ?? getDefaultSchedule(childId, today);
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -220,8 +322,18 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
   const [syncMessage, setSyncMessage] = useState('');
   const [customLabel, setCustomLabel] = useState('');
   const [customEmoji, setCustomEmoji] = useState('⭐');
+  const [customDuration, setCustomDuration] = useState('');
+  const [showAddTaskForm, setShowAddTaskForm] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [celebration, setCelebration] = useState('');
+  const [completedActivityForMood, setCompletedActivityForMood] =
+    useState<NowNextLaterActivity | null>(null);
+  const [selectedTaskMood, setSelectedTaskMood] = useState<TaskMood | ''>('');
+  const [worryNote, setWorryNote] = useState('');
+  const [moodSaving, setMoodSaving] = useState(false);
+  const [moodMessage, setMoodMessage] = useState('');
+  const [timerActivityId, setTimerActivityId] = useState<string | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
 
   const completedCount = schedule.activities.filter((activity) => activity.completed).length;
   const progress =
@@ -233,6 +345,10 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
     const pending = schedule.activities.filter((activity) => !activity.completed);
     return slotStyles.map((_, index) => pending[index] ?? null);
   }, [schedule.activities]);
+
+  const weekDates = useMemo(() => getWeekDates(date), [date]);
+  const todayKey = getLocalDateKey();
+  const isToday = date === todayKey;
 
   const loadSchedule = useCallback(async () => {
     setLoading(true);
@@ -324,6 +440,44 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
     return () => window.clearTimeout(timer);
   }, [dirty, loading, persistRemote, schedule]);
 
+  useEffect(() => {
+    if (!timerActivityId || remainingSeconds <= 0) return undefined;
+
+    const countdown = window.setInterval(() => {
+      setRemainingSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearInterval(countdown);
+  }, [remainingSeconds, timerActivityId]);
+
+  useEffect(() => {
+    if (!timerActivityId || remainingSeconds !== 0) return undefined;
+
+    setTimerActivityId(null);
+    setCelebration('Timer finished. Ready for the next step.');
+    const hideMessage = window.setTimeout(() => setCelebration(''), 2600);
+    return () => window.clearTimeout(hideMessage);
+  }, [remainingSeconds, timerActivityId]);
+
+  const selectScheduleDate = useCallback(
+    (nextDate: string) => {
+      if (nextDate === date) return;
+
+      setDate(nextDate);
+      setSchedule(readLocalSchedule(childId, nextDate) ?? getDefaultSchedule(childId, nextDate));
+      setDirty(false);
+      setError('');
+      setSyncMessage('');
+      setCompletedActivityForMood(null);
+      setSelectedTaskMood('');
+      setWorryNote('');
+      setMoodMessage('');
+      setTimerActivityId(null);
+      setRemainingSeconds(0);
+    },
+    [childId, date],
+  );
+
   const commitSchedule = useCallback(
     (activities: NowNextLaterActivity[]) => {
       const nextSchedule = normalizeSchedule({
@@ -355,9 +509,19 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
   const addCustomActivity = () => {
     const label = customLabel.trim();
     if (!label) return;
-    addActivity({ emoji: customEmoji.trim() || '⭐', label });
+    const parsedDuration = Number(customDuration);
+    addActivity({
+      emoji: customEmoji.trim() || '⭐',
+      label,
+      durationMinutes:
+        Number.isFinite(parsedDuration) && parsedDuration > 0
+          ? Math.min(180, Math.round(parsedDuration))
+          : undefined,
+    });
     setCustomLabel('');
     setCustomEmoji('⭐');
+    setCustomDuration('');
+    setShowAddTaskForm(false);
   };
 
   const updateActivity = (id: string, updates: Partial<NowNextLaterActivity>) => {
@@ -394,14 +558,86 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
   };
 
   const completeActivity = (activity: NowNextLaterActivity) => {
+    if (timerActivityId === activity.id) {
+      setTimerActivityId(null);
+      setRemainingSeconds(0);
+    }
     updateActivity(activity.id, { completed: true });
     onActivityComplete?.(activity);
-    setCelebration(`${activity.label} is done`);
+    setCelebration(`Great job. ${activity.label} is done.`);
+    if (resolvedMode === 'child') {
+      setCompletedActivityForMood(activity);
+      setSelectedTaskMood('');
+      setWorryNote('');
+      setMoodMessage('');
+    }
     window.setTimeout(() => setCelebration(''), 2600);
   };
 
+  const startTaskTimer = (activity: NowNextLaterActivity) => {
+    const seconds = Math.max(60, (activity.durationMinutes ?? 5) * 60);
+    setRemainingSeconds(seconds);
+    setTimerActivityId(activity.id);
+  };
+
+  const pauseTaskTimer = () => {
+    setTimerActivityId(null);
+  };
+
+  const logTaskMood = useCallback(
+    async (mood: TaskMood, note = '') => {
+      if (!completedActivityForMood) return;
+
+      const cleanNote = note.trim();
+      const text = cleanNote
+        ? `After finishing ${completedActivityForMood.label}, I felt ${mood}. Worry note: ${cleanNote}`
+        : `After finishing ${completedActivityForMood.label}, I felt ${mood}.`;
+      const analysis = buildTaskMoodAnalysis(completedActivityForMood, mood, cleanNote);
+
+      setMoodSaving(true);
+      setMoodMessage('');
+      writeLocalTaskMoodLog({
+        id: createId('task-mood'),
+        childId,
+        activityId: completedActivityForMood.id,
+        activityLabel: completedActivityForMood.label,
+        mood,
+        note: cleanNote,
+        createdAt: new Date().toISOString(),
+      });
+
+      try {
+        if (canSyncRemote) {
+          await saveJournalEntry({
+            childId,
+            emotion: mood,
+            text,
+            analysis,
+            isShared: true,
+          });
+        }
+        setMoodMessage('Mood check-in saved.');
+      } catch (saveError) {
+        console.warn('Task mood check-in saved locally only:', saveError);
+        setMoodMessage('Saved on this device. Sync will catch up when available.');
+      } finally {
+        setMoodSaving(false);
+        setCompletedActivityForMood(null);
+        setSelectedTaskMood('');
+        setWorryNote('');
+        window.setTimeout(() => setMoodMessage(''), 3500);
+      }
+    },
+    [canSyncRemote, childId, completedActivityForMood],
+  );
+
   const resetDay = () => {
     commitSchedule(schedule.activities.map((activity) => ({ ...activity, completed: false })));
+    setCompletedActivityForMood(null);
+    setSelectedTaskMood('');
+    setWorryNote('');
+    setTimerActivityId(null);
+    setRemainingSeconds(0);
   };
 
   if (loading) {
@@ -428,10 +664,10 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
             Now / Next / Later
           </p>
           <h2 className="mt-2 text-2xl font-black text-adapt-navy dark:text-gray-100">
-            Today's visual plan
+            {isToday ? "Today's visual plan" : 'Visual plan'}
           </h2>
           <p className="mt-1 text-sm font-medium text-slate-500 dark:text-gray-400">
-            {formatDate(schedule.date)}
+            {formatDate(date)}
           </p>
         </div>
 
@@ -461,6 +697,74 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
         </div>
       </div>
 
+      {canEdit && resolvedMode === 'adult' && (
+        <div className="mt-5 rounded-3xl border border-white/80 bg-white/80 p-4 shadow-soft dark:border-gray-800 dark:bg-gray-900/75">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-black text-adapt-navy dark:text-gray-100">Weekly planner</h3>
+              <p className="text-xs font-semibold text-slate-500 dark:text-gray-400">
+                Pick a day, then customise the Now / Next / Later plan.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => selectScheduleDate(shiftDateKey(date, -7))}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-100 bg-white text-slate-600 shadow-sm hover:border-adapt-indigo/30 hover:text-adapt-indigo dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                aria-label="Previous week"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+              </button>
+              {!isToday && (
+                <button
+                  type="button"
+                  onClick={() => selectScheduleDate(todayKey)}
+                  className="rounded-full border border-adapt-indigo/20 bg-adapt-indigo/10 px-3 py-1.5 text-xs font-black text-adapt-indigo hover:bg-adapt-indigo/15 dark:text-adapt-cyan"
+                >
+                  Today
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => selectScheduleDate(shiftDateKey(date, 7))}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-100 bg-white text-slate-600 shadow-sm hover:border-adapt-indigo/30 hover:text-adapt-indigo dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                aria-label="Next week"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-7 gap-2">
+            {weekDates.map((weekDate) => {
+              const active = weekDate === date;
+              return (
+                <button
+                  key={weekDate}
+                  type="button"
+                  onClick={() => selectScheduleDate(weekDate)}
+                  className={`min-h-16 rounded-2xl border px-2 py-2 text-center transition ${
+                    active
+                      ? 'border-adapt-indigo bg-adapt-indigo text-white shadow-md'
+                      : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-adapt-indigo/30 hover:bg-adapt-indigo/5 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'
+                  }`}
+                  aria-pressed={active}
+                >
+                  <span className="block text-[0.65rem] font-black uppercase tracking-wide">
+                    {formatWeekday(weekDate)}
+                  </span>
+                  <span className="block text-lg font-black">{formatDayNumber(weekDate)}</span>
+                  {weekDate === todayKey && (
+                    <span className={`block text-[0.6rem] font-black ${active ? 'text-white/85' : 'text-adapt-teal'}`}>
+                      Today
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="mt-5">
         <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500">
           <span>{completedCount} of {schedule.activities.length} done</span>
@@ -488,6 +792,94 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
         </p>
       )}
 
+      {moodMessage && (
+        <p className="mt-4 rounded-2xl bg-sky-50 px-4 py-3 text-center text-sm font-black text-sky-800">
+          {moodMessage}
+        </p>
+      )}
+
+      {completedActivityForMood && !editing && (
+        <div className="mt-4 rounded-3xl border border-amber-100 bg-amber-50/80 p-4 text-amber-950 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
+                Quick check-in
+              </p>
+              <h3 className="mt-1 text-lg font-black">How did that feel?</h3>
+              <p className="text-sm font-semibold opacity-80">
+                This can help your trusted adults understand your day.
+              </p>
+            </div>
+            <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-black text-amber-800 shadow-sm dark:bg-gray-900 dark:text-amber-200">
+              {completedActivityForMood.emoji} {completedActivityForMood.label}
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            {taskMoodOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  if (option.value === 'anxious') {
+                    setSelectedTaskMood(option.value);
+                    return;
+                  }
+                  void logTaskMood(option.value);
+                }}
+                disabled={moodSaving}
+                className={`rounded-2xl border bg-white/85 p-3 text-left shadow-sm transition hover:-translate-y-0.5 dark:bg-gray-900 ${
+                  selectedTaskMood === option.value
+                    ? 'border-amber-500 ring-2 ring-amber-200'
+                    : 'border-white/80 dark:border-gray-700'
+                }`}
+              >
+                <span className="text-2xl" aria-hidden>{option.emoji}</span>
+                <span className="ml-2 text-sm font-black">{option.label}</span>
+                <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-gray-400">
+                  {option.helper}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {selectedTaskMood === 'anxious' && (
+            <div className="mt-4 rounded-2xl bg-white/80 p-3 dark:bg-gray-900/80">
+              <label className="text-sm font-black text-adapt-navy dark:text-gray-100" htmlFor="task-worry-note">
+                Want to write the worry?
+              </label>
+              <textarea
+                id="task-worry-note"
+                value={worryNote}
+                onChange={(event) => setWorryNote(event.target.value)}
+                rows={3}
+                placeholder="What felt hard or worrying?"
+                className="mt-2 w-full rounded-2xl border border-amber-100 bg-white px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-950"
+              />
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void logTaskMood('anxious', worryNote)}
+                  disabled={moodSaving}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-adapt-navy px-4 py-2 text-sm font-black text-white disabled:opacity-60"
+                >
+                  {moodSaving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                  Save worry note
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void logTaskMood('anxious')}
+                  disabled={moodSaving}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-600 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                >
+                  Skip note
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {allDone && !editing ? (
         <div className="mt-5 rounded-3xl border border-emerald-200 bg-emerald-50 p-6 text-center text-emerald-900">
           <Sparkles className="mx-auto h-9 w-9" aria-hidden />
@@ -506,6 +898,11 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
           {visibleActivities.map((activity, index) => {
             const slot = slotStyles[index];
             const Icon = slot.icon;
+            const activeTimer = Boolean(activity && timerActivityId === activity.id);
+            const timerTotalSeconds = Math.max(60, (activity?.durationMinutes ?? 5) * 60);
+            const timerProgress = activeTimer
+              ? Math.round(((timerTotalSeconds - remainingSeconds) / timerTotalSeconds) * 100)
+              : 0;
             return (
               <article
                 key={slot.label}
@@ -535,6 +932,29 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
                         {formatDuration(activity.durationMinutes)}
                       </p>
                     )}
+                    {index === 0 && activity.durationMinutes && (
+                      <div className="mt-3 rounded-2xl bg-white/70 p-3 text-slate-700 shadow-sm dark:bg-gray-900/60 dark:text-gray-200">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs font-black uppercase tracking-wide">
+                            {activeTimer ? formatCountdown(remainingSeconds) : `${activity.durationMinutes} min timer`}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => (activeTimer ? pauseTaskTimer() : startTaskTimer(activity))}
+                            className="inline-flex items-center gap-1 rounded-full bg-adapt-indigo px-3 py-1.5 text-xs font-black text-white"
+                          >
+                            {activeTimer ? <Pause className="h-3.5 w-3.5" aria-hidden /> : <Play className="h-3.5 w-3.5" aria-hidden />}
+                            {activeTimer ? 'Pause' : 'Start'}
+                          </button>
+                        </div>
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200/80 dark:bg-gray-800">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-adapt-teal to-adapt-indigo transition-[width]"
+                            style={{ width: `${timerProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                     {index === 0 && (
                       <button
                         type="button"
@@ -547,9 +967,23 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
                     )}
                   </div>
                 ) : (
-                  <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white/60 p-5 text-center text-sm font-bold text-slate-500">
-                    Nothing here yet
-                  </div>
+                  canEdit ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing(true);
+                        setShowAddTaskForm(true);
+                      }}
+                      className="mt-8 flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/60 p-5 text-center text-sm font-black text-slate-600 transition hover:border-adapt-indigo/40 hover:bg-white dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-200"
+                    >
+                      <Plus className="mb-2 h-5 w-5" aria-hidden />
+                      Add task
+                    </button>
+                  ) : (
+                    <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white/60 p-5 text-center text-sm font-bold text-slate-500">
+                      Nothing here yet
+                    </div>
+                  )
                 )}
               </article>
             );
@@ -655,7 +1089,22 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
           </div>
 
           <div className="rounded-3xl border border-white/80 bg-white/85 p-4 shadow-soft dark:border-gray-800 dark:bg-gray-900/80">
-            <h3 className="font-black text-adapt-navy dark:text-gray-100">Add activities</h3>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-black text-adapt-navy dark:text-gray-100">Add activities</h3>
+                <p className="text-xs font-semibold text-slate-500 dark:text-gray-400">
+                  Use quick picks or create your own visual task.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddTaskForm((current) => !current)}
+                className="inline-flex items-center gap-2 rounded-2xl bg-adapt-navy px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-adapt-purple"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                Add task
+              </button>
+            </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
               {ACTIVITY_LIBRARY.map((activity) => (
                 <button
@@ -670,34 +1119,55 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
               ))}
             </div>
 
-            <div className="mt-4 rounded-2xl bg-slate-50 p-3 dark:bg-gray-800">
-              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Custom card</p>
-              <div className="mt-2 flex gap-2">
-                <input
-                  value={customEmoji}
-                  onChange={(event) => setCustomEmoji(event.target.value.slice(0, 4))}
-                  aria-label="Custom activity emoji"
-                  className="w-16 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-lg dark:border-gray-700 dark:bg-gray-900"
-                />
-                <input
-                  value={customLabel}
-                  onChange={(event) => setCustomLabel(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') addCustomActivity();
-                  }}
-                  placeholder="New activity"
-                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-                />
+            {showAddTaskForm && (
+              <div className="mt-4 rounded-2xl bg-slate-50 p-3 dark:bg-gray-800">
+                <p className="text-xs font-black uppercase tracking-wide text-slate-500">Custom task</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-[4.5rem_1fr_6rem]">
+                  <label className="sr-only" htmlFor="custom-task-emoji">Task emoji</label>
+                  <input
+                    id="custom-task-emoji"
+                    value={customEmoji}
+                    onChange={(event) => setCustomEmoji(event.target.value.slice(0, 4))}
+                    aria-label="Custom activity emoji"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-lg dark:border-gray-700 dark:bg-gray-900"
+                  />
+                  <label className="sr-only" htmlFor="custom-task-label">Task name</label>
+                  <input
+                    id="custom-task-label"
+                    value={customLabel}
+                    onChange={(event) => setCustomLabel(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') addCustomActivity();
+                    }}
+                    placeholder="New activity"
+                    className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                  />
+                  <label className="sr-only" htmlFor="custom-task-duration">Minutes</label>
+                  <input
+                    id="custom-task-duration"
+                    type="number"
+                    min={1}
+                    max={180}
+                    value={customDuration}
+                    onChange={(event) => setCustomDuration(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') addCustomActivity();
+                    }}
+                    placeholder="min"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={addCustomActivity}
-                  className="rounded-xl bg-adapt-navy px-3 text-white"
-                  aria-label="Add custom activity"
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-adapt-indigo px-4 py-2.5 text-sm font-black text-white disabled:opacity-60"
+                  disabled={!customLabel.trim()}
                 >
                   <Plus className="h-4 w-4" aria-hidden />
+                  Add to plan
                 </button>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

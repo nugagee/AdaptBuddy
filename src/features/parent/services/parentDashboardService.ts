@@ -5,6 +5,7 @@ export type TrustedAdultStatus = 'active' | 'connected' | 'pending' | 'inactive'
 
 export interface ChildSummary {
   childId: string;
+  buddyId?: string | null;
   childName: string;
   age?: number;
   neurotypes: string[];
@@ -146,6 +147,14 @@ export interface ParentFeedbackTheme {
   sentiment: 'positive' | 'neutral' | 'concerned';
 }
 
+export interface BuddyLinkResult {
+  childId: string;
+  childName: string;
+  buddyId: string;
+  relationship: string;
+  createdAt: string;
+}
+
 export interface WellbeingTrendPoint {
   day: string;
   date: string;
@@ -172,6 +181,7 @@ export interface DashboardSummary {
 
 interface ParentSummaryRow {
   child_id: string;
+  buddy_id?: string | null;
   child_name: string | null;
   age: number | null;
   neurotypes: string[] | null;
@@ -315,6 +325,14 @@ interface ParentFeedbackRow {
   themes: unknown;
 }
 
+interface BuddyLinkRow {
+  child_id: string;
+  child_name: string | null;
+  buddy_id: string | null;
+  relationship: string | null;
+  created_at: string;
+}
+
 const riskLevels: RiskLevel[] = ['low', 'medium', 'high'];
 const dayFormatter = new Intl.DateTimeFormat('en-GB', { weekday: 'short' });
 
@@ -444,6 +462,7 @@ const scoreFromEmotion = (emotion: string): number | null => {
 
 const mapChildSummary = (row: ParentSummaryRow): ChildSummary => ({
   childId: row.child_id,
+  buddyId: row.buddy_id ?? null,
   childName: row.child_name || 'Child',
   age: row.age ?? undefined,
   neurotypes: Array.isArray(row.neurotypes) ? row.neurotypes : [],
@@ -582,6 +601,14 @@ const mapChildSignal = (row: ChildSignalRow): ChildSignal => ({
   note: row.note ?? undefined,
   createdAt: row.created_at,
   seenAt: row.seen_at ?? undefined,
+});
+
+const mapBuddyLinkResult = (row: BuddyLinkRow): BuddyLinkResult => ({
+  childId: row.child_id,
+  childName: row.child_name || 'Child',
+  buddyId: row.buddy_id || '',
+  relationship: row.relationship || 'parent',
+  createdAt: row.created_at,
 });
 
 const createEmptyTrendWindow = (): WellbeingTrendPoint[] => {
@@ -932,6 +959,33 @@ const buildFeedbackThemes = (rows: ParentFeedbackRow[]): ParentFeedbackTheme[] =
 };
 
 export class ParentDashboardService {
+  static async linkChildByBuddyId(
+    buddyId: string,
+    relationship = 'parent',
+  ): Promise<BuddyLinkResult> {
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase is not configured, so Buddy ID linking is unavailable.');
+    }
+
+    const cleanBuddyId = buddyId.trim();
+    if (!cleanBuddyId) {
+      throw new Error('Enter a Buddy ID first.');
+    }
+
+    const { data, error } = await getSupabaseClient().rpc('link_child_by_buddy_id', {
+      p_buddy_id: cleanBuddyId,
+      p_relationship: relationship,
+    });
+
+    if (error) throw error;
+
+    const rows = Array.isArray(data) ? (data as BuddyLinkRow[]) : data ? [data as BuddyLinkRow] : [];
+    const row = rows[0];
+    if (!row) throw new Error('No child profile was linked.');
+
+    return mapBuddyLinkResult(row);
+  }
+
   static async getChildren(): Promise<ChildSummary[]> {
     if (!isSupabaseConfigured) return [];
 

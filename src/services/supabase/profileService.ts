@@ -7,6 +7,7 @@ export interface ProfileUpdatePayload {
   last_name?: string;
   full_name?: string;
   bio?: string | null;
+  buddy_id?: string | null;
   age?: number | null;
   avatar_url?: string | null;
   neuro_types?: string[];
@@ -24,6 +25,7 @@ function profileToRow(profile: Profile, overrides: ProfileUpdatePayload = {}) {
     last_name: profile.last_name,
     full_name: profile.full_name,
     child_name: profile.child_name ?? null,
+    buddy_id: profile.buddy_id ?? null,
     bio: profile.bio ?? null,
     age: profile.age ?? null,
     avatar_url: profile.avatar_url ?? null,

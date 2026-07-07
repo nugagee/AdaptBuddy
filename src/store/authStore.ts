@@ -134,6 +134,7 @@ const createGuestProfile = (role: UserRole = 'child'): Profile => {
     last_name: name.last,
     full_name: name.full,
     child_name: role === 'parent' ? 'Alex' : null,
+    buddy_id: role === 'child' ? 'AB-GEST-01' : null,
     avatar_url: null,
     bio: null,
     age: role === 'child' ? 10 : null,

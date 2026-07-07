@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Camera, Check, Loader2, Plus, Save, ShieldCheck, UserRound } from 'lucide-react';
+import { Camera, Check, Copy, KeyRound, Loader2, Plus, Save, ShieldCheck, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import { NEURO_OPTION_MAP } from 'constants/neuroOptions';
@@ -54,6 +54,7 @@ const SettingsPage: React.FC = () => {
       last_name: '',
       full_name: 'Friend',
       child_name: null,
+      buddy_id: 'AB-GEST-01',
       avatar_url: null,
       bio: null,
       age: null,
@@ -111,6 +112,19 @@ const SettingsPage: React.FC = () => {
     if (!file) return;
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleCopyBuddyId = async () => {
+    if (!activeProfile?.buddy_id) return;
+
+    try {
+      await navigator.clipboard.writeText(activeProfile.buddy_id);
+      setSuccess('Buddy ID copied.');
+      setError('');
+    } catch {
+      setError(`Your Buddy ID is ${activeProfile.buddy_id}. Copy it manually.`);
+      setSuccess('');
+    }
   };
 
   const handleAddTrustedAdult = async () => {
@@ -359,6 +373,41 @@ const SettingsPage: React.FC = () => {
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-800"
               />
             </div>
+          </section>
+
+          <section className="rounded-3xl border border-white/70 bg-white/80 p-6 shadow-soft backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/70">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-adapt-indigo/10 text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
+                  <KeyRound className="h-5 w-5" aria-hidden />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">Buddy ID</h2>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
+                    Share this with a parent, teacher, or trusted adult so they can connect to your AdaptBuddy space.
+                  </p>
+                </div>
+              </div>
+
+              <div className="shrink-0 rounded-2xl border border-adapt-indigo/15 bg-adapt-indigo/5 px-4 py-3 text-center dark:border-adapt-cyan/20 dark:bg-adapt-cyan/5">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-adapt-indigo dark:text-adapt-cyan">
+                  Private code
+                </p>
+                <p className="mt-1 font-mono text-2xl font-black tracking-wide text-adapt-navy dark:text-gray-100">
+                  {activeProfile.buddy_id ?? 'Pending'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCopyBuddyId}
+              disabled={!activeProfile.buddy_id}
+              className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-adapt-navy px-5 py-2.5 text-sm font-bold text-white transition hover:bg-adapt-purple disabled:opacity-60 dark:bg-adapt-indigo"
+            >
+              <Copy className="h-4 w-4" aria-hidden />
+              Copy Buddy ID
+            </button>
           </section>
 
           <section className="rounded-3xl border border-white/70 bg-white/80 p-6 shadow-soft backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/70">

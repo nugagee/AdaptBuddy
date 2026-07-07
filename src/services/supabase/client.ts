@@ -23,6 +23,7 @@ export interface Profile {
   last_name: string;
   full_name: string;
   child_name?: string | null;
+  buddy_id?: string | null;
   avatar_url?: string | null;
   bio?: string | null;
   age?: number | null;

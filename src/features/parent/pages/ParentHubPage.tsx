@@ -10,7 +10,9 @@ import {
   Download,
   Eye,
   HeartPulse,
+  KeyRound,
   Loader2,
+  Link2,
   MessageSquare,
   Plus,
   RefreshCw,
@@ -119,6 +121,17 @@ const getEmotionEmoji = (emotion: string): string => {
   return emojis[emotion.toLowerCase()] || '😐';
 };
 
+const formatBuddyIdInput = (value: string): string => {
+  const cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const body = cleaned.startsWith('AB') ? cleaned.slice(2) : cleaned;
+  const limited = body.slice(0, 6);
+  if (!limited) return cleaned.startsWith('AB') ? 'AB-' : '';
+
+  const first = limited.slice(0, 4);
+  const second = limited.slice(4, 6);
+  return `AB-${first}${second ? `-${second}` : ''}`;
+};
+
 const formatNeurotype = (value: string): string =>
   value
     .split(/[-_]/)
@@ -161,6 +174,7 @@ const createGuestDashboardSummary = (): DashboardSummary => {
     children: [
       {
         childId,
+        buddyId: 'AB-GEST-01',
         childName: 'Alex Guest',
         age: 10,
         neurotypes: ['autism'],
@@ -390,10 +404,13 @@ const ParentHubPage: React.FC = () => {
   const [messageDraft, setMessageDraft] = useState('');
   const [feedbackDraft, setFeedbackDraft] = useState('');
   const [coachDraft, setCoachDraft] = useState('');
+  const [buddyIdInput, setBuddyIdInput] = useState('');
+  const [buddyRelationship, setBuddyRelationship] = useState(profile?.role === 'teacher' ? 'teacher' : 'parent');
   const [actionStatus, setActionStatus] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isRequestingMeeting, setIsRequestingMeeting] = useState(false);
   const [isSendingFeedback, setIsSendingFeedback] = useState(false);
+  const [isLinkingBuddyId, setIsLinkingBuddyId] = useState(false);
 
   const parentName =
     [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') ||
@@ -767,6 +784,100 @@ const ParentHubPage: React.FC = () => {
     }
   };
 
+  const handleLinkBuddyId = async () => {
+    if (!buddyIdInput.trim() || isLinkingBuddyId) return;
+    setIsLinkingBuddyId(true);
+    setActionStatus('');
+    setError(null);
+
+    try {
+      if (isGuest) {
+        setActionStatus('Guest demo: Buddy ID linking works after creating a parent account.');
+        return;
+      }
+
+      const linked = await ParentDashboardService.linkChildByBuddyId(buddyIdInput, buddyRelationship);
+      setBuddyIdInput('');
+      setActionStatus(`${linked.childName} is now connected to your dashboard.`);
+      await loadDashboard('refresh');
+      setSelectedChildId(linked.childId);
+    } catch (linkError) {
+      console.error('Error linking child by Buddy ID:', linkError);
+      setError(linkError instanceof Error ? linkError.message : 'Could not link this Buddy ID.');
+    } finally {
+      setIsLinkingBuddyId(false);
+    }
+  };
+
+  const buddyIdLinkCard = (
+    <article className="rounded-3xl border border-adapt-indigo/15 bg-white/85 p-5 text-left shadow-card backdrop-blur-sm dark:border-adapt-cyan/20 dark:bg-gray-900/75">
+      <div className="flex items-start gap-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-adapt-indigo/10 text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
+          <KeyRound className="h-5 w-5" aria-hidden />
+        </span>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+            Buddy ID
+          </p>
+          <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
+            Connect a child space
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-gray-400">
+            Ask the child for their Buddy ID from Settings, then enter it here. No database UUIDs, no manual matching.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_0.8fr]">
+        <div>
+          <label htmlFor="parent-buddy-id" className="mb-2 block text-sm font-bold text-slate-600 dark:text-gray-300">
+            Child Buddy ID
+          </label>
+          <input
+            id="parent-buddy-id"
+            value={buddyIdInput}
+            onChange={(event) => setBuddyIdInput(formatBuddyIdInput(event.target.value))}
+            placeholder="AB-7K4M-23"
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 font-mono text-lg font-black tracking-wide text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          />
+        </div>
+        <div>
+          <label htmlFor="parent-buddy-relationship" className="mb-2 block text-sm font-bold text-slate-600 dark:text-gray-300">
+            Relationship
+          </label>
+          <select
+            id="parent-buddy-relationship"
+            value={buddyRelationship}
+            onChange={(event) => setBuddyRelationship(event.target.value)}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          >
+            <option value="parent">Parent</option>
+            <option value="guardian">Guardian</option>
+            <option value="grandparent">Grandparent</option>
+            <option value="carer">Carer</option>
+            <option value="teacher">Teacher</option>
+            <option value="therapist">Therapist</option>
+            <option value="support_worker">Support worker</option>
+          </select>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleLinkBuddyId}
+        disabled={!buddyIdInput.trim() || isLinkingBuddyId}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white transition hover:bg-adapt-purple disabled:opacity-60 dark:bg-adapt-cyan dark:text-gray-950"
+      >
+        {isLinkingBuddyId ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        ) : (
+          <Link2 className="h-4 w-4" aria-hidden />
+        )}
+        {isLinkingBuddyId ? 'Connecting...' : 'Connect child'}
+      </button>
+    </article>
+  );
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
@@ -794,6 +905,11 @@ const ParentHubPage: React.FC = () => {
                 ? `Connected to ${currentChild.childName}'s AdaptBuddy space.`
                 : 'Your family overview is ready when a child space is connected.'}
             </p>
+            {currentChild?.buddyId && (
+              <p className="mt-2 inline-flex rounded-full bg-adapt-indigo/10 px-3 py-1 font-mono text-xs font-black tracking-wide text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
+                {currentChild.buddyId}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -867,15 +983,18 @@ const ParentHubPage: React.FC = () => {
         )}
 
         {!currentChild ? (
-          <section className="rounded-3xl border border-white/70 bg-white/85 p-8 text-center shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
-            <UsersRound className="mx-auto h-12 w-12 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
-            <h2 className="mt-4 text-2xl font-extrabold text-adapt-navy dark:text-gray-100">
-              No child space connected yet
-            </h2>
-            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500 dark:text-gray-400">
-              Once a child relationship or trusted-adult link exists in Supabase, this dashboard will show profile progress,
-              wellbeing trends, journal entries, alerts, and the trusted support circle.
-            </p>
+          <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="rounded-3xl border border-white/70 bg-white/85 p-8 text-center shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
+              <UsersRound className="mx-auto h-12 w-12 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+              <h2 className="mt-4 text-2xl font-extrabold text-adapt-navy dark:text-gray-100">
+                No child space connected yet
+              </h2>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500 dark:text-gray-400">
+                Connect with the child&apos;s Buddy ID to see profile progress, wellbeing trends, journal entries,
+                alerts, and the trusted support circle.
+              </p>
+            </div>
+            {buddyIdLinkCard}
           </section>
         ) : (
           <>
@@ -1473,6 +1592,8 @@ const ParentHubPage: React.FC = () => {
 
             {activeTab === 'support' && (
               <section className="space-y-6">
+                {buddyIdLinkCard}
+
                 <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
                   <article className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">

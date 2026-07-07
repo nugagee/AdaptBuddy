@@ -13,7 +13,7 @@ interface MusicPlayerProviderProps {
 
 /** Provides global music player state — UI is rendered by GlobalMusicPlayer */
 export const MusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({ children }) => {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [soundscapeOverrideActive, setSoundscapeOverrideActive] = useState(false);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const soundscapeOverrideRef = useRef(false);
@@ -21,7 +21,6 @@ export const MusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({ childr
 
   const player = useAudioPlayer({
     seekStep: 10,
-    autoPlayDelayMs: 2000,
     initialVolume: 35,
   });
 

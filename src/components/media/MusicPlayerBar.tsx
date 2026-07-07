@@ -8,7 +8,6 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { YOUTUBE_LOFI_URL } from 'constants/musicStreams';
 import { useMusicPlayer } from 'contexts/musicPlayerContext';
 
 function formatTime(seconds: number): string {
@@ -50,11 +49,11 @@ const MusicPlayerBar: React.FC = () => {
   const [showAutoplayHint, setShowAutoplayHint] = useState(false);
 
   useEffect(() => {
-    if (!ready || playing || error) {
+    if (!ready || playing || error || !autoplayBlocked) {
       setShowAutoplayHint(false);
       return undefined;
     }
-    const delay = autoplayBlocked && isMobile ? 500 : 4500;
+    const delay = isMobile ? 500 : 1200;
     const t = setTimeout(() => setShowAutoplayHint(true), delay);
     return () => clearTimeout(t);
   }, [ready, playing, error, autoplayBlocked, isMobile]);
@@ -202,18 +201,7 @@ const MusicPlayerBar: React.FC = () => {
 
         {showAutoplayHint && !playing && ready && !error && (
           <p className="text-center text-[11px] text-slate-500 dark:text-gray-400">
-            {autoplayBlocked && isMobile
-              ? 'Tap anywhere on the page or press play to start focus music.'
-              : 'Tap play if music did not start — some browsers block autoplay.'}
-            {' '}
-            <a
-              href={YOUTUBE_LOFI_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-neuro-blue hover:underline dark:text-adapt-cyan"
-            >
-              Lofi on YouTube
-            </a>
+            Press play when you want music. Some browsers need one extra tap before sound can start.
           </p>
         )}
       </div>

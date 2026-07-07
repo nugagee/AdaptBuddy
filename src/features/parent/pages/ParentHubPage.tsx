@@ -105,6 +105,11 @@ const getEmotionEmoji = (emotion: string): string => {
     scared: '😨',
     frustrated: '😤',
     confused: '😕',
+    'too noisy': '🔊',
+    'too bright': '💡',
+    good: '😊',
+    worried: '😟',
+    'i need help': '🫂',
     loved: '🥰',
     proud: '😎',
     okay: '😐',
@@ -187,6 +192,9 @@ const createGuestDashboardSummary = (): DashboardSummary => {
         childId,
         childName: 'Alex Guest',
         emotion: 'anxious',
+        signalLabel: 'Too noisy',
+        signalCategory: 'sensory',
+        parentInsight: 'Noise may be affecting regulation or attention.',
         text: 'The classroom was noisy before lunch.',
         riskLevel: 'medium',
         createdAt: daysAgo(1),
@@ -199,6 +207,9 @@ const createGuestDashboardSummary = (): DashboardSummary => {
         childId,
         childName: 'Alex Guest',
         emotion: 'calm',
+        signalLabel: 'Calm',
+        signalCategory: 'emotional',
+        parentInsight: 'The child felt regulated after this step.',
         text: 'The timer helped me move to maths.',
         riskLevel: 'low',
         createdAt: daysAgo(3),
@@ -331,7 +342,7 @@ const createGuestDashboardSummary = (): DashboardSummary => {
       {
         id: 'guest-signal-2',
         childId,
-        emotion: 'anxious',
+        emotion: 'Too noisy',
         color: 'yellow',
         note: 'Noise before lunch.',
         createdAt: daysAgo(1),
@@ -1105,6 +1116,7 @@ const ParentHubPage: React.FC = () => {
                   {childEntries.length > 0 ? (
                     childEntries.slice(0, 5).map((entry) => {
                       const style = riskStyles[entry.riskLevel];
+                      const entrySignal = entry.signalLabel ?? entry.emotion;
                       return (
                         <div
                           key={entry.id}
@@ -1121,9 +1133,14 @@ const ParentHubPage: React.FC = () => {
                                   {style.label}
                                 </span>
                                 <span className="rounded-full bg-white px-2 py-1 text-xs font-bold capitalize text-slate-500 dark:bg-gray-900 dark:text-gray-300">
-                                  {entry.emotion}
+                                  {entrySignal}
                                 </span>
                               </div>
+                              {entry.parentInsight && (
+                                <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-gray-400">
+                                  {entry.parentInsight}
+                                </p>
+                              )}
                             </div>
                           </div>
                           <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-slate-400">
@@ -1343,6 +1360,7 @@ const ParentHubPage: React.FC = () => {
                   <div className="space-y-3">
                     {childEntries.map((entry) => {
                       const style = riskStyles[entry.riskLevel];
+                      const entrySignal = entry.signalLabel ?? entry.emotion;
                       return (
                         <article
                           key={entry.id}
@@ -1351,17 +1369,22 @@ const ParentHubPage: React.FC = () => {
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0">
                               <div className="mb-2 flex flex-wrap items-center gap-2">
-                                <span className="text-2xl" aria-hidden>{getEmotionEmoji(entry.emotion)}</span>
+                                <span className="text-2xl" aria-hidden>{getEmotionEmoji(entrySignal)}</span>
                                 <span className={`rounded-full px-2 py-1 text-xs font-bold ${style.badge}`}>
                                   {style.label}
                                 </span>
                                 <span className="rounded-full bg-white px-2 py-1 text-xs font-bold capitalize text-slate-500 dark:bg-gray-900 dark:text-gray-300">
-                                  {entry.emotion}
+                                  {entrySignal}
                                 </span>
                               </div>
                               <p className="text-sm font-medium leading-relaxed text-slate-700 dark:text-gray-300">
                                 &ldquo;{entry.text || 'Voice note saved without text.'}&rdquo;
                               </p>
+                              {entry.parentInsight && (
+                                <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-gray-400">
+                                  {entry.parentInsight}
+                                </p>
+                              )}
                             </div>
                             <div className="flex shrink-0 items-center gap-3 text-xs font-semibold text-slate-400">
                               <span className="inline-flex items-center gap-1">

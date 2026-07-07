@@ -173,6 +173,7 @@ const signalColorForEmotion = (emotion: string): string => {
   switch (emotion.toLowerCase()) {
     case 'happy':
     case 'excited':
+    case 'good':
       return 'green';
     case 'calm':
     case 'okay':
@@ -182,12 +183,26 @@ const signalColorForEmotion = (emotion: string): string => {
     case 'sad':
     case 'anxious':
     case 'worried':
+    case 'too noisy':
+    case 'too bright':
+    case 'confused':
       return 'yellow';
+    case 'frustrated':
+      return 'orange';
     case 'angry':
+    case 'i need help':
       return 'red';
     default:
       return 'blue';
   }
+};
+
+const signalColorForAnalysis = (analysis: EmotionAnalysis | null | undefined, emotion: string): string => {
+  if (analysis?.supportLevel === 'urgent') return 'red';
+  if (typeof analysis?.signalLabel === 'string') return signalColorForEmotion(analysis.signalLabel);
+  if (analysis?.signalCategory === 'sensory' || analysis?.signalCategory === 'cognitive') return 'yellow';
+  if (analysis?.supportLevel === 'concern') return 'yellow';
+  return signalColorForEmotion(emotion);
 };
 
 export async function saveJournalEntry({
@@ -221,9 +236,11 @@ export async function saveJournalEntry({
 
   const { error: signalError } = await client.from('parent_child_signals').insert({
     child_id: childId,
-    emotion: analysis?.emotion ?? emotion,
-    color: signalColorForEmotion(analysis?.emotion ?? emotion),
-    note: text.trim() || null,
+    emotion: analysis?.signalLabel ?? analysis?.emotion ?? emotion,
+    color: signalColorForAnalysis(analysis, analysis?.emotion ?? emotion),
+    note: analysis?.parentInsight
+      ? `${analysis.parentInsight}${text.trim() ? ` ${text.trim()}` : ''}`
+      : text.trim() || null,
   });
 
   if (signalError) throw signalError;

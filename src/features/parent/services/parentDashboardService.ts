@@ -22,6 +22,12 @@ export interface JournalEntry {
   id: string;
   childId: string;
   emotion: string;
+  signalId?: string;
+  signalLabel?: string;
+  signalCategory?: string;
+  supportLevel?: string;
+  parentInsight?: string;
+  suggestedAction?: string;
   text: string;
   riskLevel: RiskLevel;
   createdAt: string;
@@ -192,6 +198,21 @@ type AiAnalysis = {
   calm?: unknown;
   calmScore?: unknown;
   calm_score?: unknown;
+  signalId?: unknown;
+  signal_id?: unknown;
+  signalLabel?: unknown;
+  signal_label?: unknown;
+  signalCategory?: unknown;
+  signal_category?: unknown;
+  supportLevel?: unknown;
+  support_level?: unknown;
+  parentInsight?: unknown;
+  parent_insight?: unknown;
+  suggestedAction?: unknown;
+  suggested_action?: unknown;
+  activityLabel?: unknown;
+  activity_label?: unknown;
+  source?: unknown;
 };
 
 interface JournalEntryRow {
@@ -383,10 +404,22 @@ const getAnalysisValue = (
   return keys.map((key) => analysis[key]).find((value) => value !== undefined && value !== null);
 };
 
+const getStringAnalysisValue = (
+  analysis: AiAnalysis | null,
+  keys: Array<keyof AiAnalysis>,
+): string | undefined => {
+  const value = getAnalysisValue(analysis, keys);
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+};
+
+const getEntrySignalLabel = (entry: Pick<JournalEntry, 'signalLabel' | 'emotion'>): string =>
+  entry.signalLabel || entry.emotion;
+
 const scoreFromEmotion = (emotion: string): number | null => {
   switch (emotion.toLowerCase()) {
     case 'happy':
     case 'excited':
+    case 'good':
       return 88;
     case 'calm':
     case 'okay':
@@ -395,9 +428,14 @@ const scoreFromEmotion = (emotion: string): number | null => {
       return 58;
     case 'sad':
     case 'angry':
+    case 'frustrated':
       return 38;
     case 'anxious':
     case 'worried':
+    case 'confused':
+    case 'too noisy':
+    case 'too bright':
+    case 'i need help':
       return 32;
     default:
       return null;
@@ -424,15 +462,22 @@ const mapJournalEntry = (
   childNames: Map<string, string>,
 ): JournalEntry => {
   const emotion = row.emotion || String(getAnalysisValue(row.ai_analysis, ['emotion']) ?? 'unspecified');
+  const signalLabel = getStringAnalysisValue(row.ai_analysis, ['signalLabel', 'signal_label']);
   const moodScore =
     clampScore(getAnalysisValue(row.ai_analysis, ['moodScore', 'mood_score', 'mood', 'sentimentScore', 'sentiment_score']))
-    ?? scoreFromEmotion(emotion);
+    ?? scoreFromEmotion(signalLabel ?? emotion);
 
   return {
     id: row.id,
     childId: row.child_id,
     childName: childNames.get(row.child_id),
     emotion,
+    signalId: getStringAnalysisValue(row.ai_analysis, ['signalId', 'signal_id']),
+    signalLabel,
+    signalCategory: getStringAnalysisValue(row.ai_analysis, ['signalCategory', 'signal_category']),
+    supportLevel: getStringAnalysisValue(row.ai_analysis, ['supportLevel', 'support_level']),
+    parentInsight: getStringAnalysisValue(row.ai_analysis, ['parentInsight', 'parent_insight']),
+    suggestedAction: getStringAnalysisValue(row.ai_analysis, ['suggestedAction', 'suggested_action']),
     text: row.text || '',
     riskLevel: normalizeRiskLevel(row.risk_level ?? getAnalysisValue(row.ai_analysis, ['riskLevel', 'risk_level'])),
     createdAt: row.created_at,
@@ -630,11 +675,15 @@ const buildAiDigest = (
       : null;
 
   const emotionCounts = recentEntries.reduce<Record<string, number>>((acc, entry) => {
-    acc[entry.emotion] = (acc[entry.emotion] ?? 0) + 1;
+    const label = getEntrySignalLabel(entry);
+    acc[label] = (acc[label] ?? 0) + 1;
     return acc;
   }, {});
   const highestEmotion =
     Object.entries(emotionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'not enough data yet';
+  const sensorySignals = recentEntries.filter((entry) => entry.signalCategory === 'sensory').length;
+  const cognitiveSignals = recentEntries.filter((entry) => entry.signalCategory === 'cognitive').length;
+  const urgentSupportSignals = recentEntries.filter((entry) => entry.supportLevel === 'urgent').length;
 
   const unresolvedAlerts = alerts.filter((alert) => !alert.acknowledged);
   const highAlerts = unresolvedAlerts.filter((alert) => alert.riskLevel === 'high').length;
@@ -643,8 +692,12 @@ const buildAiDigest = (
   const activeGoals = goals.filter((goal) => goal.status === 'active').length;
 
   const suggestion =
-    highAlerts > 0
+    urgentSupportSignals > 0 || highAlerts > 0
       ? `Check in gently with ${childName} today and consider involving a trusted adult.`
+      : sensorySignals >= 2
+        ? `Look for sensory load around recent tasks; headphones, lower lighting, or a quieter transition may help.`
+        : cognitiveSignals >= 2
+          ? `Try one-step instructions with a visual example before the next difficult task.`
       : mediumAlerts > 1
         ? `Plan a short parent-teacher check-in to compare what home and school are seeing.`
         : happyWeekPercentage !== null && happyWeekPercentage >= 70
@@ -669,7 +722,13 @@ const buildAiDigest = (
     suggestion,
     talkingPoints: [
       `What helped ${childName} feel most regulated this week?`,
-      highAlerts > 0 ? 'Which adult should follow up on the high-priority signal?' : 'Are home and school seeing the same pattern?',
+      urgentSupportSignals > 0 || highAlerts > 0
+        ? 'Which adult should follow up on the high-priority signal?'
+        : sensorySignals >= 2
+          ? 'Where are the noisy, bright, or crowded moments showing up?'
+          : cognitiveSignals >= 2
+            ? 'Which instructions need visual support or smaller steps?'
+            : 'Are home and school seeing the same pattern?',
       activeGoals > 0 ? 'Which goal needs the smallest next step?' : 'What one goal should we agree together?',
     ],
   };
@@ -679,10 +738,23 @@ const buildProactiveInsights = (
   children: ChildSummary[],
   trends: Record<string, WellbeingTrendPoint[]>,
   alerts: Alert[],
+  entries: JournalEntry[],
 ): ProactiveInsight[] =>
   children.flatMap((child) => {
     const childTrends = trends[child.childId] ?? [];
     const childAlerts = alerts.filter((alert) => alert.childId === child.childId && !alert.acknowledged);
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const recentChildEntries = entries.filter((entry) => {
+      const timestamp = new Date(entry.createdAt).getTime();
+      return entry.childId === child.childId && Number.isFinite(timestamp) && timestamp >= weekAgo;
+    });
+    const sensoryEntries = recentChildEntries.filter((entry) => entry.signalCategory === 'sensory');
+    const cognitiveEntries = recentChildEntries.filter((entry) => entry.signalCategory === 'cognitive');
+    const urgentSupportEntries = recentChildEntries.filter((entry) => entry.supportLevel === 'urgent');
+    const emotionalConcernEntries = recentChildEntries.filter((entry) => {
+      const label = getEntrySignalLabel(entry).toLowerCase();
+      return entry.signalCategory === 'emotional' && ['worried', 'frustrated'].includes(label);
+    });
     const insights: ProactiveInsight[] = [];
 
     if (childAlerts.some((alert) => alert.riskLevel === 'high')) {
@@ -693,6 +765,51 @@ const buildProactiveInsights = (
         title: 'High-priority support needed',
         detail: `${child.childName} has an unresolved high-priority alert.`,
         suggestedAction: 'Acknowledge the alert and choose a trusted adult to follow up today.',
+      });
+    }
+
+    if (urgentSupportEntries.length > 0 && !insights.some((insight) => insight.priority === 'high')) {
+      insights.push({
+        id: `${child.childId}-needs-help`,
+        childId: child.childId,
+        priority: 'high',
+        title: 'Child asked for help',
+        detail: `${child.childName} used an "I need help" signal recently.`,
+        suggestedAction: 'Check in directly and confirm which trusted adult is available today.',
+      });
+    }
+
+    if (sensoryEntries.length >= 2) {
+      const labels = Array.from(new Set(sensoryEntries.map((entry) => getEntrySignalLabel(entry)))).join(', ');
+      insights.push({
+        id: `${child.childId}-sensory-pattern`,
+        childId: child.childId,
+        priority: 'medium',
+        title: 'Sensory load pattern',
+        detail: `${child.childName} has ${sensoryEntries.length} sensory signal${sensoryEntries.length === 1 ? '' : 's'} this week${labels ? ` (${labels})` : ''}.`,
+        suggestedAction: 'Review noise, brightness, crowding, and transitions around these tasks.',
+      });
+    }
+
+    if (cognitiveEntries.length >= 2) {
+      insights.push({
+        id: `${child.childId}-confusion-pattern`,
+        childId: child.childId,
+        priority: 'medium',
+        title: 'Instruction clarity needed',
+        detail: `${child.childName} signalled confusion more than once this week.`,
+        suggestedAction: 'Use one-step instructions, a worked example, and a visual cue before the task starts.',
+      });
+    }
+
+    if (emotionalConcernEntries.length >= 2) {
+      insights.push({
+        id: `${child.childId}-emotional-concern-pattern`,
+        childId: child.childId,
+        priority: 'medium',
+        title: 'Repeated emotional strain',
+        detail: `${child.childName} signalled worry or frustration repeatedly this week.`,
+        suggestedAction: 'Compare the timing with school/home routines and lower demand before the next transition.',
       });
     }
 
@@ -931,7 +1048,7 @@ export class ParentDashboardService {
       resources,
       childSignals,
       aiDigest: buildAiDigest(enrichedChildren, recentEntries, recentAlerts, goals),
-      proactiveInsights: buildProactiveInsights(enrichedChildren, wellbeingTrends, recentAlerts),
+      proactiveInsights: buildProactiveInsights(enrichedChildren, wellbeingTrends, recentAlerts, recentEntries),
       parentFeedbackThemes,
     };
   }

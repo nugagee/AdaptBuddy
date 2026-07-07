@@ -43,6 +43,35 @@
   animation: float 3s ease-in-out infinite;
 }
 
+@keyframes wave {
+  0%,
+  100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-10px) scale(1.02);
+  }
+}
+
+@keyframes rain {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100px);
+  }
+}
+
+.animate-wave {
+  animation: wave 4s ease-in-out infinite;
+}
+
+.animate-rain {
+  animation: rain 1.5s linear infinite;
+}
+
 @keyframes analytics-progress {
   0% {
     width: 0%;
@@ -75,7 +104,9 @@
   }
 
   .animate-theme-cta-glow,
-  .animate-theme-cta-ring {
+  .animate-theme-cta-ring,
+  .animate-wave,
+  .animate-rain {
     animation: none;
   }
 }

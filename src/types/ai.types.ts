@@ -9,6 +9,17 @@ export interface EmotionAnalysis {
   riskLevel: RiskLevel;
   sentimentScore: number;
   timestamp: Date;
+  signalId?: string;
+  signalLabel?: string;
+  signalCategory?: string;
+  supportLevel?: string;
+  source?: string;
+  activityLabel?: string;
+  parentInsight?: string;
+  suggestedAction?: string;
+  moodScore?: number;
+  focusScore?: number;
+  calmScore?: number;
 }
 
 export interface LearningRecommendation {

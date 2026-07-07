@@ -17,11 +17,19 @@ import {
   Save,
   Sparkles,
   Trash2,
+  Wind,
 } from 'lucide-react';
 import { useAuth } from 'hooks/useAuth';
 import { getSupabaseClient, isSupabaseConfigured } from 'services/supabase/client';
 import { saveJournalEntry } from 'services/supabase/autismProfileService';
-import type { EmotionAnalysis, EmotionType } from 'types/ai.types';
+import {
+  SUPPORT_SIGNAL_OPTIONS,
+  getSupportSignalOption,
+  signalNeedsAdultContext,
+  type SupportSignalId,
+} from 'features/child/constants/supportSignals';
+import type { EmotionAnalysis } from 'types/ai.types';
+import CalmBreakTimer, { type CalmBreakTimerResult } from './CalmBreakTimer';
 
 export interface NowNextLaterActivity {
   id: string;
@@ -58,19 +66,6 @@ interface NowNextLaterBoardProps {
   onActivityComplete?: (activity: NowNextLaterActivity) => void;
   onScheduleChange?: (schedule: DailySchedule) => void;
 }
-
-type TaskMood = 'happy' | 'calm' | 'anxious';
-
-const taskMoodOptions: Array<{
-  value: TaskMood;
-  label: string;
-  emoji: string;
-  helper: string;
-}> = [
-  { value: 'happy', label: 'Great', emoji: '✨', helper: 'That felt good' },
-  { value: 'calm', label: 'Okay', emoji: '😌', helper: 'I feel steady' },
-  { value: 'anxious', label: 'Worried', emoji: '😟', helper: 'I need support' },
-];
 
 const ACTIVITY_LIBRARY: Array<Pick<NowNextLaterActivity, 'emoji' | 'label' | 'durationMinutes'>> = [
   { emoji: '🌅', label: 'Morning routine', durationMinutes: 10 },
@@ -156,6 +151,11 @@ const storageKey = (childId: string, date: string) =>
 
 const taskMoodStorageKey = (childId: string) =>
   `adaptbuddy-now-next-later-moods:${childId}`;
+
+const isCalmBreakActivity = (activity: NowNextLaterActivity) => {
+  const label = activity.label.toLowerCase();
+  return label.includes('calm') && (label.includes('break') || label.includes('time') || label.includes('corner'));
+};
 
 const getDefaultSchedule = (childId: string, date = getLocalDateKey()): DailySchedule => {
   const now = new Date().toISOString();
@@ -251,22 +251,24 @@ const formatCountdown = (seconds: number) => {
   return `${minutes}:${String(remaining).padStart(2, '0')}`;
 };
 
-interface TaskMoodLogEntry {
+interface TaskSignalLogEntry {
   id: string;
   childId: string;
   activityId: string;
   activityLabel: string;
-  mood: TaskMood;
+  signalId: SupportSignalId;
+  signalLabel: string;
+  signalCategory: string;
   note: string;
   createdAt: string;
 }
 
-const writeLocalTaskMoodLog = (entry: TaskMoodLogEntry) => {
+const writeLocalTaskSignalLog = (entry: TaskSignalLogEntry) => {
   if (typeof window === 'undefined') return;
 
   try {
     const raw = window.localStorage.getItem(taskMoodStorageKey(entry.childId));
-    const existing = raw ? (JSON.parse(raw) as TaskMoodLogEntry[]) : [];
+    const existing = raw ? (JSON.parse(raw) as TaskSignalLogEntry[]) : [];
     const next = [entry, ...existing].slice(0, 60);
     window.localStorage.setItem(taskMoodStorageKey(entry.childId), JSON.stringify(next));
   } catch {
@@ -274,20 +276,32 @@ const writeLocalTaskMoodLog = (entry: TaskMoodLogEntry) => {
   }
 };
 
-const buildTaskMoodAnalysis = (
+const buildTaskSignalAnalysis = (
   activity: NowNextLaterActivity,
-  mood: TaskMood,
+  signalId: SupportSignalId,
   note: string,
 ): EmotionAnalysis => {
-  const hasWorry = mood === 'anxious' || note.trim().length > 0;
+  const signal = getSupportSignalOption(signalId);
+  const hasAdultContext = signalNeedsAdultContext(signal) || note.trim().length > 0;
 
   return {
-    emotion: mood as EmotionType,
-    confidence: hasWorry ? 0.78 : 0.72,
-    keywords: ['task-completion', activity.label, mood].filter(Boolean),
-    riskLevel: hasWorry ? 'medium' : 'low',
-    sentimentScore: mood === 'happy' ? 0.86 : mood === 'calm' ? 0.72 : 0.36,
+    emotion: signal.emotion,
+    confidence: hasAdultContext ? 0.82 : 0.72,
+    keywords: ['task-completion', activity.label, signal.id, signal.category].filter(Boolean),
+    riskLevel: signal.riskLevel,
+    sentimentScore: signal.sentimentScore,
     timestamp: new Date(),
+    signalId: signal.id,
+    signalLabel: signal.label,
+    signalCategory: signal.category,
+    supportLevel: signal.level,
+    source: 'task-check-in',
+    activityLabel: activity.label,
+    parentInsight: signal.parentInsight,
+    suggestedAction: signal.suggestedAction,
+    moodScore: signal.moodScore,
+    focusScore: signal.focusScore,
+    calmScore: signal.calmScore,
   };
 };
 
@@ -328,12 +342,14 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
   const [celebration, setCelebration] = useState('');
   const [completedActivityForMood, setCompletedActivityForMood] =
     useState<NowNextLaterActivity | null>(null);
-  const [selectedTaskMood, setSelectedTaskMood] = useState<TaskMood | ''>('');
+  const [selectedSupportSignal, setSelectedSupportSignal] = useState<SupportSignalId | ''>('');
   const [worryNote, setWorryNote] = useState('');
   const [moodSaving, setMoodSaving] = useState(false);
   const [moodMessage, setMoodMessage] = useState('');
   const [timerActivityId, setTimerActivityId] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [activeCalmBreakActivity, setActiveCalmBreakActivity] =
+    useState<NowNextLaterActivity | null>(null);
 
   const completedCount = schedule.activities.filter((activity) => activity.completed).length;
   const progress =
@@ -469,11 +485,12 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
       setError('');
       setSyncMessage('');
       setCompletedActivityForMood(null);
-      setSelectedTaskMood('');
+      setSelectedSupportSignal('');
       setWorryNote('');
       setMoodMessage('');
       setTimerActivityId(null);
       setRemainingSeconds(0);
+      setActiveCalmBreakActivity(null);
     },
     [childId, date],
   );
@@ -557,21 +574,38 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
     setDraggedId(null);
   };
 
-  const completeActivity = (activity: NowNextLaterActivity) => {
+  const completeActivity = (
+    activity: NowNextLaterActivity,
+    options: { promptMood?: boolean; message?: string } = {},
+  ) => {
     if (timerActivityId === activity.id) {
       setTimerActivityId(null);
       setRemainingSeconds(0);
     }
     updateActivity(activity.id, { completed: true });
     onActivityComplete?.(activity);
-    setCelebration(`Great job. ${activity.label} is done.`);
-    if (resolvedMode === 'child') {
+    setCelebration(options.message ?? `Great job. ${activity.label} is done.`);
+    if (resolvedMode === 'child' && options.promptMood !== false) {
       setCompletedActivityForMood(activity);
-      setSelectedTaskMood('');
+      setSelectedSupportSignal('');
       setWorryNote('');
       setMoodMessage('');
     }
     window.setTimeout(() => setCelebration(''), 2600);
+  };
+
+  const finishCalmBreakActivity = (result: CalmBreakTimerResult) => {
+    if (!activeCalmBreakActivity) return;
+
+    completeActivity(activeCalmBreakActivity, {
+      promptMood: false,
+      message: result.mood
+        ? 'Calm break complete. Mood check-in saved.'
+        : 'Calm break complete. Nice gentle reset.',
+    });
+    setActiveCalmBreakActivity(null);
+    setMoodMessage(result.mood ? 'Mood after calm break saved.' : 'Calm break complete.');
+    window.setTimeout(() => setMoodMessage(''), 3500);
   };
 
   const startTaskTimer = (activity: NowNextLaterActivity) => {
@@ -584,24 +618,27 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
     setTimerActivityId(null);
   };
 
-  const logTaskMood = useCallback(
-    async (mood: TaskMood, note = '') => {
+  const logTaskSignal = useCallback(
+    async (signalId: SupportSignalId, note = '') => {
       if (!completedActivityForMood) return;
 
+      const signal = getSupportSignalOption(signalId);
       const cleanNote = note.trim();
       const text = cleanNote
-        ? `After finishing ${completedActivityForMood.label}, I felt ${mood}. Worry note: ${cleanNote}`
-        : `After finishing ${completedActivityForMood.label}, I felt ${mood}.`;
-      const analysis = buildTaskMoodAnalysis(completedActivityForMood, mood, cleanNote);
+        ? `After finishing ${completedActivityForMood.label}, I chose "${signal.emoji} ${signal.label}". Note: ${cleanNote}`
+        : `After finishing ${completedActivityForMood.label}, I chose "${signal.emoji} ${signal.label}".`;
+      const analysis = buildTaskSignalAnalysis(completedActivityForMood, signal.id, cleanNote);
 
       setMoodSaving(true);
       setMoodMessage('');
-      writeLocalTaskMoodLog({
+      writeLocalTaskSignalLog({
         id: createId('task-mood'),
         childId,
         activityId: completedActivityForMood.id,
         activityLabel: completedActivityForMood.label,
-        mood,
+        signalId: signal.id,
+        signalLabel: signal.label,
+        signalCategory: signal.category,
         note: cleanNote,
         createdAt: new Date().toISOString(),
       });
@@ -610,20 +647,20 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
         if (canSyncRemote) {
           await saveJournalEntry({
             childId,
-            emotion: mood,
+            emotion: signal.emotion,
             text,
             analysis,
             isShared: true,
           });
         }
-        setMoodMessage('Mood check-in saved.');
+        setMoodMessage(signal.level === 'urgent' ? 'Support signal sent.' : 'Check-in saved.');
       } catch (saveError) {
         console.warn('Task mood check-in saved locally only:', saveError);
         setMoodMessage('Saved on this device. Sync will catch up when available.');
       } finally {
         setMoodSaving(false);
         setCompletedActivityForMood(null);
-        setSelectedTaskMood('');
+        setSelectedSupportSignal('');
         setWorryNote('');
         window.setTimeout(() => setMoodMessage(''), 3500);
       }
@@ -634,10 +671,11 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
   const resetDay = () => {
     commitSchedule(schedule.activities.map((activity) => ({ ...activity, completed: false })));
     setCompletedActivityForMood(null);
-    setSelectedTaskMood('');
+    setSelectedSupportSignal('');
     setWorryNote('');
     setTimerActivityId(null);
     setRemainingSeconds(0);
+    setActiveCalmBreakActivity(null);
   };
 
   if (loading) {
@@ -652,12 +690,26 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
   }
 
   const allDone = schedule.activities.length > 0 && completedCount === schedule.activities.length;
+  const selectedSignal = selectedSupportSignal
+    ? getSupportSignalOption(selectedSupportSignal)
+    : null;
 
   return (
     <section
       className={`rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-violet-50 p-5 shadow-card dark:border-gray-800 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950 sm:p-6 ${className}`}
       aria-label="Now Next Later board"
     >
+      {activeCalmBreakActivity && (
+        <CalmBreakTimer
+          childId={childId}
+          activityLabel={activeCalmBreakActivity.label}
+          durationMinutes={activeCalmBreakActivity.durationMinutes ?? 5}
+          canSyncRemote={canSyncRemote}
+          onComplete={finishCalmBreakActivity}
+          onClose={() => setActiveCalmBreakActivity(null)}
+        />
+      )}
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
@@ -816,59 +868,65 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
           </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            {taskMoodOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => {
-                  if (option.value === 'anxious') {
-                    setSelectedTaskMood(option.value);
-                    return;
-                  }
-                  void logTaskMood(option.value);
-                }}
-                disabled={moodSaving}
-                className={`rounded-2xl border bg-white/85 p-3 text-left shadow-sm transition hover:-translate-y-0.5 dark:bg-gray-900 ${
-                  selectedTaskMood === option.value
-                    ? 'border-amber-500 ring-2 ring-amber-200'
-                    : 'border-white/80 dark:border-gray-700'
-                }`}
-              >
-                <span className="text-2xl" aria-hidden>{option.emoji}</span>
-                <span className="ml-2 text-sm font-black">{option.label}</span>
-                <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-gray-400">
-                  {option.helper}
-                </span>
-              </button>
-            ))}
+            {SUPPORT_SIGNAL_OPTIONS.map((option) => {
+              const needsContext = signalNeedsAdultContext(option);
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => {
+                    if (needsContext) {
+                      setSelectedSupportSignal(option.id);
+                      return;
+                    }
+                    void logTaskSignal(option.id);
+                  }}
+                  disabled={moodSaving}
+                  className={`rounded-2xl border bg-white/85 p-3 text-left shadow-sm transition hover:-translate-y-0.5 dark:bg-gray-900 ${
+                    selectedSupportSignal === option.id
+                      ? 'border-amber-500 ring-2 ring-amber-200'
+                      : 'border-white/80 dark:border-gray-700'
+                  }`}
+                >
+                  <span className="text-2xl" aria-hidden>{option.emoji}</span>
+                  <span className="ml-2 text-sm font-black">{option.label}</span>
+                  <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-gray-400">
+                    {option.helper}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {selectedTaskMood === 'anxious' && (
+          {selectedSignal && signalNeedsAdultContext(selectedSignal) && (
             <div className="mt-4 rounded-2xl bg-white/80 p-3 dark:bg-gray-900/80">
               <label className="text-sm font-black text-adapt-navy dark:text-gray-100" htmlFor="task-worry-note">
-                Want to write the worry?
+                What should your adults know?
               </label>
               <textarea
                 id="task-worry-note"
                 value={worryNote}
                 onChange={(event) => setWorryNote(event.target.value)}
                 rows={3}
-                placeholder="What felt hard or worrying?"
+                placeholder="You can write a few words, or skip this."
                 className="mt-2 w-full rounded-2xl border border-amber-100 bg-white px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-950"
               />
+              <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-gray-400">
+                Parent insight: {selectedSignal.parentInsight}
+              </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => void logTaskMood('anxious', worryNote)}
+                  onClick={() => void logTaskSignal(selectedSignal.id, worryNote)}
                   disabled={moodSaving}
                   className="inline-flex items-center gap-2 rounded-2xl bg-adapt-navy px-4 py-2 text-sm font-black text-white disabled:opacity-60"
                 >
                   {moodSaving && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-                  Save worry note
+                  Save check-in
                 </button>
                 <button
                   type="button"
-                  onClick={() => void logTaskMood('anxious')}
+                  onClick={() => void logTaskSignal(selectedSignal.id)}
                   disabled={moodSaving}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-600 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                 >
@@ -903,6 +961,9 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
             const timerProgress = activeTimer
               ? Math.round(((timerTotalSeconds - remainingSeconds) / timerTotalSeconds) * 100)
               : 0;
+            const usesCalmBreakTimer = Boolean(
+              activity && index === 0 && resolvedMode === 'child' && isCalmBreakActivity(activity),
+            );
             return (
               <article
                 key={slot.label}
@@ -932,7 +993,7 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
                         {formatDuration(activity.durationMinutes)}
                       </p>
                     )}
-                    {index === 0 && activity.durationMinutes && (
+                    {index === 0 && activity.durationMinutes && !usesCalmBreakTimer && (
                       <div className="mt-3 rounded-2xl bg-white/70 p-3 text-slate-700 shadow-sm dark:bg-gray-900/60 dark:text-gray-200">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs font-black uppercase tracking-wide">
@@ -956,14 +1017,25 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
                       </div>
                     )}
                     {index === 0 && (
-                      <button
-                        type="button"
-                        onClick={() => completeActivity(activity)}
-                        className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-adapt-purple"
-                      >
-                        <Check className="h-4 w-4" aria-hidden />
-                        Done
-                      </button>
+                      usesCalmBreakTimer ? (
+                        <button
+                          type="button"
+                          onClick={() => setActiveCalmBreakActivity(activity)}
+                          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-adapt-teal px-4 py-3 text-sm font-black text-white shadow-sm hover:shadow-glow"
+                        >
+                          <Wind className="h-4 w-4" aria-hidden />
+                          Start calm break
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => completeActivity(activity)}
+                          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-adapt-purple"
+                        >
+                          <Check className="h-4 w-4" aria-hidden />
+                          Done
+                        </button>
+                      )
                     )}
                   </div>
                 ) : (

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
@@ -32,6 +33,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { ROUTES } from 'constants/routes';
 import { useAuth } from 'hooks/useAuth';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import {
@@ -153,6 +155,15 @@ const formatSignedNumber = (value: number | null): string => {
 const metricName = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1);
 
 const getInitial = (name: string): string => name.trim().charAt(0).toUpperCase() || 'A';
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+};
 
 const EmptyState: React.FC<{ title: string; detail: string }> = ({ title, detail }) => (
   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center dark:border-gray-700 dark:bg-gray-950/30">
@@ -442,7 +453,7 @@ const ParentHubPage: React.FC = () => {
         applyDashboardData(data);
       } catch (loadError) {
         console.error('Error loading parent dashboard:', loadError);
-        setError(loadError instanceof Error ? loadError.message : 'Could not load the parent dashboard.');
+        setError(getErrorMessage(loadError, 'Could not load the parent dashboard.'));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -469,7 +480,7 @@ const ParentHubPage: React.FC = () => {
       } catch (loadError) {
         console.error('Error loading parent dashboard:', loadError);
         if (active) {
-          setError(loadError instanceof Error ? loadError.message : 'Could not load the parent dashboard.');
+          setError(getErrorMessage(loadError, 'Could not load the parent dashboard.'));
         }
       } finally {
         if (active) setLoading(false);
@@ -656,7 +667,7 @@ const ParentHubPage: React.FC = () => {
       );
     } catch (acknowledgeError) {
       console.error('Error acknowledging alert:', acknowledgeError);
-      setError(acknowledgeError instanceof Error ? acknowledgeError.message : 'Could not acknowledge the alert.');
+      setError(getErrorMessage(acknowledgeError, 'Could not acknowledge the alert.'));
     } finally {
       setAcknowledgingAlertId(null);
     }
@@ -701,7 +712,7 @@ const ParentHubPage: React.FC = () => {
       setActionStatus('Message saved with AI talking points.');
     } catch (sendError) {
       console.error('Error sending parent-teacher message:', sendError);
-      setError(sendError instanceof Error ? sendError.message : 'Could not send the message.');
+      setError(getErrorMessage(sendError, 'Could not send the message.'));
     } finally {
       setIsSendingMessage(false);
     }
@@ -745,7 +756,7 @@ const ParentHubPage: React.FC = () => {
       setActionStatus('Meeting request created with AI agenda points.');
     } catch (meetingError) {
       console.error('Error requesting meeting:', meetingError);
-      setError(meetingError instanceof Error ? meetingError.message : 'Could not request the meeting.');
+      setError(getErrorMessage(meetingError, 'Could not request the meeting.'));
     } finally {
       setIsRequestingMeeting(false);
     }
@@ -778,7 +789,7 @@ const ParentHubPage: React.FC = () => {
       setActionStatus('Feedback sent. Thank you for shaping AdaptBuddy.');
     } catch (feedbackError) {
       console.error('Error sending parent feedback:', feedbackError);
-      setError(feedbackError instanceof Error ? feedbackError.message : 'Could not send feedback.');
+      setError(getErrorMessage(feedbackError, 'Could not send feedback.'));
     } finally {
       setIsSendingFeedback(false);
     }
@@ -803,7 +814,7 @@ const ParentHubPage: React.FC = () => {
       setSelectedChildId(linked.childId);
     } catch (linkError) {
       console.error('Error linking child by Buddy ID:', linkError);
-      setError(linkError instanceof Error ? linkError.message : 'Could not link this Buddy ID.');
+      setError(getErrorMessage(linkError, 'Could not link this Buddy ID.'));
     } finally {
       setIsLinkingBuddyId(false);
     }
@@ -885,6 +896,48 @@ const ParentHubPage: React.FC = () => {
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
           <p className="mt-4 font-bold text-adapt-navy dark:text-gray-100">Loading parent dashboard...</p>
         </div>
+      </div>
+    );
+  }
+
+  const isAdultDashboardUser =
+    isGuest || profile?.role === 'parent' || profile?.role === 'teacher' || profile?.role === 'admin';
+
+  if (!isAdultDashboardUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 px-4 py-8 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
+        <section className="mx-auto max-w-3xl rounded-3xl border border-white/70 bg-white/90 p-8 text-center shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/80">
+          <UsersRound className="mx-auto h-12 w-12 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+          <p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-adapt-indigo dark:text-adapt-cyan">
+            Parent Dashboard
+          </p>
+          <h1 className="mt-2 text-2xl font-extrabold text-adapt-navy dark:text-gray-100">
+            This space is for parents and teachers
+          </h1>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-500 dark:text-gray-400">
+            You are signed in as a child account. Share your Buddy ID with a parent or teacher, then they can sign in
+            with their own account and connect your space.
+          </p>
+          {profile?.buddy_id && (
+            <div className="mx-auto mt-5 inline-flex rounded-2xl border border-adapt-indigo/20 bg-adapt-indigo/10 px-5 py-3 font-mono text-lg font-black tracking-wide text-adapt-indigo dark:border-adapt-cyan/20 dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
+              {profile.buddy_id}
+            </div>
+          )}
+          <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link
+              to={ROUTES.CHILD_DASHBOARD}
+              className="inline-flex items-center justify-center rounded-2xl bg-adapt-navy px-5 py-3 text-sm font-black text-white transition hover:bg-adapt-purple dark:bg-adapt-cyan dark:text-gray-950"
+            >
+              Go to child dashboard
+            </Link>
+            <Link
+              to={ROUTES.LOGIN}
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-adapt-navy transition hover:border-adapt-indigo/40 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            >
+              Sign in as parent
+            </Link>
+          </div>
+        </section>
       </div>
     );
   }

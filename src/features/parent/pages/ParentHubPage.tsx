@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
@@ -404,7 +404,8 @@ const createGuestDashboardSummary = (): DashboardSummary => {
 };
 
 const ParentHubPage: React.FC = () => {
-  const { profile, user, isGuest } = useAuth();
+  const navigate = useNavigate();
+  const { profile, user, isGuest, signOut } = useAuth();
   const [dashboardData, setDashboardData] = useState<DashboardSummary | null>(null);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -422,6 +423,7 @@ const ParentHubPage: React.FC = () => {
   const [isRequestingMeeting, setIsRequestingMeeting] = useState(false);
   const [isSendingFeedback, setIsSendingFeedback] = useState(false);
   const [isLinkingBuddyId, setIsLinkingBuddyId] = useState(false);
+  const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
 
   const parentName =
     [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') ||
@@ -820,6 +822,26 @@ const ParentHubPage: React.FC = () => {
     }
   };
 
+  const handleSwitchToParentLogin = async () => {
+    if (isSwitchingAccount) return;
+    setIsSwitchingAccount(true);
+    setError(null);
+
+    try {
+      await signOut();
+      navigate(ROUTES.LOGIN, {
+        replace: true,
+        state: {
+          message: 'Sign in with a parent or teacher account to connect this Buddy ID.',
+        },
+      });
+    } catch (switchError) {
+      console.error('Error switching to parent login:', switchError);
+      setError(getErrorMessage(switchError, 'Could not sign out. Please try again.'));
+      setIsSwitchingAccount(false);
+    }
+  };
+
   const buddyIdLinkCard = (
     <article className="rounded-3xl border border-adapt-indigo/15 bg-white/85 p-5 text-left shadow-card backdrop-blur-sm dark:border-adapt-cyan/20 dark:bg-gray-900/75">
       <div className="flex items-start gap-3">
@@ -930,12 +952,14 @@ const ParentHubPage: React.FC = () => {
             >
               Go to child dashboard
             </Link>
-            <Link
-              to={ROUTES.LOGIN}
-              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-adapt-navy transition hover:border-adapt-indigo/40 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            <button
+              type="button"
+              onClick={handleSwitchToParentLogin}
+              disabled={isSwitchingAccount}
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-adapt-navy transition hover:border-adapt-indigo/40 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             >
-              Sign in as parent
-            </Link>
+              {isSwitchingAccount ? 'Signing out...' : 'Sign out to parent login'}
+            </button>
           </div>
         </section>
       </div>

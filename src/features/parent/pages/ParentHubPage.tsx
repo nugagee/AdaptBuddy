@@ -21,8 +21,10 @@ import {
   Shield,
   ShieldCheck,
   Sparkles,
+  UserMinus,
   UserRound,
   UsersRound,
+  X,
 } from 'lucide-react';
 import {
   CartesianGrid,
@@ -36,9 +38,13 @@ import {
 import { ROUTES } from 'constants/routes';
 import { useAuth } from 'hooks/useAuth';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
+import ParentHubNavbar from 'features/parent/components/layout/ParentHubNavbar';
 import {
   ParentDashboardService,
+  mergeLinkedChildIntoDashboard,
+  removeChildFromDashboard,
   type CareMeeting,
+  type ChildSummary,
   type DashboardSummary,
   type ParentMessage,
   type RiskLevel,
@@ -424,6 +430,11 @@ const ParentHubPage: React.FC = () => {
   const [isSendingFeedback, setIsSendingFeedback] = useState(false);
   const [isLinkingBuddyId, setIsLinkingBuddyId] = useState(false);
   const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
+  const [showAddChildPanel, setShowAddChildPanel] = useState(false);
+  const [childContentKey, setChildContentKey] = useState(0);
+  const [isChildContentVisible, setIsChildContentVisible] = useState(true);
+  const [childPendingRemoval, setChildPendingRemoval] = useState<ChildSummary | null>(null);
+  const [isRemovingChild, setIsRemovingChild] = useState(false);
 
   const parentName =
     [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') ||
@@ -431,28 +442,31 @@ const ParentHubPage: React.FC = () => {
     user?.email?.split('@')[0] ||
     'Parent';
 
-  const applyDashboardData = useCallback((data: DashboardSummary) => {
+  const applyDashboardData = useCallback((data: DashboardSummary, preferredChildId?: string | null) => {
     setDashboardData(data);
     setSelectedChildId((current) => {
-      if (current && data.children.some((child) => child.childId === current)) return current;
+      const nextChildId = preferredChildId ?? current;
+      if (nextChildId && data.children.some((child) => child.childId === nextChildId)) {
+        return nextChildId;
+      }
       return data.children[0]?.childId ?? null;
     });
   }, []);
 
   const loadDashboard = useCallback(
-    async (mode: 'initial' | 'refresh' = 'initial') => {
+    async (mode: 'initial' | 'refresh' = 'initial', preferredChildId?: string | null) => {
       if (mode === 'initial') setLoading(true);
       else setRefreshing(true);
       setError(null);
 
       try {
         if (isGuest) {
-          applyDashboardData(createGuestDashboardSummary());
+          applyDashboardData(createGuestDashboardSummary(), preferredChildId);
           return;
         }
 
         const data = await ParentDashboardService.getDashboardSummary();
-        applyDashboardData(data);
+        applyDashboardData(data, preferredChildId);
       } catch (loadError) {
         console.error('Error loading parent dashboard:', loadError);
         setError(getErrorMessage(loadError, 'Could not load the parent dashboard.'));
@@ -577,6 +591,31 @@ const ParentHubPage: React.FC = () => {
   const newAlertsCount = childAlerts.filter((alert) => !alert.acknowledged).length;
   const highAlertsCount = childAlerts.filter((alert) => alert.riskLevel === 'high' && !alert.acknowledged).length;
   const globalHighAlerts = dashboardData?.recentAlerts.filter((alert) => alert.riskLevel === 'high' && !alert.acknowledged).length ?? 0;
+
+  const getChildAlertCount = useCallback(
+    (childId: string): number =>
+      dashboardData?.recentAlerts.filter(
+        (alert) => alert.childId === childId && !alert.acknowledged,
+      ).length ?? 0,
+    [dashboardData],
+  );
+
+  const handleSelectChild = useCallback(
+    (childId: string) => {
+      if (childId === selectedChildId) return;
+
+      setIsChildContentVisible(false);
+      window.setTimeout(() => {
+        setSelectedChildId(childId);
+        setActiveTab('overview');
+      setChildContentKey((current) => current + 1);
+      setShowAddChildPanel(false);
+      setChildPendingRemoval(null);
+      requestAnimationFrame(() => setIsChildContentVisible(true));
+      }, 180);
+    },
+    [selectedChildId],
+  );
 
   const overviewCards = [
     {
@@ -812,8 +851,15 @@ const ParentHubPage: React.FC = () => {
       const linked = await ParentDashboardService.linkChildByBuddyId(buddyIdInput, buddyRelationship);
       setBuddyIdInput('');
       setActionStatus(`${linked.childName} is now connected to your dashboard.`);
-      await loadDashboard('refresh');
       setSelectedChildId(linked.childId);
+      setActiveTab('overview');
+      setShowAddChildPanel(false);
+      setChildContentKey((current) => current + 1);
+      setIsChildContentVisible(true);
+      setDashboardData((current) =>
+        current ? mergeLinkedChildIntoDashboard(current, linked) : current,
+      );
+      await loadDashboard('refresh', linked.childId);
     } catch (linkError) {
       console.error('Error linking child by Buddy ID:', linkError);
       setError(getErrorMessage(linkError, 'Could not link this Buddy ID.'));
@@ -821,6 +867,60 @@ const ParentHubPage: React.FC = () => {
       setIsLinkingBuddyId(false);
     }
   };
+
+  const handleRemoveChild = async () => {
+    if (!childPendingRemoval || isRemovingChild) return;
+    setIsRemovingChild(true);
+    setError(null);
+
+    try {
+      if (isGuest) {
+        setActionStatus('Guest demo: child removal works after creating a parent account.');
+        setChildPendingRemoval(null);
+        return;
+      }
+
+      const removed = await ParentDashboardService.unlinkChild(childPendingRemoval.childId);
+      const remainingChildren =
+        dashboardData?.children.filter((child) => child.childId !== removed.childId) ?? [];
+      const nextChildId = remainingChildren[0]?.childId ?? null;
+
+      setChildPendingRemoval(null);
+      setShowAddChildPanel(false);
+      setActionStatus(`${removed.childName} was removed from your dashboard.`);
+      setIsChildContentVisible(false);
+
+      setDashboardData((current) =>
+        current ? removeChildFromDashboard(current, removed.childId) : current,
+      );
+      setSelectedChildId(nextChildId);
+      setChildContentKey((current) => current + 1);
+
+      window.setTimeout(() => {
+        setIsChildContentVisible(true);
+      }, 180);
+
+      await loadDashboard('refresh', nextChildId);
+    } catch (removeError) {
+      console.error('Error removing child:', removeError);
+      setError(getErrorMessage(removeError, 'Could not remove this child.'));
+    } finally {
+      setIsRemovingChild(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!childPendingRemoval) return undefined;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isRemovingChild) {
+        setChildPendingRemoval(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [childPendingRemoval, isRemovingChild]);
 
   const handleSwitchToParentLogin = async () => {
     if (isSwitchingAccount) return;
@@ -842,8 +942,12 @@ const ParentHubPage: React.FC = () => {
     }
   };
 
-  const buddyIdLinkCard = (
-    <article className="rounded-3xl border border-adapt-indigo/15 bg-white/85 p-5 text-left shadow-card backdrop-blur-sm dark:border-adapt-cyan/20 dark:bg-gray-900/75">
+  const renderBuddyIdLinkCard = (variant: 'default' | 'compact' = 'default') => (
+    <article
+      className={`rounded-3xl border border-adapt-indigo/15 bg-white/85 text-left shadow-card backdrop-blur-sm dark:border-adapt-cyan/20 dark:bg-gray-900/75 ${
+        variant === 'compact' ? 'p-4' : 'p-5'
+      }`}
+    >
       <div className="flex items-start gap-3">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-adapt-indigo/10 text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
           <KeyRound className="h-5 w-5" aria-hidden />
@@ -853,21 +957,26 @@ const ParentHubPage: React.FC = () => {
             Buddy ID
           </p>
           <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
-            Connect a child space
+            {variant === 'compact' ? 'Add another child' : 'Connect a child space'}
           </h2>
           <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-gray-400">
-            Ask the child for their Buddy ID from Settings, then enter it here. No database UUIDs, no manual matching.
+            {variant === 'compact'
+              ? 'Enter another Buddy ID to connect a sibling or additional child profile.'
+              : 'Ask the child for their Buddy ID from Settings, then enter it here. No database UUIDs, no manual matching.'}
           </p>
         </div>
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_0.8fr]">
         <div>
-          <label htmlFor="parent-buddy-id" className="mb-2 block text-sm font-bold text-slate-600 dark:text-gray-300">
+          <label
+            htmlFor={variant === 'compact' ? 'parent-buddy-id-add' : 'parent-buddy-id'}
+            className="mb-2 block text-sm font-bold text-slate-600 dark:text-gray-300"
+          >
             Child Buddy ID
           </label>
           <input
-            id="parent-buddy-id"
+            id={variant === 'compact' ? 'parent-buddy-id-add' : 'parent-buddy-id'}
             value={buddyIdInput}
             onChange={(event) => setBuddyIdInput(formatBuddyIdInput(event.target.value))}
             placeholder="AB-7K4M-23"
@@ -875,11 +984,14 @@ const ParentHubPage: React.FC = () => {
           />
         </div>
         <div>
-          <label htmlFor="parent-buddy-relationship" className="mb-2 block text-sm font-bold text-slate-600 dark:text-gray-300">
+          <label
+            htmlFor={variant === 'compact' ? 'parent-buddy-relationship-add' : 'parent-buddy-relationship'}
+            className="mb-2 block text-sm font-bold text-slate-600 dark:text-gray-300"
+          >
             Relationship
           </label>
           <select
-            id="parent-buddy-relationship"
+            id={variant === 'compact' ? 'parent-buddy-relationship-add' : 'parent-buddy-relationship'}
             value={buddyRelationship}
             onChange={(event) => setBuddyRelationship(event.target.value)}
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
@@ -906,17 +1018,212 @@ const ParentHubPage: React.FC = () => {
         ) : (
           <Link2 className="h-4 w-4" aria-hidden />
         )}
-        {isLinkingBuddyId ? 'Connecting...' : 'Connect child'}
+        {isLinkingBuddyId ? 'Connecting...' : variant === 'compact' ? 'Connect another child' : 'Connect child'}
       </button>
     </article>
   );
 
+  const renderChildSwitcher = (children: ChildSummary[]) => (
+    <section className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-soft backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+            Family dashboard
+          </p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
+            {children.length} child space{children.length === 1 ? '' : 's'} connected
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAddChildPanel((current) => !current)}
+          className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-black transition ${
+            showAddChildPanel
+              ? 'border border-adapt-indigo/30 bg-adapt-indigo/10 text-adapt-indigo dark:border-adapt-cyan/30 dark:bg-adapt-cyan/10 dark:text-adapt-cyan'
+              : 'border border-slate-200 bg-white text-adapt-navy hover:border-adapt-indigo/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100'
+          }`}
+        >
+          <Plus className="h-4 w-4" aria-hidden />
+          {showAddChildPanel ? 'Close' : 'Add another child'}
+        </button>
+      </div>
+
+      <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+        {children.map((child) => {
+          const active = child.childId === selectedChildId;
+          const alertCount = getChildAlertCount(child.childId);
+
+          return (
+            <div
+              key={child.childId}
+              className={`relative shrink-0 transition-all duration-300 ${
+                active ? 'scale-[1.02]' : ''
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => handleSelectChild(child.childId)}
+                aria-pressed={active}
+                className={`group inline-flex min-w-[220px] items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-300 ${
+                  active
+                    ? 'border-adapt-indigo bg-gradient-to-br from-adapt-indigo/12 via-white to-adapt-teal/10 shadow-soft dark:border-adapt-cyan dark:from-adapt-cyan/10 dark:via-gray-900 dark:to-gray-900'
+                    : 'border-slate-200 bg-white text-slate-600 hover:-translate-y-0.5 hover:border-adapt-indigo/30 hover:shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                }`}
+              >
+                <span
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white transition-transform duration-300 ${
+                    active
+                      ? 'bg-gradient-to-br from-adapt-indigo to-adapt-teal'
+                      : 'bg-slate-300 group-hover:scale-105 dark:bg-gray-600'
+                  }`}
+                >
+                  {getInitial(child.childName)}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-black text-adapt-navy dark:text-gray-100">
+                    {child.childName}
+                  </span>
+                  <span className="mt-0.5 block truncate font-mono text-[11px] font-bold tracking-wide text-slate-500 dark:text-gray-400">
+                    {child.buddyId || 'Connected'}
+                  </span>
+                </span>
+                {alertCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white ring-2 ring-white dark:ring-gray-900">
+                    {alertCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {currentChild && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/90 px-4 py-3 dark:border-gray-800 dark:bg-gray-950/50">
+          <p className="text-sm text-slate-600 dark:text-gray-400">
+            Viewing{' '}
+            <span className="font-black text-adapt-navy dark:text-gray-100">{currentChild.childName}</span>
+            {currentChild.buddyId ? (
+              <span className="ml-2 font-mono text-xs font-bold text-slate-500 dark:text-gray-500">
+                {currentChild.buddyId}
+              </span>
+            ) : null}
+          </p>
+          <button
+            type="button"
+            onClick={() => setChildPendingRemoval(currentChild)}
+            className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-white px-4 py-2.5 text-sm font-bold text-red-700 transition hover:border-red-300 hover:bg-red-50 dark:border-red-900/50 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950/40"
+          >
+            <UserMinus className="h-4 w-4" aria-hidden />
+            Remove from dashboard
+          </button>
+        </div>
+      )}
+
+      <div
+        className={`grid transition-all duration-300 ease-out ${
+          showAddChildPanel ? 'mt-4 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0'
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t border-slate-100 pt-4 dark:border-gray-800">
+            {renderBuddyIdLinkCard('compact')}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+
+  const renderRemoveChildModal = () => {
+    if (!childPendingRemoval) return null;
+
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+        onClick={() => {
+          if (!isRemovingChild) setChildPendingRemoval(null);
+        }}
+      >
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="remove-child-modal-title"
+          aria-describedby="remove-child-modal-description"
+          className="relative w-full max-w-md animate-slide-up rounded-3xl border border-white/70 bg-white p-6 shadow-card dark:border-gray-800 dark:bg-gray-900"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => setChildPendingRemoval(null)}
+            disabled={isRemovingChild}
+            className="absolute right-4 top-4 rounded-full p-2 text-slate-500 transition hover:bg-slate-100 disabled:opacity-60 dark:hover:bg-gray-800"
+            aria-label="Close remove child dialog"
+          >
+            <X className="h-5 w-5" aria-hidden />
+          </button>
+
+          <div className="text-center">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-300">
+              <UserMinus className="h-7 w-7" aria-hidden />
+            </span>
+            <h2
+              id="remove-child-modal-title"
+              className="mt-4 text-xl font-extrabold text-adapt-navy dark:text-gray-100"
+            >
+              Remove {childPendingRemoval.childName}?
+            </h2>
+            <p
+              id="remove-child-modal-description"
+              className="mt-3 text-sm leading-6 text-slate-600 dark:text-gray-400"
+            >
+              This will disconnect <strong>{childPendingRemoval.childName}</strong> from your parent
+              dashboard. Their AdaptBuddy account and data stay safe — you can reconnect anytime using
+              their Buddy ID.
+            </p>
+            {childPendingRemoval.buddyId && (
+              <p className="mt-3 inline-flex rounded-full bg-slate-100 px-3 py-1 font-mono text-xs font-black tracking-wide text-slate-600 dark:bg-gray-800 dark:text-gray-300">
+                {childPendingRemoval.buddyId}
+              </p>
+            )}
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setChildPendingRemoval(null)}
+              disabled={isRemovingChild}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleRemoveChild}
+              disabled={isRemovingChild}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:opacity-60"
+            >
+              {isRemovingChild ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <UserMinus className="h-4 w-4" aria-hidden />
+              )}
+              {isRemovingChild ? 'Removing...' : 'Yes, remove child'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
-        <div className="rounded-3xl border border-white/70 bg-white/85 p-8 text-center shadow-card dark:border-gray-800 dark:bg-gray-900/80">
-          <Loader2 className="mx-auto h-10 w-10 animate-spin text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
-          <p className="mt-4 font-bold text-adapt-navy dark:text-gray-100">Loading parent dashboard...</p>
+      <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
+        <ParentHubNavbar />
+        <div className="flex flex-1 items-center justify-center px-4 py-16">
+          <div className="rounded-3xl border border-white/70 bg-white/85 p-8 text-center shadow-card dark:border-gray-800 dark:bg-gray-900/80">
+            <Loader2 className="mx-auto h-10 w-10 animate-spin text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+            <p className="mt-4 font-bold text-adapt-navy dark:text-gray-100">Loading parent dashboard...</p>
+          </div>
         </div>
       </div>
     );
@@ -927,7 +1234,9 @@ const ParentHubPage: React.FC = () => {
 
   if (!isAdultDashboardUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 px-4 py-8 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
+      <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
+        <ParentHubNavbar />
+        <div className="px-4 py-8">
         <section className="mx-auto max-w-3xl rounded-3xl border border-white/70 bg-white/90 p-8 text-center shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/80">
           <UsersRound className="mx-auto h-12 w-12 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
           <p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-adapt-indigo dark:text-adapt-cyan">
@@ -962,14 +1271,16 @@ const ParentHubPage: React.FC = () => {
             </button>
           </div>
         </section>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
-      <header className="border-b border-white/60 bg-white/75 backdrop-blur-xl dark:border-gray-800 dark:bg-gray-950/85">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
+      <ParentHubNavbar />
+      <section className="border-b border-white/60 bg-white/60 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/50">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-adapt-indigo dark:text-adapt-cyan">
               Parent Dashboard
@@ -990,6 +1301,16 @@ const ParentHubPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {currentChild && (
+              <button
+                type="button"
+                onClick={() => setShowAddChildPanel((current) => !current)}
+                className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-adapt-navy shadow-sm transition hover:border-adapt-indigo/30 sm:inline-flex dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                Add child
+              </button>
+            )}
             <button
               type="button"
               onClick={() => loadDashboard('refresh')}
@@ -1013,7 +1334,7 @@ const ParentHubPage: React.FC = () => {
             </button>
           </div>
         </div>
-      </header>
+      </section>
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
         {error && (
@@ -1034,30 +1355,7 @@ const ParentHubPage: React.FC = () => {
           </div>
         )}
 
-        {dashboardData && dashboardData.children.length > 1 && (
-          <section className="rounded-3xl border border-white/70 bg-white/80 p-4 shadow-soft backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
-            <div className="flex gap-3 overflow-x-auto pb-1">
-              {dashboardData.children.map((child) => {
-                const active = child.childId === selectedChildId;
-                return (
-                  <button
-                    key={child.childId}
-                    type="button"
-                    onClick={() => setSelectedChildId(child.childId)}
-                    className={`inline-flex shrink-0 items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold transition ${
-                      active
-                        ? 'border-adapt-indigo bg-adapt-indigo/10 text-adapt-indigo dark:border-adapt-cyan dark:bg-adapt-cyan/10 dark:text-adapt-cyan'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-adapt-indigo/30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                    }`}
-                  >
-                    <UsersRound className="h-4 w-4" aria-hidden />
-                    {child.childName}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
+        {dashboardData && dashboardData.children.length > 0 && renderChildSwitcher(dashboardData.children)}
 
         {!currentChild ? (
           <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -1071,10 +1369,15 @@ const ParentHubPage: React.FC = () => {
                 alerts, and the trusted support circle.
               </p>
             </div>
-            {buddyIdLinkCard}
+            {renderBuddyIdLinkCard()}
           </section>
         ) : (
-          <>
+          <div
+            key={`${selectedChildId}-${childContentKey}`}
+            className={`space-y-6 transition-all duration-300 ease-out motion-reduce:transition-none ${
+              isChildContentVisible ? 'translate-y-0 opacity-100 animate-child-switch' : 'translate-y-2 opacity-0'
+            }`}
+          >
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Parent dashboard summary">
               {overviewCards.map(({ title, value, detail, icon: Icon, accent, surface, text }) => (
                 <article
@@ -1669,7 +1972,7 @@ const ParentHubPage: React.FC = () => {
 
             {activeTab === 'support' && (
               <section className="space-y-6">
-                {buddyIdLinkCard}
+                {renderBuddyIdLinkCard('compact')}
 
                 <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
                   <article className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
@@ -1835,9 +2138,10 @@ const ParentHubPage: React.FC = () => {
                 </div>
               </section>
             )}
-          </>
+          </div>
         )}
       </main>
+      {renderRemoveChildModal()}
     </div>
   );
 };

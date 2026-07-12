@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   LogOut,
+  Settings,
   Shield,
   Users,
 } from 'lucide-react';
@@ -13,6 +14,7 @@ import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
 const navItems = [
   { to: ROUTES.ADMIN_DASHBOARD, label: 'Overview', icon: LayoutDashboard },
   { to: ROUTES.ADMIN_USERS, label: 'Users', icon: Users },
+  { to: ROUTES.ADMIN_SETTINGS, label: 'Platform', icon: Settings },
 ];
 
 interface AdminLayoutProps {

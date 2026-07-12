@@ -13,12 +13,16 @@ import {
 } from 'recharts';
 import {
   Activity,
+  AlertTriangle,
   Baby,
   GraduationCap,
   Heart,
+  Link2,
   Shield,
+  Sparkles,
   UserCheck,
   Users,
+  UsersRound,
   UserX,
 } from 'lucide-react';
 import { formatUkGender, formatUkSex } from 'constants/signup';
@@ -51,6 +55,13 @@ const GENDER_COLORS: Record<string, string> = {
   other: '#94a3b8',
   prefer_not_to_say: '#64748b',
   unspecified: '#475569',
+};
+
+const NEURO_COLORS: Record<string, string> = {
+  autism: '#22d3ee',
+  adhd: '#f59e0b',
+  dyslexia: '#a78bfa',
+  unspecified: '#64748b',
 };
 
 const AdminDashboardPage: React.FC = () => {
@@ -98,6 +109,18 @@ const AdminDashboardPage: React.FC = () => {
           key: name,
         }))
     : [];
+
+  const neuroChartData = analytics
+    ? Object.entries(analytics.by_neuro_type ?? {})
+        .filter(([, v]) => v > 0)
+        .map(([name, value]) => ({
+          name: name === 'unspecified' ? 'Not set' : name.charAt(0).toUpperCase() + name.slice(1),
+          value,
+          key: name,
+        }))
+    : [];
+
+  const childCount = analytics?.by_role.child ?? 0;
 
   return (
     <AdminLayout title="Platform overview">
@@ -155,13 +178,49 @@ const AdminDashboardPage: React.FC = () => {
             <AdminStatCard
               label="Avg age"
               value={analytics.avg_age ?? '—'}
-              sub={`${analytics.onboarding_complete} onboarded`}
+              sub={`${analytics.onboarding_complete} neuro onboarded`}
               icon={UserX}
               accent="from-slate-500/20 to-gray-500/10"
             />
           </section>
 
-          <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <section>
+            <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-gray-400">
+              Parent hub & companion platform
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <AdminStatCard
+                label="Buddy IDs"
+                value={analytics.children_with_buddy_id}
+                sub={`${childCount} children`}
+                icon={Link2}
+                accent="from-cyan-500/20 to-sky-500/10"
+              />
+              <AdminStatCard
+                label="Parent-child links"
+                value={analytics.parent_child_links}
+                sub={`${analytics.parents_with_linked_children} parents linked`}
+                icon={UsersRound}
+                accent="from-violet-500/20 to-purple-500/10"
+              />
+              <AdminStatCard
+                label="Companion ready"
+                value={analytics.companion_onboarding_complete}
+                sub="Companion onboarding complete"
+                icon={Sparkles}
+                accent="from-fuchsia-500/20 to-pink-500/10"
+              />
+              <AdminStatCard
+                label="Active alerts"
+                value={analytics.active_alerts}
+                sub={`${analytics.shared_journal_entries} shared journal entries`}
+                icon={AlertTriangle}
+                accent="from-rose-500/20 to-orange-500/10"
+              />
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 gap-6 xl:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-6">
               <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-gray-400">
                 Users by role
@@ -245,6 +304,33 @@ const AdminDashboardPage: React.FC = () => {
                     <Tooltip
                       contentStyle={{ background: '#1e293b', border: '1px solid #334155' }}
                     />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-6">
+              <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-gray-400">
+                Neuro profiles
+              </h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={neuroChartData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={90}
+                      paddingAngle={3}
+                    >
+                      {neuroChartData.map((entry) => (
+                        <Cell key={entry.key} fill={NEURO_COLORS[entry.key] ?? '#6366f1'} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155' }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>

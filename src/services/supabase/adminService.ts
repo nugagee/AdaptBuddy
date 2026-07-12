@@ -14,12 +14,25 @@ export interface AdminAnalytics {
   by_sex: Record<string, number>;
   by_gender: Record<string, number>;
   by_status: Record<string, number>;
+  by_neuro_type: Record<string, number>;
   authorized: number;
   unauthorized: number;
   onboarding_complete: number;
+  companion_onboarding_complete: number;
+  children_with_buddy_id: number;
+  parent_child_links: number;
+  trusted_adult_links: number;
+  parents_with_linked_children: number;
+  shared_journal_entries: number;
+  active_alerts: number;
   avg_age: number | null;
   recent_signups_7d: number;
   recent_signups_30d: number;
+}
+
+export interface AdminRelationshipCounts {
+  childrenByParent: Record<string, number>;
+  parentsByChild: Record<string, number>;
 }
 
 export interface AdminCreateUserPayload {
@@ -46,6 +59,8 @@ export interface AdminUpdateUserPayload {
   isAuthorized?: boolean;
   status?: UserStatus;
   onboardingCompleted?: boolean;
+  companionOnboardingCompleted?: boolean;
+  neuroTypes?: string[];
 }
 
 const EMPTY_ANALYTICS: AdminAnalytics = {
@@ -67,9 +82,17 @@ const EMPTY_ANALYTICS: AdminAnalytics = {
     unspecified: 0,
   },
   by_status: { active: 0, suspended: 0, pending: 0 },
+  by_neuro_type: { autism: 0, adhd: 0, dyslexia: 0, unspecified: 0 },
   authorized: 0,
   unauthorized: 0,
   onboarding_complete: 0,
+  companion_onboarding_complete: 0,
+  children_with_buddy_id: 0,
+  parent_child_links: 0,
+  trusted_adult_links: 0,
+  parents_with_linked_children: 0,
+  shared_journal_entries: 0,
+  active_alerts: 0,
   avg_age: null,
   recent_signups_7d: 0,
   recent_signups_30d: 0,
@@ -83,6 +106,7 @@ function normalizeAnalytics(raw: Partial<AdminAnalytics> | null | undefined): Ad
       by_sex: { ...EMPTY_ANALYTICS.by_sex },
       by_gender: { ...EMPTY_ANALYTICS.by_gender },
       by_status: { ...EMPTY_ANALYTICS.by_status },
+      by_neuro_type: { ...EMPTY_ANALYTICS.by_neuro_type },
     };
   }
 
@@ -116,6 +140,14 @@ function normalizeAnalytics(raw: Partial<AdminAnalytics> | null | undefined): Ad
     by_sex: bySex,
     by_gender: byGender,
     by_status: { ...EMPTY_ANALYTICS.by_status, ...raw.by_status },
+    by_neuro_type: { ...EMPTY_ANALYTICS.by_neuro_type, ...raw.by_neuro_type },
+    companion_onboarding_complete: raw.companion_onboarding_complete ?? 0,
+    children_with_buddy_id: raw.children_with_buddy_id ?? 0,
+    parent_child_links: raw.parent_child_links ?? 0,
+    trusted_adult_links: raw.trusted_adult_links ?? 0,
+    parents_with_linked_children: raw.parents_with_linked_children ?? 0,
+    shared_journal_entries: raw.shared_journal_entries ?? 0,
+    active_alerts: raw.active_alerts ?? 0,
   };
 }
 
@@ -178,6 +210,12 @@ export async function adminUpdateUser(payload: AdminUpdateUserPayload): Promise<
   if (payload.onboardingCompleted !== undefined) {
     updates.onboarding_completed = payload.onboardingCompleted;
   }
+  if (payload.companionOnboardingCompleted !== undefined) {
+    updates.companion_onboarding_completed = payload.companionOnboardingCompleted;
+  }
+  if (payload.neuroTypes !== undefined) {
+    updates.neuro_types = payload.neuroTypes;
+  }
 
   if (payload.firstName !== undefined || payload.lastName !== undefined) {
     const first = payload.firstName?.trim() ?? '';
@@ -219,6 +257,7 @@ export async function computeAnalyticsFromProfiles(users: Profile[]): Promise<Ad
     by_sex: { ...EMPTY_ANALYTICS.by_sex },
     by_gender: { ...EMPTY_ANALYTICS.by_gender },
     by_status: { ...EMPTY_ANALYTICS.by_status },
+    by_neuro_type: { ...EMPTY_ANALYTICS.by_neuro_type },
   };
   analytics.total_users = users.length;
 
@@ -245,6 +284,17 @@ export async function computeAnalyticsFromProfiles(users: Profile[]): Promise<Ad
     else analytics.unauthorized += 1;
 
     if (user.onboarding_completed) analytics.onboarding_complete += 1;
+    if (user.companion_onboarding_completed) analytics.companion_onboarding_complete += 1;
+    if (user.role === 'child' && user.buddy_id) analytics.children_with_buddy_id += 1;
+
+    const neuroTypes = user.neuro_types ?? [];
+    if (neuroTypes.length === 0) {
+      analytics.by_neuro_type.unspecified += 1;
+    } else {
+      for (const neuroId of ['autism', 'adhd', 'dyslexia'] as const) {
+        if (neuroTypes.includes(neuroId)) analytics.by_neuro_type[neuroId] += 1;
+      }
+    }
 
     if (user.age != null) {
       ageSum += user.age;
@@ -258,6 +308,25 @@ export async function computeAnalyticsFromProfiles(users: Profile[]): Promise<Ad
 
   analytics.avg_age = ageCount > 0 ? Math.round((ageSum / ageCount) * 10) / 10 : null;
   return analytics;
+}
+
+export async function fetchAdminRelationshipCounts(): Promise<AdminRelationshipCounts> {
+  try {
+    const { data, error } = await getSupabaseClient().rpc('admin_get_relationship_counts');
+    if (error) throw error;
+
+    const raw = (data ?? {}) as {
+      children_by_parent?: Record<string, number>;
+      parents_by_child?: Record<string, number>;
+    };
+
+    return {
+      childrenByParent: raw.children_by_parent ?? {},
+      parentsByChild: raw.parents_by_child ?? {},
+    };
+  } catch {
+    return { childrenByParent: {}, parentsByChild: {} };
+  }
 }
 
 export async function fetchAdminAnalyticsSafe(): Promise<AdminAnalytics> {

@@ -16,9 +16,11 @@ import {
   adminDeleteUser,
   adminResetUserPassword,
   adminUpdateUser,
+  fetchAdminRelationshipCounts,
   fetchAllUsers,
   type AdminCreateUserPayload,
 } from 'services/supabase/adminService';
+import { NEURO_OPTION_MAP } from 'constants/neuroOptions';
 import { formatUkGender, formatUkSex } from 'constants/signup';
 import { useAuth } from 'hooks/useAuth';
 
@@ -43,13 +45,20 @@ const AdminUsersPage: React.FC = () => {
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [childrenByParent, setChildrenByParent] = useState<Record<string, number>>({});
+  const [parentsByChild, setParentsByChild] = useState<Record<string, number>>({});
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await fetchAllUsers();
+      const [data, relationships] = await Promise.all([
+        fetchAllUsers(),
+        fetchAdminRelationshipCounts(),
+      ]);
       setUsers(data);
+      setChildrenByParent(relationships.childrenByParent);
+      setParentsByChild(relationships.parentsByChild);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load users');
     } finally {
@@ -70,7 +79,8 @@ const AdminUsersPage: React.FC = () => {
         u.email.toLowerCase().includes(q) ||
         u.full_name.toLowerCase().includes(q) ||
         u.first_name.toLowerCase().includes(q) ||
-        u.last_name.toLowerCase().includes(q)
+        u.last_name.toLowerCase().includes(q) ||
+        (u.buddy_id?.toLowerCase().includes(q) ?? false)
       );
     });
   }, [users, search, roleFilter]);
@@ -119,6 +129,9 @@ const AdminUsersPage: React.FC = () => {
         childName: values.childName || null,
         isAuthorized: values.isAuthorized,
         status: values.status,
+        onboardingCompleted: values.onboardingCompleted,
+        companionOnboardingCompleted: values.companionOnboardingCompleted,
+        neuroTypes: values.neuroTypes,
       });
       setModalOpen(false);
       await loadUsers();
@@ -174,7 +187,7 @@ const AdminUsersPage: React.FC = () => {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
           <input
             type="search"
-            placeholder="Search by name or email…"
+            placeholder="Search by name, email, or Buddy ID…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-xl border border-white/10 bg-slate-900 py-2.5 pl-10 pr-4 text-sm text-gray-100 outline-none focus:border-indigo-500/40"
@@ -220,11 +233,14 @@ const AdminUsersPage: React.FC = () => {
 
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] text-left text-sm">
+          <table className="w-full min-w-[1280px] text-left text-sm">
             <thead>
               <tr className="border-b border-white/10 bg-white/5 text-xs uppercase tracking-wider text-gray-400">
                 <th className="px-4 py-3 font-semibold">User</th>
                 <th className="px-4 py-3 font-semibold">Role</th>
+                <th className="px-4 py-3 font-semibold">Buddy ID</th>
+                <th className="px-4 py-3 font-semibold">Onboarding</th>
+                <th className="px-4 py-3 font-semibold">Links</th>
                 <th className="px-4 py-3 font-semibold">Sex</th>
                 <th className="px-4 py-3 font-semibold">Gender</th>
                 <th className="px-4 py-3 font-semibold">Age</th>
@@ -237,18 +253,29 @@ const AdminUsersPage: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={12} className="px-4 py-12 text-center text-gray-500">
                     Loading users…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={12} className="px-4 py-12 text-center text-gray-500">
                     No users found.
                   </td>
                 </tr>
               ) : (
-                filtered.map((profile) => (
+                filtered.map((profile) => {
+                  const linkedChildren = childrenByParent[profile.id] ?? 0;
+                  const linkedParents = parentsByChild[profile.id] ?? 0;
+                  const neuroLabel =
+                    profile.neuro_types.length > 0
+                      ? profile.neuro_types
+                          .slice(0, 2)
+                          .map((id) => NEURO_OPTION_MAP[id]?.name.split(' ').slice(1).join(' ') || id)
+                          .join(', ')
+                      : 'Not set';
+
+                  return (
                   <tr
                     key={profile.id}
                     className="border-b border-white/5 transition hover:bg-white/[0.02]"
@@ -265,6 +292,33 @@ const AdminUsersPage: React.FC = () => {
                       >
                         {profile.role}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-cyan-300">
+                      {profile.buddy_id || '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-400">{neuroLabel}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {profile.onboarding_completed && (
+                            <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-semibold text-violet-300">
+                              Neuro
+                            </span>
+                          )}
+                          {profile.companion_onboarding_completed && (
+                            <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-300">
+                              Companion
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-400">
+                      {profile.role === 'parent' || profile.role === 'teacher'
+                        ? `${linkedChildren} child${linkedChildren === 1 ? '' : 'ren'}`
+                        : profile.role === 'child'
+                          ? `${linkedParents} adult${linkedParents === 1 ? '' : 's'}`
+                          : '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-400">
                       {formatUkSex(profile.sex)}
@@ -338,7 +392,8 @@ const AdminUsersPage: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

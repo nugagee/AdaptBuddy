@@ -52,6 +52,8 @@ module.exports = {
         'ping': 'ping 1s cubic-bezier(0, 0, 0.2, 1) infinite',
         'fade-in': 'fadeIn 0.5s ease-in-out',
         'slide-up': 'slideUp 0.3s ease-out',
+        'slide-in': 'slideIn 0.35s ease-out',
+        'child-switch': 'childSwitch 0.3s ease-out',
       },
       keyframes: {
         fadeIn: {
@@ -60,6 +62,14 @@ module.exports = {
         },
         slideUp: {
           '0%': { transform: 'translateY(10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        slideIn: {
+          '0%': { transform: 'translateX(12px)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+        childSwitch: {
+          '0%': { transform: 'translateY(8px)', opacity: '0' },
           '100%': { transform: 'translateY(0)', opacity: '1' },
         },
       },

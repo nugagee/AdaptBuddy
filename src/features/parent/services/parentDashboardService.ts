@@ -155,6 +155,93 @@ export interface BuddyLinkResult {
   createdAt: string;
 }
 
+export interface UnlinkChildResult {
+  childId: string;
+  childName: string;
+  buddyId: string | null;
+}
+
+export const createChildSummaryFromLink = (linked: BuddyLinkResult): ChildSummary => ({
+  childId: linked.childId,
+  buddyId: linked.buddyId,
+  childName: linked.childName,
+  neurotypes: [],
+  totalEntries: 0,
+  entriesLast7Days: 0,
+  totalAlerts: 0,
+  highAlerts: 0,
+  trustedAdultsCount: 1,
+  profileCompletion: 0,
+  wellbeingScore: null,
+  wellbeingChange: null,
+});
+
+export const mergeLinkedChildIntoDashboard = (
+  data: DashboardSummary,
+  linked: BuddyLinkResult,
+): DashboardSummary => {
+  if (data.children.some((child) => child.childId === linked.childId)) {
+    return data;
+  }
+
+  const children = [...data.children, createChildSummaryFromLink(linked)].sort((a, b) =>
+    a.childName.localeCompare(b.childName),
+  );
+
+  return {
+    ...data,
+    children,
+    resources: [...data.resources, ...buildGeneratedResources(children)],
+    aiDigest: buildAiDigest(children, data.recentEntries, data.recentAlerts, data.goals),
+    proactiveInsights: buildProactiveInsights(
+      children,
+      data.wellbeingTrends,
+      data.recentAlerts,
+      data.recentEntries,
+    ),
+  };
+};
+
+export const removeChildFromDashboard = (
+  data: DashboardSummary,
+  childId: string,
+): DashboardSummary => {
+  const children = data.children.filter((child) => child.childId !== childId);
+  const filterByChild = <T extends { childId: string }>(items: T[]): T[] =>
+    items.filter((item) => item.childId !== childId);
+
+  const recentEntries = filterByChild(data.recentEntries);
+  const recentAlerts = filterByChild(data.recentAlerts);
+  const trustedAdults = filterByChild(data.trustedAdults);
+  const messages = filterByChild(data.messages);
+  const meetings = filterByChild(data.meetings);
+  const goals = filterByChild(data.goals);
+  const resources = data.resources.filter(
+    (resource) => resource.childId !== childId && !resource.id.startsWith(`${childId}-resource-`),
+  );
+  const childSignals = filterByChild(data.childSignals);
+  const proactiveInsights = filterByChild(data.proactiveInsights);
+  const wellbeingTrends = Object.fromEntries(
+    Object.entries(data.wellbeingTrends).filter(([id]) => id !== childId),
+  );
+
+  return {
+    children,
+    recentEntries,
+    recentAlerts,
+    trustedAdults,
+    wellbeingTrends,
+    messages,
+    meetings,
+    goals,
+    resources,
+    childSignals,
+    aiDigest: buildAiDigest(children, recentEntries, recentAlerts, goals),
+    proactiveInsights: buildProactiveInsights(children, wellbeingTrends, recentAlerts, recentEntries),
+    parentFeedbackThemes: data.parentFeedbackThemes,
+  };
+};
+
 export interface WellbeingTrendPoint {
   day: string;
   date: string;
@@ -333,8 +420,34 @@ interface BuddyLinkRow {
   created_at: string;
 }
 
+interface UnlinkChildRow {
+  child_id: string;
+  child_name: string | null;
+  buddy_id: string | null;
+}
+
 const riskLevels: RiskLevel[] = ['low', 'medium', 'high'];
 const dayFormatter = new Intl.DateTimeFormat('en-GB', { weekday: 'short' });
+
+const isSchemaUnavailableError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+
+  const code = 'code' in error ? String((error as { code?: string }).code) : '';
+  const message =
+    'message' in error ? String((error as { message?: string }).message).toLowerCase() : '';
+
+  return (
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    message.includes('schema cache') ||
+    message.includes('does not exist') ||
+    message.includes('could not find the table')
+  );
+};
+
+const logOptionalTableWarning = (table: string, error: unknown): void => {
+  console.warn(`[ParentDashboard] ${table} is unavailable; returning empty data.`, error);
+};
 
 const toNumber = (value: number | string | null | undefined, fallback = 0): number => {
   const next = typeof value === 'string' ? Number(value) : value;
@@ -609,6 +722,12 @@ const mapBuddyLinkResult = (row: BuddyLinkRow): BuddyLinkResult => ({
   buddyId: row.buddy_id || '',
   relationship: row.relationship || 'parent',
   createdAt: row.created_at,
+});
+
+const mapUnlinkChildResult = (row: UnlinkChildRow): UnlinkChildResult => ({
+  childId: row.child_id,
+  childName: row.child_name || 'Child',
+  buddyId: row.buddy_id ?? null,
 });
 
 const createEmptyTrendWindow = (): WellbeingTrendPoint[] => {
@@ -986,6 +1105,29 @@ export class ParentDashboardService {
     return mapBuddyLinkResult(row);
   }
 
+  static async unlinkChild(childId: string): Promise<UnlinkChildResult> {
+    if (!isSupabaseConfigured) {
+      throw new Error('Supabase is not configured, so removing a child is unavailable.');
+    }
+
+    const cleanChildId = childId.trim();
+    if (!cleanChildId) {
+      throw new Error('Select a child to remove.');
+    }
+
+    const { data, error } = await getSupabaseClient().rpc('unlink_child_from_parent', {
+      p_child_id: cleanChildId,
+    });
+
+    if (error) throw error;
+
+    const rows = Array.isArray(data) ? (data as UnlinkChildRow[]) : data ? [data as UnlinkChildRow] : [];
+    const row = rows[0];
+    if (!row) throw new Error('No child profile was removed.');
+
+    return mapUnlinkChildResult(row);
+  }
+
   static async getChildren(): Promise<ChildSummary[]> {
     if (!isSupabaseConfigured) return [];
 
@@ -1265,7 +1407,13 @@ export class ParentDashboardService {
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (error) throw error;
+    if (error) {
+      if (isSchemaUnavailableError(error)) {
+        logOptionalTableWarning('parent_teacher_messages', error);
+        return [];
+      }
+      throw error;
+    }
     return ((data ?? []) as ParentMessageRow[]).map(mapParentMessage);
   }
 
@@ -1279,7 +1427,13 @@ export class ParentDashboardService {
       .order('created_at', { ascending: false })
       .limit(12);
 
-    if (error) throw error;
+    if (error) {
+      if (isSchemaUnavailableError(error)) {
+        logOptionalTableWarning('care_meetings', error);
+        return [];
+      }
+      throw error;
+    }
     return ((data ?? []) as CareMeetingRow[]).map(mapCareMeeting);
   }
 
@@ -1293,7 +1447,13 @@ export class ParentDashboardService {
       .order('created_at', { ascending: false })
       .limit(20);
 
-    if (error) throw error;
+    if (error) {
+      if (isSchemaUnavailableError(error)) {
+        logOptionalTableWarning('support_goals', error);
+        return [];
+      }
+      throw error;
+    }
     return ((data ?? []) as SupportGoalRow[]).map(mapSupportGoal);
   }
 
@@ -1307,7 +1467,13 @@ export class ParentDashboardService {
       .order('created_at', { ascending: false })
       .limit(20);
 
-    if (error) throw error;
+    if (error) {
+      if (isSchemaUnavailableError(error)) {
+        logOptionalTableWarning('parent_resource_recommendations', error);
+        return [];
+      }
+      throw error;
+    }
     return ((data ?? []) as ParentResourceRow[]).map(mapParentResource);
   }
 
@@ -1321,7 +1487,13 @@ export class ParentDashboardService {
       .order('created_at', { ascending: false })
       .limit(12);
 
-    if (error) throw error;
+    if (error) {
+      if (isSchemaUnavailableError(error)) {
+        logOptionalTableWarning('parent_child_signals', error);
+        return [];
+      }
+      throw error;
+    }
     return ((data ?? []) as ChildSignalRow[]).map(mapChildSignal);
   }
 
@@ -1334,7 +1506,13 @@ export class ParentDashboardService {
       .order('created_at', { ascending: false })
       .limit(50);
 
-    if (error) throw error;
+    if (error) {
+      if (isSchemaUnavailableError(error)) {
+        logOptionalTableWarning('parent_feedback', error);
+        return [];
+      }
+      throw error;
+    }
     return buildFeedbackThemes((data ?? []) as ParentFeedbackRow[]);
   }
 

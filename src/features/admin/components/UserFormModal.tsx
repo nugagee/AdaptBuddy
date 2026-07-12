@@ -8,6 +8,7 @@ import {
   UK_SEX_FIELD_LABEL,
   UK_SEX_OPTIONS,
 } from 'constants/signup';
+import { NEURO_OPTIONS } from 'constants/neuroOptions';
 
 export type UserFormMode = 'create' | 'edit';
 
@@ -23,6 +24,9 @@ export interface UserFormValues {
   childName: string;
   isAuthorized: boolean;
   status: UserStatus;
+  onboardingCompleted: boolean;
+  companionOnboardingCompleted: boolean;
+  neuroTypes: string[];
 }
 
 interface UserFormModalProps {
@@ -52,6 +56,9 @@ function emptyForm(): UserFormValues {
     childName: '',
     isAuthorized: true,
     status: 'active',
+    onboardingCompleted: false,
+    companionOnboardingCompleted: false,
+    neuroTypes: [],
   };
 }
 
@@ -68,6 +75,9 @@ function formFromProfile(user: Profile): UserFormValues {
     childName: user.child_name ?? '',
     isAuthorized: user.is_authorized !== false,
     status: user.status ?? 'active',
+    onboardingCompleted: user.onboarding_completed,
+    companionOnboardingCompleted: user.companion_onboarding_completed === true,
+    neuroTypes: user.neuro_types ?? [],
   };
 }
 
@@ -114,6 +124,18 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
       return;
     }
     onUpdate(form);
+  };
+
+  const toggleNeuroType = (neuroId: string) => {
+    setForm((prev) => {
+      const exists = prev.neuroTypes.includes(neuroId);
+      return {
+        ...prev,
+        neuroTypes: exists
+          ? prev.neuroTypes.filter((id) => id !== neuroId)
+          : [...prev.neuroTypes, neuroId],
+      };
+    });
   };
 
   return (
@@ -281,6 +303,66 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
                 onChange={(e) => set('childName', e.target.value)}
                 className={inputClass}
               />
+            </div>
+          )}
+
+          {mode === 'edit' && user && (
+            <div className="rounded-xl border border-white/10 bg-slate-800/60 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-indigo-300">
+                Platform profile
+              </p>
+              {user.role === 'child' && (
+                <div className="mt-3">
+                  <p className={labelClass}>Buddy ID</p>
+                  <p className="font-mono text-sm font-bold text-cyan-300">
+                    {user.buddy_id || 'Not assigned yet'}
+                  </p>
+                </div>
+              )}
+              <div className="mt-4 space-y-3">
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.onboardingCompleted}
+                    onChange={(e) => set('onboardingCompleted', e.target.checked)}
+                    className="h-4 w-4 rounded"
+                  />
+                  <span className="text-sm text-gray-200">Neuro selector completed</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.companionOnboardingCompleted}
+                    onChange={(e) => set('companionOnboardingCompleted', e.target.checked)}
+                    className="h-4 w-4 rounded"
+                  />
+                  <span className="text-sm text-gray-200">Companion onboarding completed</span>
+                </label>
+              </div>
+              {(form.role === 'child' || form.role === 'parent') && (
+                <div className="mt-4">
+                  <p className={labelClass}>Neuro profiles</p>
+                  <div className="flex flex-wrap gap-2">
+                    {NEURO_OPTIONS.map((option) => {
+                      const active = form.neuroTypes.includes(option.id);
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => toggleNeuroType(option.id)}
+                          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                            active
+                              ? 'bg-indigo-600 text-white'
+                              : 'border border-white/10 bg-slate-900 text-gray-400'
+                          }`}
+                        >
+                          {option.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

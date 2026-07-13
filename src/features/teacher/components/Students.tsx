@@ -17,6 +17,7 @@ import {
   type TeacherJoinRequest,
   type TeacherStudent,
 } from 'features/teacher/services/teacherDashboardService';
+import { useAuth } from 'hooks/useAuth';
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message) return error.message;
@@ -146,6 +147,7 @@ const RequestCard: React.FC<{
 );
 
 const Students: React.FC = () => {
+  const { isGuest } = useAuth();
   const [summary, setSummary] = useState<TeacherDashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -199,6 +201,10 @@ const Students: React.FC = () => {
     setActionStatus(null);
 
     try {
+      if (isGuest) {
+        setActionStatus('Guest demo: sign in with a teacher account to request student access.');
+        return;
+      }
       const request = await TeacherDashboardService.requestStudentByBuddyId(selectedClassId, buddyIdInput);
       setBuddyIdInput('');
       setActionStatus(`${request.buddyId ?? 'This Buddy ID'} is waiting for parent approval.`);
@@ -217,6 +223,10 @@ const Students: React.FC = () => {
     setActionStatus(null);
 
     try {
+      if (isGuest) {
+        setActionStatus('Guest demo: approval saves after signing in with a teacher account.');
+        return;
+      }
       const result = await TeacherDashboardService.approveJoinRequest(requestId);
       setActionStatus(
         result.status === 'pending_parent'
@@ -238,6 +248,10 @@ const Students: React.FC = () => {
     setActionStatus(null);
 
     try {
+      if (isGuest) {
+        setActionStatus('Guest demo: decline saves after signing in with a teacher account.');
+        return;
+      }
       await TeacherDashboardService.declineJoinRequest(requestId);
       setActionStatus('Student request declined.');
       await loadStudents('refresh');

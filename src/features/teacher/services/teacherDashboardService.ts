@@ -318,6 +318,13 @@ const createClassCode = (yearGroup: string, subject: string): string => {
   return `${year}-${topic}-${suffix}`;
 };
 
+const isAuthSessionMissingError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  const name = 'name' in error ? String((error as { name?: unknown }).name).toLowerCase() : '';
+  const message = 'message' in error ? String((error as { message?: unknown }).message).toLowerCase() : '';
+  return name.includes('authsessionmissing') || message.includes('auth session missing');
+};
+
 export class TeacherDashboardService {
   static async createClass(input: {
     className: string;
@@ -329,9 +336,14 @@ export class TeacherDashboardService {
 
     const client = getSupabaseClient();
     const { data: userData, error: userError } = await client.auth.getUser();
-    if (userError) throw userError;
+    if (userError) {
+      if (isAuthSessionMissingError(userError)) {
+        throw new Error('Please sign in with a teacher account to create saved classes. Guest mode is view-only.');
+      }
+      throw userError;
+    }
     const userId = userData.user?.id;
-    if (!userId) throw new Error('You must be signed in as a teacher.');
+    if (!userId) throw new Error('Please sign in with a teacher account to create saved classes.');
 
     const classCode = createClassCode(input.yearGroup, input.subject);
     const { data, error } = await client

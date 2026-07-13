@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Clipboard, Loader2, Plus, RefreshCw, School, Users } from 'lucide-react';
 import TeacherHubNav from 'features/teacher/components/TeacherHubNav';
+import { useAuth } from 'hooks/useAuth';
 import {
   TeacherDashboardService,
   type TeacherClass,
@@ -53,6 +54,7 @@ const ClassTile: React.FC<{ teacherClass: TeacherClass }> = ({ teacherClass }) =
 );
 
 const Classes: React.FC = () => {
+  const { isGuest } = useAuth();
   const [summary, setSummary] = useState<TeacherDashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -95,6 +97,10 @@ const Classes: React.FC = () => {
     setActionStatus(null);
 
     try {
+      if (isGuest) {
+        setActionStatus('Guest demo: sign in with a teacher account to save new classes.');
+        return;
+      }
       const teacherClass = await TeacherDashboardService.createClass(form);
       setActionStatus(`${teacherClass.className} created with class code ${teacherClass.classCode}.`);
       setForm({ className: '', schoolName: '', subject: '', yearGroup: '' });

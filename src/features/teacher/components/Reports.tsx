@@ -32,6 +32,44 @@ const supportLabel = (value: string): string =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 
+type ReportRange = 'this_week' | 'last_week' | 'all';
+
+const rangeLabels: Record<ReportRange, string> = {
+  this_week: 'This week',
+  last_week: 'Last week',
+  all: 'All time',
+};
+
+const getWeekStart = (date: Date): Date => {
+  const start = new Date(date);
+  const day = start.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + diff);
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
+const isAssignmentInRange = (assignment: TeacherAssignment, range: ReportRange): boolean => {
+  if (range === 'all') return true;
+
+  const source = assignment.dueAt ?? assignment.createdAt;
+  const timestamp = new Date(source).getTime();
+  if (!Number.isFinite(timestamp)) return false;
+
+  const now = new Date();
+  const thisWeekStart = getWeekStart(now);
+  const nextWeekStart = new Date(thisWeekStart);
+  nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+  const lastWeekStart = new Date(thisWeekStart);
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+
+  if (range === 'this_week') {
+    return timestamp >= thisWeekStart.getTime() && timestamp < nextWeekStart.getTime();
+  }
+
+  return timestamp >= lastWeekStart.getTime() && timestamp < thisWeekStart.getTime();
+};
+
 const getCompletionRate = (assignments: TeacherAssignment[]): number => {
   const assigned = assignments.reduce((total, assignment) => total + assignment.progress.assignedCount, 0);
   if (assigned === 0) return 0;
@@ -92,6 +130,7 @@ const ReportMetric: React.FC<{
 const Reports: React.FC = () => {
   const [summary, setSummary] = useState<TeacherDashboardSummary | null>(null);
   const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedRange, setSelectedRange] = useState<ReportRange>('this_week');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,8 +163,11 @@ const Reports: React.FC = () => {
   );
 
   const classAssignments = useMemo(
-    () => summary?.assignments.filter((assignment) => assignment.classId === selectedClassId) ?? [],
-    [selectedClassId, summary?.assignments],
+    () =>
+      summary?.assignments.filter(
+        (assignment) => assignment.classId === selectedClassId && isAssignmentInRange(assignment, selectedRange),
+      ) ?? [],
+    [selectedClassId, selectedRange, summary?.assignments],
   );
 
   const classStudents = useMemo(
@@ -195,21 +237,34 @@ const Reports: React.FC = () => {
           </div>
         )}
 
-        <section className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-soft dark:border-gray-800 dark:bg-gray-900/80">
+        <section className="grid gap-4 rounded-3xl border border-white/70 bg-white/85 p-5 shadow-soft dark:border-gray-800 dark:bg-gray-900/80 md:grid-cols-2">
           <label className="text-sm font-black text-adapt-navy dark:text-gray-100" htmlFor="report-class">
             Select class
+            <select
+              id="report-class"
+              value={selectedClassId}
+              onChange={(event) => setSelectedClassId(event.target.value)}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            >
+              <option value="">Choose class</option>
+              {summary?.classes.map((teacherClass) => (
+                <option key={teacherClass.id} value={teacherClass.id}>{teacherClass.className}</option>
+              ))}
+            </select>
           </label>
-          <select
-            id="report-class"
-            value={selectedClassId}
-            onChange={(event) => setSelectedClassId(event.target.value)}
-            className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-          >
-            <option value="">Choose class</option>
-            {summary?.classes.map((teacherClass) => (
-              <option key={teacherClass.id} value={teacherClass.id}>{teacherClass.className}</option>
-            ))}
-          </select>
+          <label className="text-sm font-black text-adapt-navy dark:text-gray-100" htmlFor="report-range">
+            Date range
+            <select
+              id="report-range"
+              value={selectedRange}
+              onChange={(event) => setSelectedRange(event.target.value as ReportRange)}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            >
+              {Object.entries(rangeLabels).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </label>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -237,7 +292,7 @@ const Reports: React.FC = () => {
           <ReportMetric
             label="Assignments"
             value={classAssignments.length}
-            detail="Tasks sent to this class"
+            detail={`Tasks in ${rangeLabels[selectedRange].toLowerCase()}`}
             icon={FileText}
             tone="bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-200"
           />

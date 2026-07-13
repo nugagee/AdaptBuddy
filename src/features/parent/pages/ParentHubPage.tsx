@@ -48,6 +48,8 @@ import {
   type DashboardSummary,
   type ParentMessage,
   type RiskLevel,
+  type TeacherClassRequest,
+  type TeacherClassVisibilitySettings,
   type TrustedAdult,
 } from 'features/parent/services/parentDashboardService';
 
@@ -177,6 +179,119 @@ const EmptyState: React.FC<{ title: string; detail: string }> = ({ title, detail
     <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">{detail}</p>
   </div>
 );
+
+const defaultTeacherVisibility: TeacherClassVisibilitySettings = {
+  childName: false,
+  neuroProfile: true,
+  dailyMood: 'summary',
+  worryDiaryText: false,
+  safeguardingAlerts: true,
+  academicTasks: true,
+  personalNotes: false,
+};
+
+const TeacherClassRequestCard: React.FC<{
+  request: TeacherClassRequest;
+  visibility: TeacherClassVisibilitySettings;
+  busy: boolean;
+  onVisibilityChange: (next: TeacherClassVisibilitySettings) => void;
+  onApprove: () => void;
+  onDecline: () => void;
+}> = ({ request, visibility, busy, onVisibilityChange, onApprove, onDecline }) => {
+  const setBooleanVisibility = (key: keyof Omit<TeacherClassVisibilitySettings, 'dailyMood'>) => {
+    onVisibilityChange({ ...visibility, [key]: !visibility[key] });
+  };
+
+  return (
+    <article className="rounded-3xl border border-indigo-200 bg-indigo-50/70 p-5 shadow-soft dark:border-adapt-cyan/30 dark:bg-adapt-cyan/10">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+            Teacher access request
+          </p>
+          <h3 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
+            {request.teacherName} wants to connect {request.className}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-300">
+            {request.schoolName ? `${request.schoolName} · ` : ''}
+            {request.subject} {request.yearGroup ? `· ${request.yearGroup}` : ''}
+          </p>
+          <p className="mt-2 font-mono text-xs font-black text-adapt-indigo dark:text-adapt-cyan">
+            {request.requestedBuddyId ?? 'Buddy ID hidden'} · {formatRelativeTime(request.createdAt)}
+          </p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-xs font-black capitalize text-adapt-indigo dark:bg-gray-900 dark:text-adapt-cyan">
+          {request.status.replace(/_/g, ' ')}
+        </span>
+      </div>
+
+      <div className="mt-5 rounded-2xl bg-white/80 p-4 dark:bg-gray-900/70">
+        <p className="font-black text-adapt-navy dark:text-gray-100">Visibility for this teacher</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {[
+            ['childName', 'Child name'],
+            ['neuroProfile', 'Neuro profile'],
+            ['safeguardingAlerts', 'Safeguarding alerts'],
+            ['academicTasks', 'Academic tasks'],
+            ['worryDiaryText', 'Worry diary text'],
+            ['personalNotes', 'Personal notes'],
+          ].map(([key, label]) => (
+            <label
+              key={key}
+              className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
+            >
+              <input
+                type="checkbox"
+                checked={visibility[key as keyof Omit<TeacherClassVisibilitySettings, 'dailyMood'>]}
+                onChange={() => setBooleanVisibility(key as keyof Omit<TeacherClassVisibilitySettings, 'dailyMood'>)}
+                className="h-4 w-4 rounded border-slate-300 text-adapt-indigo focus:ring-adapt-indigo"
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        <label className="mt-3 block text-sm font-black text-slate-700 dark:text-gray-200">
+          Daily mood visibility
+          <select
+            value={visibility.dailyMood}
+            onChange={(event) =>
+              onVisibilityChange({
+                ...visibility,
+                dailyMood: event.target.value as TeacherClassVisibilitySettings['dailyMood'],
+              })
+            }
+            className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          >
+            <option value="hidden">Hidden</option>
+            <option value="summary">Summary only</option>
+            <option value="full">Full shared mood</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={onApprove}
+          disabled={busy}
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white transition hover:bg-adapt-purple disabled:opacity-60 dark:bg-adapt-cyan dark:text-gray-950"
+        >
+          <CheckCircle2 className="h-4 w-4" aria-hidden />
+          Approve teacher access
+        </button>
+        <button
+          type="button"
+          onClick={onDecline}
+          disabled={busy}
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm font-black text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900/60 dark:bg-gray-900 dark:text-red-200"
+        >
+          <X className="h-4 w-4" aria-hidden />
+          Decline
+        </button>
+      </div>
+    </article>
+  );
+};
 
 const daysAgo = (days: number): string => {
   const date = new Date();
@@ -379,6 +494,7 @@ const createGuestDashboardSummary = (): DashboardSummary => {
         createdAt: daysAgo(1),
       },
     ],
+    teacherClassRequests: [],
     aiDigest: {
       headline: 'Alex had a mostly calm week with one noisy transition dip.',
       happyWeekPercentage: 75,
@@ -435,6 +551,8 @@ const ParentHubPage: React.FC = () => {
   const [isChildContentVisible, setIsChildContentVisible] = useState(true);
   const [childPendingRemoval, setChildPendingRemoval] = useState<ChildSummary | null>(null);
   const [isRemovingChild, setIsRemovingChild] = useState(false);
+  const [teacherVisibilityDrafts, setTeacherVisibilityDrafts] = useState<Record<string, TeacherClassVisibilitySettings>>({});
+  const [busyTeacherClassRequestId, setBusyTeacherClassRequestId] = useState<string | null>(null);
 
   const parentName =
     [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') ||
@@ -579,6 +697,14 @@ const ParentHubPage: React.FC = () => {
     [currentChild, dashboardData],
   );
 
+  const childTeacherClassRequests = useMemo(
+    () =>
+      currentChild
+        ? dashboardData?.teacherClassRequests.filter((request) => request.childId === currentChild.childId) ?? []
+        : [],
+    [currentChild, dashboardData],
+  );
+
   const childInsights = useMemo(
     () =>
       currentChild
@@ -670,7 +796,7 @@ const ParentHubPage: React.FC = () => {
     { id: 'ai', label: 'AI Digest', badge: childInsights.length },
     { id: 'journal', label: 'Journal', badge: childEntries.length },
     { id: 'alerts', label: 'Alerts', badge: newAlertsCount },
-    { id: 'support', label: 'Support', badge: childTrustedAdults.length },
+    { id: 'support', label: 'Support', badge: childTrustedAdults.length + childTeacherClassRequests.length },
   ];
 
   const coachResponse = useMemo(() => {
@@ -865,6 +991,78 @@ const ParentHubPage: React.FC = () => {
       setError(getErrorMessage(linkError, 'Could not link this Buddy ID.'));
     } finally {
       setIsLinkingBuddyId(false);
+    }
+  };
+
+  const getTeacherRequestVisibility = (request: TeacherClassRequest): TeacherClassVisibilitySettings =>
+    teacherVisibilityDrafts[request.id] ?? request.visibilitySettings ?? defaultTeacherVisibility;
+
+  const handleTeacherVisibilityChange = (
+    requestId: string,
+    visibility: TeacherClassVisibilitySettings,
+  ) => {
+    setTeacherVisibilityDrafts((current) => ({
+      ...current,
+      [requestId]: visibility,
+    }));
+  };
+
+  const handleApproveTeacherClassRequest = async (request: TeacherClassRequest) => {
+    if (busyTeacherClassRequestId) return;
+    setBusyTeacherClassRequestId(request.id);
+    setActionStatus('');
+    setError(null);
+
+    try {
+      if (isGuest) {
+        setActionStatus('Guest demo: teacher approval saves after creating a parent account.');
+        return;
+      }
+
+      await ParentDashboardService.approveTeacherClassRequest(
+        request.id,
+        getTeacherRequestVisibility(request),
+      );
+      setTeacherVisibilityDrafts((current) => {
+        const next = { ...current };
+        delete next[request.id];
+        return next;
+      });
+      setActionStatus(`${request.className} can now support ${currentChild?.childName ?? 'this child'} with your visibility settings.`);
+      await loadDashboard('refresh', request.childId);
+    } catch (approveError) {
+      console.error('Error approving teacher class request:', approveError);
+      setError(getErrorMessage(approveError, 'Could not approve this teacher request.'));
+    } finally {
+      setBusyTeacherClassRequestId(null);
+    }
+  };
+
+  const handleDeclineTeacherClassRequest = async (request: TeacherClassRequest) => {
+    if (busyTeacherClassRequestId) return;
+    setBusyTeacherClassRequestId(request.id);
+    setActionStatus('');
+    setError(null);
+
+    try {
+      if (isGuest) {
+        setActionStatus('Guest demo: teacher request declined.');
+        return;
+      }
+
+      await ParentDashboardService.declineTeacherClassRequest(request.id);
+      setTeacherVisibilityDrafts((current) => {
+        const next = { ...current };
+        delete next[request.id];
+        return next;
+      });
+      setActionStatus(`${request.className} request was declined.`);
+      await loadDashboard('refresh', request.childId);
+    } catch (declineError) {
+      console.error('Error declining teacher class request:', declineError);
+      setError(getErrorMessage(declineError, 'Could not decline this teacher request.'));
+    } finally {
+      setBusyTeacherClassRequestId(null);
     }
   };
 
@@ -1973,6 +2171,35 @@ const ParentHubPage: React.FC = () => {
             {activeTab === 'support' && (
               <section className="space-y-6">
                 {renderBuddyIdLinkCard('compact')}
+
+                {childTeacherClassRequests.length > 0 && (
+                  <section className="space-y-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+                        School access
+                      </p>
+                      <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
+                        Teacher requests waiting for you
+                      </h2>
+                      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-400">
+                        Approve only what a teacher can see. Private journal text stays hidden unless you explicitly share it.
+                      </p>
+                    </div>
+                    <div className="grid gap-4">
+                      {childTeacherClassRequests.map((request) => (
+                        <TeacherClassRequestCard
+                          key={request.id}
+                          request={request}
+                          visibility={getTeacherRequestVisibility(request)}
+                          busy={busyTeacherClassRequestId === request.id}
+                          onVisibilityChange={(visibility) => handleTeacherVisibilityChange(request.id, visibility)}
+                          onApprove={() => void handleApproveTeacherClassRequest(request)}
+                          onDecline={() => void handleDeclineTeacherClassRequest(request)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
 
                 <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
                   <article className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">

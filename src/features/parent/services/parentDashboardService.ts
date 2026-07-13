@@ -147,6 +147,44 @@ export interface ParentFeedbackTheme {
   sentiment: 'positive' | 'neutral' | 'concerned';
 }
 
+export interface TeacherClassVisibilitySettings {
+  childName: boolean;
+  neuroProfile: boolean;
+  dailyMood: 'hidden' | 'summary' | 'full';
+  worryDiaryText: boolean;
+  safeguardingAlerts: boolean;
+  academicTasks: boolean;
+  personalNotes: boolean;
+}
+
+export type TeacherClassRequestStatus =
+  | 'pending'
+  | 'pending_parent'
+  | 'pending_teacher'
+  | 'approved'
+  | 'declined'
+  | 'cancelled';
+
+export interface TeacherClassRequest {
+  id: string;
+  childId: string;
+  classId: string;
+  className: string;
+  schoolName: string;
+  subject: string;
+  yearGroup: string;
+  teacherId: string;
+  teacherName: string;
+  teacherEmail: string;
+  requestedBuddyId?: string | null;
+  requestMethod: string;
+  status: TeacherClassRequestStatus;
+  parentApproved: boolean;
+  teacherApproved: boolean;
+  visibilitySettings: TeacherClassVisibilitySettings;
+  createdAt: string;
+}
+
 export interface BuddyLinkResult {
   childId: string;
   childName: string;
@@ -192,6 +230,7 @@ export const mergeLinkedChildIntoDashboard = (
     ...data,
     children,
     resources: [...data.resources, ...buildGeneratedResources(children)],
+    teacherClassRequests: data.teacherClassRequests,
     aiDigest: buildAiDigest(children, data.recentEntries, data.recentAlerts, data.goals),
     proactiveInsights: buildProactiveInsights(
       children,
@@ -220,6 +259,7 @@ export const removeChildFromDashboard = (
     (resource) => resource.childId !== childId && !resource.id.startsWith(`${childId}-resource-`),
   );
   const childSignals = filterByChild(data.childSignals);
+  const teacherClassRequests = filterByChild(data.teacherClassRequests);
   const wellbeingTrends = Object.fromEntries(
     Object.entries(data.wellbeingTrends).filter(([id]) => id !== childId),
   );
@@ -235,6 +275,7 @@ export const removeChildFromDashboard = (
     goals,
     resources,
     childSignals,
+    teacherClassRequests,
     aiDigest: buildAiDigest(children, recentEntries, recentAlerts, goals),
     proactiveInsights: buildProactiveInsights(children, wellbeingTrends, recentAlerts, recentEntries),
     parentFeedbackThemes: data.parentFeedbackThemes,
@@ -260,6 +301,7 @@ export interface DashboardSummary {
   goals: SupportGoal[];
   resources: ParentResource[];
   childSignals: ChildSignal[];
+  teacherClassRequests: TeacherClassRequest[];
   aiDigest: ParentAiDigest;
   proactiveInsights: ProactiveInsight[];
   parentFeedbackThemes: ParentFeedbackTheme[];
@@ -425,6 +467,38 @@ interface UnlinkChildRow {
   buddy_id: string | null;
 }
 
+interface NestedTeacherClassRow {
+  id?: string | null;
+  teacher_id?: string | null;
+  school_name?: string | null;
+  class_name?: string | null;
+  subject?: string | null;
+  year_group?: string | null;
+}
+
+interface TeacherClassRequestRow {
+  id: string;
+  class_id: string;
+  child_id: string;
+  requested_by: string;
+  requested_buddy_id: string | null;
+  request_method: string | null;
+  status: string | null;
+  parent_approved: boolean | null;
+  teacher_approved: boolean | null;
+  visibility_settings: unknown;
+  created_at: string;
+  teacher_classes?: NestedTeacherClassRow | NestedTeacherClassRow[] | null;
+}
+
+interface TeacherProfileRow {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+}
+
 const riskLevels: RiskLevel[] = ['low', 'medium', 'high'];
 const dayFormatter = new Intl.DateTimeFormat('en-GB', { weekday: 'short' });
 
@@ -516,6 +590,50 @@ const normalizeReadingLevel = (value: unknown): ParentResource['readingLevel'] =
 const normalizeFeedbackSentiment = (value: unknown): ParentFeedbackTheme['sentiment'] => {
   if (value === 'positive' || value === 'neutral' || value === 'concerned') return value;
   return 'neutral';
+};
+
+const defaultTeacherVisibilitySettings: TeacherClassVisibilitySettings = {
+  childName: false,
+  neuroProfile: true,
+  dailyMood: 'summary',
+  worryDiaryText: false,
+  safeguardingAlerts: true,
+  academicTasks: true,
+  personalNotes: false,
+};
+
+const normalizeTeacherRequestStatus = (value: unknown): TeacherClassRequestStatus => {
+  if (
+    value === 'pending' ||
+    value === 'pending_parent' ||
+    value === 'pending_teacher' ||
+    value === 'approved' ||
+    value === 'declined' ||
+    value === 'cancelled'
+  ) {
+    return value;
+  }
+
+  return 'pending';
+};
+
+const normalizeTeacherVisibility = (value: unknown): TeacherClassVisibilitySettings => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return defaultTeacherVisibilitySettings;
+  const raw = value as Record<string, unknown>;
+  const dailyMood =
+    raw.dailyMood === 'hidden' || raw.dailyMood === 'summary' || raw.dailyMood === 'full'
+      ? raw.dailyMood
+      : defaultTeacherVisibilitySettings.dailyMood;
+
+  return {
+    childName: raw.childName === true,
+    neuroProfile: raw.neuroProfile !== false,
+    dailyMood,
+    worryDiaryText: raw.worryDiaryText === true,
+    safeguardingAlerts: raw.safeguardingAlerts !== false,
+    academicTasks: raw.academicTasks !== false,
+    personalNotes: raw.personalNotes === true,
+  };
 };
 
 const toStringArray = (value: unknown): string[] => {
@@ -728,6 +846,51 @@ const mapUnlinkChildResult = (row: UnlinkChildRow): UnlinkChildResult => ({
   childName: row.child_name || 'Child',
   buddyId: row.buddy_id ?? null,
 });
+
+const getNestedTeacherClass = (
+  row: TeacherClassRequestRow,
+): NestedTeacherClassRow | null => {
+  const value = row.teacher_classes;
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+};
+
+const getTeacherDisplayName = (profile: TeacherProfileRow | undefined): string => {
+  if (!profile) return 'Teacher';
+  const fullName = profile.full_name?.trim();
+  if (fullName) return fullName;
+  const name = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+  return name || profile.email || 'Teacher';
+};
+
+const mapTeacherClassRequest = (
+  row: TeacherClassRequestRow,
+  teacherProfiles: Map<string, TeacherProfileRow>,
+): TeacherClassRequest => {
+  const teacherClass = getNestedTeacherClass(row);
+  const teacherId = teacherClass?.teacher_id ?? row.requested_by;
+  const teacherProfile = teacherProfiles.get(teacherId);
+
+  return {
+    id: row.id,
+    childId: row.child_id,
+    classId: row.class_id,
+    className: teacherClass?.class_name || 'Class',
+    schoolName: teacherClass?.school_name || '',
+    subject: teacherClass?.subject || 'General',
+    yearGroup: teacherClass?.year_group || '',
+    teacherId,
+    teacherName: getTeacherDisplayName(teacherProfile),
+    teacherEmail: teacherProfile?.email ?? '',
+    requestedBuddyId: row.requested_buddy_id,
+    requestMethod: row.request_method || 'buddy_id',
+    status: normalizeTeacherRequestStatus(row.status),
+    parentApproved: row.parent_approved === true,
+    teacherApproved: row.teacher_approved === true,
+    visibilitySettings: normalizeTeacherVisibility(row.visibility_settings),
+    createdAt: row.created_at,
+  };
+};
 
 const createEmptyTrendWindow = (): WellbeingTrendPoint[] => {
   const today = new Date();
@@ -1127,6 +1290,30 @@ export class ParentDashboardService {
     return mapUnlinkChildResult(row);
   }
 
+  static async approveTeacherClassRequest(
+    requestId: string,
+    visibilitySettings: TeacherClassVisibilitySettings = defaultTeacherVisibilitySettings,
+  ): Promise<void> {
+    if (!isSupabaseConfigured || !requestId) return;
+
+    const { error } = await getSupabaseClient().rpc('parent_approve_class_join_request', {
+      p_request_id: requestId,
+      p_visibility_settings: visibilitySettings,
+    });
+
+    if (error) throw error;
+  }
+
+  static async declineTeacherClassRequest(requestId: string): Promise<void> {
+    if (!isSupabaseConfigured || !requestId) return;
+
+    const { error } = await getSupabaseClient().rpc('parent_decline_class_join_request', {
+      p_request_id: requestId,
+    });
+
+    if (error) throw error;
+  }
+
   static async getChildren(): Promise<ChildSummary[]> {
     if (!isSupabaseConfigured) return [];
 
@@ -1195,6 +1382,7 @@ export class ParentDashboardService {
         goals: [],
         resources: [],
         childSignals: [],
+        teacherClassRequests: [],
         aiDigest: buildAiDigest([], [], [], []),
         proactiveInsights: [],
         parentFeedbackThemes: [],
@@ -1211,6 +1399,7 @@ export class ParentDashboardService {
       savedResources,
       childSignals,
       parentFeedbackThemes,
+      teacherClassRequests,
     ] = await Promise.all([
       this.getRecentEntriesForChildren(childIds, childNames, 30),
       this.getAlertsForChildren(childIds, 20),
@@ -1221,6 +1410,7 @@ export class ParentDashboardService {
       this.getResourcesForChildren(childIds),
       this.getSignalsForChildren(childIds),
       this.getParentFeedbackThemes(),
+      this.getTeacherClassRequestsForChildren(childIds),
     ]);
 
     const wellbeingTrends = buildWellbeingTrends(recentEntries);
@@ -1242,6 +1432,7 @@ export class ParentDashboardService {
       goals,
       resources,
       childSignals,
+      teacherClassRequests,
       aiDigest: buildAiDigest(enrichedChildren, recentEntries, recentAlerts, goals),
       proactiveInsights: buildProactiveInsights(enrichedChildren, wellbeingTrends, recentAlerts, recentEntries),
       parentFeedbackThemes,
@@ -1494,6 +1685,68 @@ export class ParentDashboardService {
       throw error;
     }
     return ((data ?? []) as ChildSignalRow[]).map(mapChildSignal);
+  }
+
+  private static async getTeacherClassRequestsForChildren(childIds: string[]): Promise<TeacherClassRequest[]> {
+    if (!isSupabaseConfigured || childIds.length === 0) return [];
+
+    const client = getSupabaseClient();
+    const { data, error } = await client
+      .from('class_join_requests')
+      .select(`
+        id,
+        class_id,
+        child_id,
+        requested_by,
+        requested_buddy_id,
+        request_method,
+        status,
+        parent_approved,
+        teacher_approved,
+        visibility_settings,
+        created_at,
+        teacher_classes (
+          id,
+          teacher_id,
+          school_name,
+          class_name,
+          subject,
+          year_group
+        )
+      `)
+      .in('child_id', childIds)
+      .in('status', ['pending', 'pending_parent', 'pending_teacher'])
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      if (isSchemaUnavailableError(error)) {
+        logOptionalTableWarning('class_join_requests', error);
+        return [];
+      }
+      throw error;
+    }
+
+    const rows = (data ?? []) as TeacherClassRequestRow[];
+    const teacherIds = Array.from(
+      new Set(
+        rows
+          .map((row) => getNestedTeacherClass(row)?.teacher_id ?? row.requested_by)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    let teacherProfiles = new Map<string, TeacherProfileRow>();
+    if (teacherIds.length > 0) {
+      const { data: profileRows, error: profileError } = await client
+        .from('profiles')
+        .select('id, email, full_name, first_name, last_name')
+        .in('id', teacherIds);
+
+      if (profileError) throw profileError;
+      teacherProfiles = new Map(((profileRows ?? []) as TeacherProfileRow[]).map((profile) => [profile.id, profile]));
+    }
+
+    return rows.map((row) => mapTeacherClassRequest(row, teacherProfiles));
   }
 
   private static async getParentFeedbackThemes(): Promise<ParentFeedbackTheme[]> {

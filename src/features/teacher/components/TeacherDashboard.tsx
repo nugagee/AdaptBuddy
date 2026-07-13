@@ -74,6 +74,9 @@ const formatBuddyIdInput = (value: string): string => {
   return `AB-${first}${second ? `-${second}` : ''}`;
 };
 
+const isPendingRequestStatus = (status: TeacherJoinRequest['status']): boolean =>
+  status === 'pending' || status === 'pending_parent' || status === 'pending_teacher';
+
 const StatCard: React.FC<{
   label: string;
   value: string | number;
@@ -176,10 +179,13 @@ const RequestCard: React.FC<{
           {request.buddyId ?? 'Buddy ID hidden'}
         </p>
         <p className="mt-2 text-sm text-amber-800/80 dark:text-amber-100/80">
-          {formatNeurotypes(request.neurotypes)} • {request.requestMethod.replace('_', ' ')}
+          {request.parentApproved ? formatNeurotypes(request.neurotypes) : 'Profile hidden until parent approval'} •{' '}
+          {request.requestMethod.replace('_', ' ')}
         </p>
         <p className="mt-1 text-xs text-amber-700 dark:text-amber-200">
-          Parent visibility: mood summary only, diary text hidden by default.
+          {request.parentApproved
+            ? 'Parent has approved visibility settings.'
+            : 'Waiting for parent approval before this learner becomes visible.'}
         </p>
       </div>
       <div className="flex shrink-0 gap-2">
@@ -190,7 +196,7 @@ const RequestCard: React.FC<{
           className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-60"
         >
           <CheckCircle2 className="h-4 w-4" aria-hidden />
-          Approve
+          {request.parentApproved ? 'Approve' : 'Teacher approve'}
         </button>
         <button
           type="button"
@@ -285,7 +291,7 @@ const TeacherDashboard: React.FC = () => {
     [selectedClassId, summary?.classes],
   );
 
-  const pendingRequests = summary?.joinRequests.filter((request) => request.status === 'pending') ?? [];
+  const pendingRequests = summary?.joinRequests.filter((request) => isPendingRequestStatus(request.status)) ?? [];
   const selectedClassRequests = selectedClass
     ? pendingRequests.filter((request) => request.classId === selectedClass.id)
     : pendingRequests;
@@ -332,7 +338,7 @@ const TeacherDashboard: React.FC = () => {
       }
       const request = await TeacherDashboardService.requestStudentByBuddyId(selectedClassId, buddyIdInput);
       setBuddyIdInput('');
-      setActionStatus(`${request.childName} is now waiting in student requests.`);
+      setActionStatus(`${request.buddyId ?? 'This Buddy ID'} is waiting for parent approval.`);
       await loadDashboard('refresh');
     } catch (requestError) {
       console.error('Error requesting student by Buddy ID:', requestError);
@@ -348,8 +354,12 @@ const TeacherDashboard: React.FC = () => {
     setActionStatus(null);
 
     try {
-      if (!isGuest) await TeacherDashboardService.approveJoinRequest(requestId);
-      setActionStatus('Student request approved.');
+      const result = !isGuest ? await TeacherDashboardService.approveJoinRequest(requestId) : null;
+      setActionStatus(
+        result?.status === 'pending_parent'
+          ? 'Teacher approval saved. Waiting for parent approval before the student appears in class.'
+          : 'Student request approved.',
+      );
       await loadDashboard('refresh');
     } catch (approveError) {
       console.error('Error approving join request:', approveError);
@@ -506,7 +516,9 @@ const TeacherDashboard: React.FC = () => {
               </span>
               <div>
                 <h2 className="text-lg font-extrabold text-adapt-navy dark:text-gray-100">Request student access</h2>
-                <p className="text-sm text-slate-500 dark:text-gray-400">Use a Buddy ID, then approve the learner into a class.</p>
+                <p className="text-sm text-slate-500 dark:text-gray-400">
+                  Use a Buddy ID to request access. A parent or guardian must approve visibility before the learner appears.
+                </p>
               </div>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-[0.8fr_1fr]">

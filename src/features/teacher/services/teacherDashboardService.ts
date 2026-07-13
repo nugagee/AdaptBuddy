@@ -9,6 +9,14 @@ export type TeacherRequestStatus =
   | 'cancelled';
 export type TeacherMembershipStatus = 'active' | 'paused' | 'removed';
 export type AssignmentStatus = 'not_started' | 'in_progress' | 'needs_help' | 'completed' | 'submitted';
+export type TeacherAssignmentType =
+  | 'reading'
+  | 'maths'
+  | 'writing'
+  | 'calm_break'
+  | 'visual_routine'
+  | 'social_story'
+  | 'task';
 
 export interface TeacherClass {
   id: string;
@@ -61,10 +69,19 @@ export interface TeacherAssignment {
   teacherId: string;
   title: string;
   description?: string;
-  assignmentType: string;
+  assignmentType: TeacherAssignmentType;
   supportTools: string[];
   dueAt?: string;
   createdAt: string;
+}
+
+export interface CreateTeacherAssignmentInput {
+  classId: string;
+  title: string;
+  description: string;
+  assignmentType: TeacherAssignmentType;
+  supportTools: string[];
+  dueAt?: string;
 }
 
 export interface TeacherSupportSignal {
@@ -283,13 +300,26 @@ const mapClass = (
   };
 };
 
+const teacherAssignmentTypes = [
+  'reading',
+  'maths',
+  'writing',
+  'calm_break',
+  'visual_routine',
+  'social_story',
+  'task',
+] as const;
+
+const normalizeAssignmentType = (value: string | null | undefined): TeacherAssignmentType =>
+  normalizeStatus(value, teacherAssignmentTypes, 'task');
+
 const mapAssignment = (row: TeacherAssignmentRow): TeacherAssignment => ({
   id: row.id,
   classId: row.class_id,
   teacherId: row.teacher_id,
   title: row.title,
   description: row.description ?? undefined,
-  assignmentType: row.assignment_type ?? 'task',
+  assignmentType: normalizeAssignmentType(row.assignment_type),
   supportTools: row.support_tools ?? [],
   dueAt: row.due_at ?? undefined,
   createdAt: row.created_at,
@@ -393,6 +423,40 @@ export class TeacherDashboardService {
       visibilitySettings: defaultVisibilitySettings,
       createdAt: row.created_at,
     };
+  }
+
+  static async createAssignment(input: CreateTeacherAssignmentInput): Promise<TeacherAssignment> {
+    if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+    if (!input.classId) throw new Error('Choose a class first.');
+    if (!input.title.trim()) throw new Error('Add an assignment title first.');
+
+    const client = getSupabaseClient();
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError) {
+      if (isAuthSessionMissingError(userError)) {
+        throw new Error('Please sign in with a teacher account to create assignments. Guest mode is view-only.');
+      }
+      throw userError;
+    }
+    const userId = userData.user?.id;
+    if (!userId) throw new Error('Please sign in with a teacher account to create assignments.');
+
+    const { data, error } = await client
+      .from('teacher_assignments')
+      .insert({
+        class_id: input.classId,
+        teacher_id: userId,
+        title: input.title.trim(),
+        description: input.description.trim() || null,
+        assignment_type: input.assignmentType,
+        support_tools: input.supportTools,
+        due_at: input.dueAt || null,
+      })
+      .select('id, class_id, teacher_id, title, description, assignment_type, support_tools, due_at, created_at')
+      .single();
+
+    if (error) throw error;
+    return mapAssignment(data as TeacherAssignmentRow);
   }
 
   static async approveJoinRequest(requestId: string): Promise<MembershipResultRow> {

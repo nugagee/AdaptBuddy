@@ -623,7 +623,7 @@ const TeacherDashboard: React.FC = () => {
 
         <section className="grid gap-4 md:grid-cols-3">
           {[
-            { title: 'Assignments', detail: 'Next phase: create class tasks, support missions, and track completion.', icon: BookOpenCheck },
+            { title: 'Assignments', detail: 'Create supported class tasks and let learners mark progress from their dashboard.', icon: BookOpenCheck },
             { title: 'Messages', detail: 'Next phase: parent-teacher and teacher-learner communication threads.', icon: MessageSquare },
             { title: 'Reports', detail: 'Next phase: weekly class support reports and printable accommodations.', icon: Layers3 },
           ].map(({ title, detail, icon: Icon }) => (

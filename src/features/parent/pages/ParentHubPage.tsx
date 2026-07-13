@@ -7,6 +7,7 @@ import {
   BookOpen,
   Calendar,
   CheckCircle2,
+  ClipboardCheck,
   Clock,
   Download,
   Eye,
@@ -46,6 +47,7 @@ import {
   type CareMeeting,
   type ChildSummary,
   type DashboardSummary,
+  type ParentAssignmentSummary,
   type ParentMessage,
   type RiskLevel,
   type TeacherClassRequest,
@@ -83,6 +85,42 @@ const adultStatusStyles: Record<TrustedAdult['status'], string> = {
   inactive: 'border-slate-200 bg-slate-50 text-slate-700',
 };
 
+const assignmentStatusLabels: Record<ParentAssignmentSummary['status'], string> = {
+  not_started: 'Not started',
+  in_progress: 'In progress',
+  needs_help: 'Needs help',
+  completed: 'Completed',
+  submitted: 'Submitted',
+};
+
+const assignmentStatusStyles: Record<ParentAssignmentSummary['status'], string> = {
+  not_started: 'bg-slate-100 text-slate-700 dark:bg-gray-800 dark:text-gray-200',
+  in_progress: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-100',
+  needs_help: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-100',
+  completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100',
+  submitted: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100',
+};
+
+const assignmentTypeLabels: Record<ParentAssignmentSummary['assignmentType'], string> = {
+  reading: 'Reading',
+  maths: 'Maths',
+  writing: 'Writing',
+  calm_break: 'Calm break',
+  visual_routine: 'Visual routine',
+  social_story: 'Social story',
+  task: 'Task',
+};
+
+const supportToolLabels: Record<string, string> = {
+  read_aloud: 'Read aloud',
+  line_focus: 'Line focus',
+  visual_steps: 'Visual steps',
+  task_breaker: 'Task breaker',
+  calm_break: 'Calm break',
+  writing_support: 'Writing support',
+  teacher_help: 'Teacher help',
+};
+
 const formatRelativeTime = (isoDate: string): string => {
   const timestamp = new Date(isoDate).getTime();
   if (!Number.isFinite(timestamp)) return 'Recently';
@@ -103,6 +141,18 @@ const formatRelativeTime = (isoDate: string): string => {
     day: 'numeric',
     month: 'short',
   }).format(new Date(isoDate));
+};
+
+const formatAssignmentDate = (isoDate?: string): string => {
+  if (!isoDate) return 'No due date';
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return 'Due soon';
+
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(date);
 };
 
 const getEmotionEmoji = (emotion: string): string => {
@@ -495,6 +545,67 @@ const createGuestDashboardSummary = (): DashboardSummary => {
       },
     ],
     teacherClassRequests: [],
+    assignmentSummaries: [
+      {
+        id: 'guest-assignment-1',
+        childId,
+        childName: 'Alex Guest',
+        classId: 'guest-class-1',
+        className: 'Year 4 Maths',
+        schoolName: 'Bradford Primary',
+        teacherId: 'guest-teacher',
+        teacherName: 'Ms Johnson',
+        teacherEmail: 'teacher@example.com',
+        title: 'Read page 5 with line focus',
+        description: 'Use read aloud first, then answer one question.',
+        assignmentType: 'reading',
+        supportTools: ['read_aloud', 'line_focus', 'visual_steps'],
+        dueAt: daysAgo(-2),
+        createdAt: daysAgo(0),
+        status: 'in_progress',
+        supportUsed: ['read_aloud'],
+      },
+      {
+        id: 'guest-assignment-2',
+        childId,
+        childName: 'Alex Guest',
+        classId: 'guest-class-1',
+        className: 'Year 4 Maths',
+        schoolName: 'Bradford Primary',
+        teacherId: 'guest-teacher',
+        teacherName: 'Ms Johnson',
+        teacherEmail: 'teacher@example.com',
+        title: 'Calm break after lunch',
+        assignmentType: 'calm_break',
+        supportTools: ['calm_break', 'visual_steps'],
+        dueAt: daysAgo(0),
+        createdAt: daysAgo(1),
+        status: 'completed',
+        supportUsed: ['calm_break'],
+        moodAfterTask: 'calm',
+        updatedAt: daysAgo(0),
+      },
+      {
+        id: 'guest-assignment-3',
+        childId,
+        childName: 'Alex Guest',
+        classId: 'guest-class-1',
+        className: 'Year 4 Maths',
+        schoolName: 'Bradford Primary',
+        teacherId: 'guest-teacher',
+        teacherName: 'Ms Johnson',
+        teacherEmail: 'teacher@example.com',
+        title: 'Short writing task',
+        description: 'Break the answer into three small steps.',
+        assignmentType: 'writing',
+        supportTools: ['task_breaker', 'writing_support'],
+        dueAt: daysAgo(-1),
+        createdAt: daysAgo(2),
+        status: 'needs_help',
+        supportUsed: ['teacher_help'],
+        updatedAt: daysAgo(0),
+      },
+    ],
     aiDigest: {
       headline: 'Alex had a mostly calm week with one noisy transition dip.',
       happyWeekPercentage: 75,
@@ -705,6 +816,14 @@ const ParentHubPage: React.FC = () => {
     [currentChild, dashboardData],
   );
 
+  const childAssignments = useMemo(
+    () =>
+      currentChild
+        ? dashboardData?.assignmentSummaries.filter((assignment) => assignment.childId === currentChild.childId) ?? []
+        : [],
+    [currentChild, dashboardData],
+  );
+
   const childInsights = useMemo(
     () =>
       currentChild
@@ -791,12 +910,14 @@ const ParentHubPage: React.FC = () => {
     { label: 'Settings', icon: Settings, className: 'border-slate-200 bg-slate-50 text-slate-800' },
   ];
 
+  const assignmentNeedsHelpCount = childAssignments.filter((assignment) => assignment.status === 'needs_help').length;
+
   const tabItems: Array<{ id: ParentDashboardTab; label: string; badge?: number }> = [
     { id: 'overview', label: 'Overview' },
     { id: 'ai', label: 'AI Digest', badge: childInsights.length },
     { id: 'journal', label: 'Journal', badge: childEntries.length },
     { id: 'alerts', label: 'Alerts', badge: newAlertsCount },
-    { id: 'support', label: 'Support', badge: childTrustedAdults.length + childTeacherClassRequests.length },
+    { id: 'support', label: 'Support', badge: childTrustedAdults.length + childTeacherClassRequests.length + assignmentNeedsHelpCount },
   ];
 
   const coachResponse = useMemo(() => {
@@ -1634,6 +1755,103 @@ const ParentHubPage: React.FC = () => {
                 window.setTimeout(() => setActionStatus(''), 3500);
               }}
             />
+
+            <section className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-adapt-indigo/10 text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
+                    <ClipboardCheck className="h-6 w-6" aria-hidden />
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+                      School Tasks
+                    </p>
+                    <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
+                      Teacher assignment summary
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
+                      Parent view of approved class tasks, support used, and help signals.
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-adapt-indigo/10 px-3 py-1 text-xs font-black text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
+                  {childAssignments.length} task{childAssignments.length === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-3 lg:grid-cols-3">
+                {childAssignments.length > 0 ? (
+                  childAssignments.slice(0, 6).map((assignment) => (
+                    <article
+                      key={assignment.id}
+                      className="rounded-2xl border border-slate-100 bg-slate-50/75 p-4 dark:border-gray-800 dark:bg-gray-950/40"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500 shadow-sm dark:bg-gray-900 dark:text-gray-300">
+                            {assignmentTypeLabels[assignment.assignmentType]}
+                          </span>
+                          <h3 className="mt-3 line-clamp-2 text-base font-extrabold text-adapt-navy dark:text-gray-100">
+                            {assignment.title}
+                          </h3>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-black ${assignmentStatusStyles[assignment.status]}`}>
+                          {assignmentStatusLabels[assignment.status]}
+                        </span>
+                      </div>
+
+                      <p className="mt-3 text-xs font-bold text-slate-500 dark:text-gray-400">
+                        {assignment.className}
+                        {assignment.teacherName ? ` · ${assignment.teacherName}` : ''}
+                      </p>
+                      <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-slate-400">
+                        <Calendar className="h-3.5 w-3.5" aria-hidden />
+                        {formatAssignmentDate(assignment.dueAt)}
+                      </p>
+
+                      {assignment.description && (
+                        <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-gray-400">
+                          {assignment.description}
+                        </p>
+                      )}
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {assignment.supportTools.slice(0, 3).map((tool) => (
+                          <span
+                            key={tool}
+                            className="rounded-full bg-white px-2 py-1 text-xs font-black text-adapt-indigo shadow-sm dark:bg-gray-900 dark:text-adapt-cyan"
+                          >
+                            {supportToolLabels[tool] ?? tool.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+
+                      {(assignment.moodAfterTask || assignment.supportUsed.length > 0) && (
+                        <div className="mt-4 rounded-xl bg-white/75 p-3 text-xs font-semibold text-slate-600 dark:bg-gray-900/80 dark:text-gray-300">
+                          {assignment.moodAfterTask && (
+                            <p>
+                              After task: {getEmotionEmoji(assignment.moodAfterTask)} {assignment.moodAfterTask}
+                            </p>
+                          )}
+                          {assignment.supportUsed.length > 0 && (
+                            <p className="mt-1">
+                              Support used: {assignment.supportUsed.map((tool) => supportToolLabels[tool] ?? tool.replace(/_/g, ' ')).join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </article>
+                  ))
+                ) : (
+                  <div className="lg:col-span-3">
+                    <EmptyState
+                      title="No teacher tasks yet"
+                      detail="Once an approved teacher assigns work, parents will see status, support used, and mood-after-task here."
+                    />
+                  </div>
+                )}
+              </div>
+            </section>
 
             <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <article className="rounded-3xl border border-adapt-indigo/15 bg-gradient-to-br from-adapt-indigo/10 via-white to-adapt-teal/10 p-6 shadow-card dark:border-adapt-cyan/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950">

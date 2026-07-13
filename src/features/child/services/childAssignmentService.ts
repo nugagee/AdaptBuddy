@@ -26,6 +26,11 @@ interface AssignmentRow {
   created_at: string;
 }
 
+interface ClassMembershipRow {
+  class_id: string;
+  status: string | null;
+}
+
 interface SubmissionRow {
   assignment_id: string;
   status: string | null;
@@ -70,9 +75,23 @@ export class ChildAssignmentService {
     if (!isSupabaseConfigured || !childId || childId === 'guest-child') return [];
 
     const client = getSupabaseClient();
+    const { data: membershipData, error: membershipError } = await client
+      .from('class_memberships')
+      .select('class_id, status')
+      .eq('child_id', childId)
+      .eq('status', 'active');
+
+    if (membershipError) throw membershipError;
+    const classIds = Array.from(
+      new Set(((membershipData ?? []) as ClassMembershipRow[]).map((membership) => membership.class_id)),
+    );
+
+    if (classIds.length === 0) return [];
+
     const { data: assignmentData, error: assignmentError } = await client
       .from('teacher_assignments')
       .select('id, class_id, title, description, assignment_type, support_tools, due_at, created_at')
+      .in('class_id', classIds)
       .order('created_at', { ascending: false })
       .limit(12);
 

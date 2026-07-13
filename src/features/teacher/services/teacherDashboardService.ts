@@ -1,6 +1,12 @@
 import { getSupabaseClient, isSupabaseConfigured } from 'services/supabase/client';
 
-export type TeacherRequestStatus = 'pending' | 'approved' | 'declined' | 'cancelled';
+export type TeacherRequestStatus =
+  | 'pending'
+  | 'pending_parent'
+  | 'pending_teacher'
+  | 'approved'
+  | 'declined'
+  | 'cancelled';
 export type TeacherMembershipStatus = 'active' | 'paused' | 'removed';
 export type AssignmentStatus = 'not_started' | 'in_progress' | 'needs_help' | 'completed' | 'submitted';
 
@@ -124,6 +130,7 @@ interface ClassJoinRequestRow {
   id: string;
   class_id: string;
   child_id: string;
+  requested_buddy_id: string | null;
   requested_by: string;
   request_method: string | null;
   status: string | null;
@@ -176,11 +183,11 @@ interface BuddyRequestRow {
 }
 
 interface MembershipResultRow {
-  membership_id: string;
+  membership_id: string | null;
   class_id: string;
   child_id: string;
   status: string;
-  joined_at: string;
+  joined_at: string | null;
 }
 
 const defaultVisibilitySettings: TeacherVisibilitySettings = {
@@ -192,6 +199,17 @@ const defaultVisibilitySettings: TeacherVisibilitySettings = {
   academicTasks: true,
   personalNotes: false,
 };
+
+const teacherRequestStatuses = [
+  'pending',
+  'pending_parent',
+  'pending_teacher',
+  'approved',
+  'declined',
+  'cancelled',
+] as const;
+
+const pendingRequestStatuses: TeacherRequestStatus[] = ['pending', 'pending_parent', 'pending_teacher'];
 
 const normalizeStatus = <T extends string>(value: string | null | undefined, allowed: readonly T[], fallback: T): T =>
   allowed.includes(value as T) ? (value as T) : fallback;
@@ -257,7 +275,10 @@ const mapClass = (
     yearGroup: row.year_group ?? '',
     createdAt: row.created_at,
     studentCount: memberships.filter((membership) => membership.class_id === row.id && membership.status !== 'removed').length,
-    pendingRequests: requests.filter((request) => request.class_id === row.id && request.status === 'pending').length,
+    pendingRequests: requests.filter((request) => {
+      const status = normalizeStatus(request.status, teacherRequestStatuses, 'pending');
+      return request.class_id === row.id && pendingRequestStatuses.includes(status);
+    }).length,
     assignmentsDue,
   };
 };
@@ -349,12 +370,12 @@ export class TeacherDashboardService {
       id: row.request_id,
       classId: row.class_id,
       childId: row.child_id,
-      childName: row.child_name,
+      childName: row.child_name || 'Pending learner',
       buddyId: row.buddy_id,
       neurotypes: [],
       requestedBy: '',
       requestMethod: 'buddy_id',
-      status: normalizeStatus(row.status, ['pending', 'approved', 'declined', 'cancelled'] as const, 'pending'),
+      status: normalizeStatus(row.status, teacherRequestStatuses, 'pending_parent'),
       parentApproved: false,
       teacherApproved: true,
       visibilitySettings: defaultVisibilitySettings,
@@ -417,12 +438,16 @@ export class TeacherDashboardService {
       this.getAssignmentRows(classIds),
     ]);
 
-    const childIds = Array.from(new Set([
+    const activeMembershipRows = membershipRows.filter((membership) => membership.status === 'active');
+    const profileChildIds = Array.from(new Set([
       ...membershipRows.map((membership) => membership.child_id),
-      ...requestRows.map((request) => request.child_id),
+      ...requestRows
+        .filter((request) => request.parent_approved === true || request.status === 'approved')
+        .map((request) => request.child_id),
     ]));
-    const profiles = await this.getProfiles(childIds);
-    const signals = await this.getLiveSignals(childIds, profiles);
+    const signalChildIds = Array.from(new Set(activeMembershipRows.map((membership) => membership.child_id)));
+    const profiles = await this.getProfiles(profileChildIds);
+    const signals = await this.getLiveSignals(signalChildIds, profiles);
     const assignments = assignmentRows.map(mapAssignment);
 
     const classes = rawClasses.map((row) => mapClass(row, membershipRows, requestRows, assignmentRows));
@@ -431,15 +456,16 @@ export class TeacherDashboardService {
       .map((membership) => {
         const profile = profiles.get(membership.child_id);
         const latestSignal = signals.find((signal) => signal.childId === membership.child_id);
+        const visibilitySettings = normalizeVisibility(membership.visibility_settings);
         return {
           membershipId: membership.id,
           classId: membership.class_id,
           childId: membership.child_id,
-          childName: getProfileName(profile),
+          childName: visibilitySettings.childName ? getProfileName(profile) : 'Learner',
           buddyId: profile?.buddy_id ?? null,
-          neurotypes: profile?.neuro_types ?? [],
+          neurotypes: visibilitySettings.neuroProfile ? profile?.neuro_types ?? [] : [],
           age: profile?.age,
-          visibilitySettings: normalizeVisibility(membership.visibility_settings),
+          visibilitySettings,
           status: normalizeStatus(membership.status, ['active', 'paused', 'removed'] as const, 'active'),
           joinedAt: membership.joined_at,
           latestSignal,
@@ -449,19 +475,21 @@ export class TeacherDashboardService {
 
     const joinRequests = requestRows.map((request) => {
       const profile = profiles.get(request.child_id);
+      const parentApproved = request.parent_approved === true;
+      const visibilitySettings = normalizeVisibility(request.visibility_settings);
       return {
         id: request.id,
         classId: request.class_id,
         childId: request.child_id,
-        childName: getProfileName(profile),
-        buddyId: profile?.buddy_id ?? null,
-        neurotypes: profile?.neuro_types ?? [],
+        childName: parentApproved && visibilitySettings.childName ? getProfileName(profile) : 'Pending learner',
+        buddyId: request.requested_buddy_id ?? profile?.buddy_id ?? null,
+        neurotypes: parentApproved && visibilitySettings.neuroProfile ? profile?.neuro_types ?? [] : [],
         requestedBy: request.requested_by,
         requestMethod: request.request_method ?? 'buddy_id',
-        status: normalizeStatus(request.status, ['pending', 'approved', 'declined', 'cancelled'] as const, 'pending'),
-        parentApproved: request.parent_approved === true,
+        status: normalizeStatus(request.status, teacherRequestStatuses, 'pending'),
+        parentApproved,
         teacherApproved: request.teacher_approved === true,
-        visibilitySettings: normalizeVisibility(request.visibility_settings),
+        visibilitySettings,
         createdAt: request.created_at,
       };
     });
@@ -482,7 +510,7 @@ export class TeacherDashboardService {
       totals: {
         classes: classes.length,
         students: students.length,
-        pendingRequests: joinRequests.filter((request) => request.status === 'pending').length,
+        pendingRequests: joinRequests.filter((request) => pendingRequestStatuses.includes(request.status)).length,
         supportAlerts: signals.filter((signal) => signal.riskLevel !== 'low' || signal.supportLevel === 'urgent').length,
         assignmentsDue,
       },
@@ -503,7 +531,7 @@ export class TeacherDashboardService {
   private static async getJoinRequestRows(classIds: string[]): Promise<ClassJoinRequestRow[]> {
     const { data, error } = await getSupabaseClient()
       .from('class_join_requests')
-      .select('id, class_id, child_id, requested_by, request_method, status, parent_approved, teacher_approved, visibility_settings, created_at')
+      .select('id, class_id, child_id, requested_buddy_id, requested_by, request_method, status, parent_approved, teacher_approved, visibility_settings, created_at')
       .in('class_id', classIds)
       .order('created_at', { ascending: false });
 

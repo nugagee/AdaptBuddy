@@ -1,13 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   BookOpenCheck,
   CalendarClock,
   CheckCircle2,
   ClipboardList,
+  Eye,
   Loader2,
   RefreshCw,
   Save,
   SlidersHorizontal,
+  Users,
+  X,
 } from 'lucide-react';
 import TeacherHubNav from 'features/teacher/components/TeacherHubNav';
 import { useAuth } from 'hooks/useAuth';
@@ -62,10 +66,18 @@ const formatDate = (isoDate?: string): string => {
 const getTypeLabel = (type: TeacherAssignmentType): string =>
   assignmentTypes.find((item) => item.id === type)?.label ?? 'Task';
 
+const formatStatus = (status: string): string =>
+  status
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
 const AssignmentCard: React.FC<{
   assignment: TeacherAssignment;
   className: string;
-}> = ({ assignment, className }) => (
+  onViewProgress: (assignment: TeacherAssignment) => void;
+}> = ({ assignment, className, onViewProgress }) => (
   <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft dark:border-gray-800 dark:bg-gray-900">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
@@ -101,7 +113,120 @@ const AssignmentCard: React.FC<{
         </span>
       )}
     </div>
+    <div className="mt-5 grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
+      {[
+        { label: 'Assigned', value: assignment.progress.assignedCount, tone: 'bg-slate-50 text-slate-700 dark:bg-gray-950 dark:text-gray-200' },
+        { label: 'Started', value: assignment.progress.inProgress, tone: 'bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-100' },
+        { label: 'Help', value: assignment.progress.needsHelp, tone: 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-100' },
+        { label: 'Done', value: assignment.progress.completed + assignment.progress.submitted, tone: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100' },
+        { label: 'Waiting', value: assignment.progress.notStarted, tone: 'bg-violet-50 text-violet-700 dark:bg-violet-950/30 dark:text-violet-100' },
+      ].map((metric) => (
+        <div key={metric.label} className={`rounded-2xl p-3 ${metric.tone}`}>
+          <p className="text-lg font-black">{metric.value}</p>
+          <p className="text-[11px] font-black uppercase tracking-wide">{metric.label}</p>
+        </div>
+      ))}
+    </div>
+    <button
+      type="button"
+      onClick={() => onViewProgress(assignment)}
+      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-adapt-indigo/20 bg-adapt-indigo/10 px-4 py-3 text-sm font-black text-adapt-indigo transition hover:bg-adapt-indigo/15 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/10 dark:text-adapt-cyan"
+    >
+      <Eye className="h-4 w-4" aria-hidden />
+      View learner progress
+    </button>
   </article>
+);
+
+const ProgressModal: React.FC<{
+  assignment: TeacherAssignment;
+  className: string;
+  onClose: () => void;
+}> = ({ assignment, className, onClose }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+    <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl dark:bg-gray-900">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+            Assignment progress
+          </p>
+          <h2 className="mt-2 text-2xl font-extrabold text-adapt-navy dark:text-gray-100">{assignment.title}</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-gray-400">{className}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-gray-800 dark:text-gray-200"
+          aria-label="Close progress"
+        >
+          <X className="h-5 w-5" aria-hidden />
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-5">
+        {[
+          { label: 'Assigned', value: assignment.progress.assignedCount, icon: Users, tone: 'bg-slate-50 text-slate-700 dark:bg-gray-950 dark:text-gray-200' },
+          { label: 'Not started', value: assignment.progress.notStarted, icon: ClipboardList, tone: 'bg-violet-50 text-violet-700 dark:bg-violet-950/30 dark:text-violet-100' },
+          { label: 'In progress', value: assignment.progress.inProgress, icon: Loader2, tone: 'bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-100' },
+          { label: 'Need help', value: assignment.progress.needsHelp, icon: AlertTriangle, tone: 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-100' },
+          { label: 'Completed', value: assignment.progress.completed + assignment.progress.submitted, icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100' },
+        ].map(({ label, value, icon: Icon, tone }) => (
+          <div key={label} className={`rounded-2xl p-4 ${tone}`}>
+            <Icon className="h-5 w-5" aria-hidden />
+            <p className="mt-3 text-2xl font-black">{value}</p>
+            <p className="text-xs font-black uppercase tracking-wide">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-800">
+        <div className="grid grid-cols-[1.2fr_1fr_1fr_1.2fr] gap-3 bg-slate-50 px-4 py-3 text-xs font-black uppercase tracking-wide text-slate-500 dark:bg-gray-950 dark:text-gray-400">
+          <span>Learner</span>
+          <span>Status</span>
+          <span>Mood</span>
+          <span>Support used</span>
+        </div>
+        {assignment.learnerProgress.length ? (
+          assignment.learnerProgress.map((learner) => (
+            <div
+              key={learner.childId}
+              className="grid grid-cols-[1.2fr_1fr_1fr_1.2fr] gap-3 border-t border-slate-100 px-4 py-4 text-sm dark:border-gray-800"
+            >
+              <div>
+                <p className="font-black text-adapt-navy dark:text-gray-100">{learner.childName}</p>
+                <p className="mt-1 font-mono text-xs font-bold text-slate-500 dark:text-gray-400">
+                  {learner.buddyId ?? 'Buddy ID hidden'}
+                </p>
+              </div>
+              <span
+                className={`h-fit rounded-full px-3 py-1 text-xs font-black ${
+                  learner.status === 'needs_help'
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-100'
+                    : learner.status === 'completed' || learner.status === 'submitted'
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100'
+                      : 'bg-adapt-indigo/10 text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan'
+                }`}
+              >
+                {formatStatus(learner.status)}
+              </span>
+              <span className="font-semibold capitalize text-slate-600 dark:text-gray-300">
+                {learner.moodAfterTask ?? 'Not shared'}
+              </span>
+              <span className="font-semibold text-slate-600 dark:text-gray-300">
+                {learner.supportUsed.length
+                  ? learner.supportUsed.map((tool) => supportOptions.find((option) => option.id === tool)?.label ?? tool.replace(/_/g, ' ')).join(', ')
+                  : 'None yet'}
+              </span>
+            </div>
+          ))
+        ) : (
+          <div className="border-t border-slate-100 px-4 py-8 text-center text-sm font-semibold text-slate-500 dark:border-gray-800 dark:text-gray-400">
+            No approved learners are attached to this assignment yet.
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
 );
 
 const Assignments: React.FC = () => {
@@ -112,6 +237,7 @@ const Assignments: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<TeacherAssignment | null>(null);
   const [form, setForm] = useState({
     classId: '',
     title: '',
@@ -364,6 +490,7 @@ const Assignments: React.FC = () => {
                     key={assignment.id}
                     assignment={assignment}
                     className={classNames.get(assignment.classId) ?? 'Class'}
+                    onViewProgress={setSelectedAssignment}
                   />
                 ))}
               </div>
@@ -375,6 +502,14 @@ const Assignments: React.FC = () => {
             )}
           </div>
         </section>
+
+        {selectedAssignment && (
+          <ProgressModal
+            assignment={selectedAssignment}
+            className={classNames.get(selectedAssignment.classId) ?? 'Class'}
+            onClose={() => setSelectedAssignment(null)}
+          />
+        )}
       </div>
     </div>
   );

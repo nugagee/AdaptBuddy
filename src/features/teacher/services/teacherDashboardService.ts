@@ -73,6 +73,8 @@ export interface TeacherAssignment {
   supportTools: string[];
   dueAt?: string;
   createdAt: string;
+  progress: TeacherAssignmentProgressSummary;
+  learnerProgress: TeacherAssignmentLearnerProgress[];
 }
 
 export interface CreateTeacherAssignmentInput {
@@ -82,6 +84,26 @@ export interface CreateTeacherAssignmentInput {
   assignmentType: TeacherAssignmentType;
   supportTools: string[];
   dueAt?: string;
+}
+
+export interface TeacherAssignmentProgressSummary {
+  assignedCount: number;
+  notStarted: number;
+  inProgress: number;
+  needsHelp: number;
+  completed: number;
+  submitted: number;
+}
+
+export interface TeacherAssignmentLearnerProgress {
+  childId: string;
+  childName: string;
+  buddyId: string | null;
+  neurotypes: string[];
+  status: AssignmentStatus;
+  moodAfterTask?: string;
+  supportUsed: string[];
+  updatedAt?: string;
 }
 
 export interface TeacherSupportSignal {
@@ -167,6 +189,16 @@ interface TeacherAssignmentRow {
   support_tools: string[] | null;
   due_at: string | null;
   created_at: string;
+}
+
+interface AssignmentSubmissionRow {
+  assignment_id: string;
+  child_id: string;
+  status: string | null;
+  support_used: string[] | null;
+  mood_after_task: string | null;
+  submitted_at: string | null;
+  updated_at: string | null;
 }
 
 interface ProfileRow {
@@ -310,10 +342,74 @@ const teacherAssignmentTypes = [
   'task',
 ] as const;
 
+const assignmentStatuses = ['not_started', 'in_progress', 'needs_help', 'completed', 'submitted'] as const;
+
 const normalizeAssignmentType = (value: string | null | undefined): TeacherAssignmentType =>
   normalizeStatus(value, teacherAssignmentTypes, 'task');
 
-const mapAssignment = (row: TeacherAssignmentRow): TeacherAssignment => ({
+const normalizeAssignmentStatus = (value: string | null | undefined): AssignmentStatus =>
+  normalizeStatus(value, assignmentStatuses, 'not_started');
+
+const emptyAssignmentProgress = (): TeacherAssignmentProgressSummary => ({
+  assignedCount: 0,
+  notStarted: 0,
+  inProgress: 0,
+  needsHelp: 0,
+  completed: 0,
+  submitted: 0,
+});
+
+const buildAssignmentProgress = (
+  row: TeacherAssignmentRow,
+  memberships: ClassMembershipRow[],
+  submissions: AssignmentSubmissionRow[],
+  profiles: Map<string, ProfileRow>,
+): { progress: TeacherAssignmentProgressSummary; learnerProgress: TeacherAssignmentLearnerProgress[] } => {
+  const activeMemberships = memberships.filter(
+    (membership) =>
+      membership.class_id === row.class_id
+      && normalizeStatus(membership.status, ['active', 'paused', 'removed'] as const, 'active') === 'active',
+  );
+  const submissionsByChild = new Map(
+    submissions
+      .filter((submission) => submission.assignment_id === row.id)
+      .map((submission) => [submission.child_id, submission]),
+  );
+
+  const progress = emptyAssignmentProgress();
+  progress.assignedCount = activeMemberships.length;
+
+  const learnerProgress = activeMemberships.map((membership) => {
+    const submission = submissionsByChild.get(membership.child_id);
+    const status = normalizeAssignmentStatus(submission?.status);
+    const visibilitySettings = normalizeVisibility(membership.visibility_settings);
+    const profile = profiles.get(membership.child_id);
+
+    if (status === 'in_progress') progress.inProgress += 1;
+    else if (status === 'needs_help') progress.needsHelp += 1;
+    else if (status === 'completed') progress.completed += 1;
+    else if (status === 'submitted') progress.submitted += 1;
+    else progress.notStarted += 1;
+
+    return {
+      childId: membership.child_id,
+      childName: visibilitySettings.childName ? getProfileName(profile) : 'Learner',
+      buddyId: profile?.buddy_id ?? null,
+      neurotypes: visibilitySettings.neuroProfile ? profile?.neuro_types ?? [] : [],
+      status,
+      moodAfterTask: submission?.mood_after_task ?? undefined,
+      supportUsed: submission?.support_used ?? [],
+      updatedAt: submission?.updated_at ?? submission?.submitted_at ?? undefined,
+    };
+  });
+
+  return { progress, learnerProgress };
+};
+
+const mapAssignment = (
+  row: TeacherAssignmentRow,
+  progressData?: { progress: TeacherAssignmentProgressSummary; learnerProgress: TeacherAssignmentLearnerProgress[] },
+): TeacherAssignment => ({
   id: row.id,
   classId: row.class_id,
   teacherId: row.teacher_id,
@@ -323,6 +419,8 @@ const mapAssignment = (row: TeacherAssignmentRow): TeacherAssignment => ({
   supportTools: row.support_tools ?? [],
   dueAt: row.due_at ?? undefined,
   createdAt: row.created_at,
+  progress: progressData?.progress ?? emptyAssignmentProgress(),
+  learnerProgress: progressData?.learnerProgress ?? [],
 });
 
 const mapSignal = (
@@ -523,8 +621,13 @@ export class TeacherDashboardService {
     ]));
     const signalChildIds = Array.from(new Set(activeMembershipRows.map((membership) => membership.child_id)));
     const profiles = await this.getProfiles(profileChildIds);
-    const signals = await this.getLiveSignals(signalChildIds, profiles);
-    const assignments = assignmentRows.map(mapAssignment);
+    const [signals, submissionRows] = await Promise.all([
+      this.getLiveSignals(signalChildIds, profiles),
+      this.getSubmissionRows(assignmentRows.map((assignment) => assignment.id)),
+    ]);
+    const assignments = assignmentRows.map((row) =>
+      mapAssignment(row, buildAssignmentProgress(row, membershipRows, submissionRows, profiles)),
+    );
 
     const classes = rawClasses.map((row) => mapClass(row, membershipRows, requestRows, assignmentRows));
     const students = membershipRows
@@ -545,7 +648,7 @@ export class TeacherDashboardService {
           status: normalizeStatus(membership.status, ['active', 'paused', 'removed'] as const, 'active'),
           joinedAt: membership.joined_at,
           latestSignal,
-          completionSummary: 'Awaiting assignment data',
+          completionSummary: this.getCompletionSummary(membership.child_id, membership.class_id, assignmentRows, submissionRows),
         };
       });
 
@@ -624,6 +727,42 @@ export class TeacherDashboardService {
 
     if (error) throw error;
     return (data ?? []) as TeacherAssignmentRow[];
+  }
+
+  private static async getSubmissionRows(assignmentIds: string[]): Promise<AssignmentSubmissionRow[]> {
+    if (assignmentIds.length === 0) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('assignment_submissions')
+      .select('assignment_id, child_id, status, support_used, mood_after_task, submitted_at, updated_at')
+      .in('assignment_id', assignmentIds);
+
+    if (error) throw error;
+    return (data ?? []) as AssignmentSubmissionRow[];
+  }
+
+  private static getCompletionSummary(
+    childId: string,
+    classId: string,
+    assignments: TeacherAssignmentRow[],
+    submissions: AssignmentSubmissionRow[],
+  ): string {
+    const classAssignments = assignments.filter((assignment) => assignment.class_id === classId);
+    if (classAssignments.length === 0) return 'No assignments yet';
+
+    const assignmentIds = new Set(classAssignments.map((assignment) => assignment.id));
+    const childSubmissions = submissions.filter(
+      (submission) => submission.child_id === childId && assignmentIds.has(submission.assignment_id),
+    );
+    const completed = childSubmissions.filter((submission) => {
+      const status = normalizeAssignmentStatus(submission.status);
+      return status === 'completed' || status === 'submitted';
+    }).length;
+    const needsHelp = childSubmissions.filter((submission) => normalizeAssignmentStatus(submission.status) === 'needs_help').length;
+
+    return needsHelp > 0
+      ? `${completed}/${classAssignments.length} complete · ${needsHelp} need help`
+      : `${completed}/${classAssignments.length} complete`;
   }
 
   private static async getProfiles(childIds: string[]): Promise<Map<string, ProfileRow>> {
@@ -739,6 +878,26 @@ export class TeacherDashboardService {
           supportTools: ['read_aloud', 'line_focus'],
           dueAt: now,
           createdAt: now,
+          progress: {
+            assignedCount: 1,
+            notStarted: 0,
+            inProgress: 0,
+            needsHelp: 1,
+            completed: 0,
+            submitted: 0,
+          },
+          learnerProgress: [
+            {
+              childId,
+              childName: 'Alex A.',
+              buddyId: 'AB-7K4M-23',
+              neurotypes: ['autism', 'dyslexia'],
+              status: 'needs_help',
+              moodAfterTask: 'confused',
+              supportUsed: ['teacher_help', 'read_aloud'],
+              updatedAt: now,
+            },
+          ],
         },
       ],
       liveSignals,

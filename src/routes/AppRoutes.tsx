@@ -20,6 +20,7 @@ import Classes from 'features/teacher/components/Classes';
 import Students from 'features/teacher/components/Students';
 import Reports from 'features/teacher/components/Reports';
 import Settings from 'features/teacher/components/Settings';
+import RequireTeacherRoute from 'features/teacher/components/RequireTeacherRoute';
 import LoginPage from 'pages/LoginPage';
 import GuestEntryPage from 'pages/GuestEntryPage';
 import SignupPage from 'pages/SignupPage';
@@ -47,7 +48,9 @@ const withAdmin = (page: React.ReactNode) => (
 
 const withTeacherAuth = (page: React.ReactNode) => (
   <ProtectedRoute>
-    <AuthenticatedLayout>{page}</AuthenticatedLayout>
+    <RequireTeacherRoute>
+      <AuthenticatedLayout>{page}</AuthenticatedLayout>
+    </RequireTeacherRoute>
   </ProtectedRoute>
 );
 

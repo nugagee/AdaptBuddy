@@ -220,7 +220,6 @@ export const removeChildFromDashboard = (
     (resource) => resource.childId !== childId && !resource.id.startsWith(`${childId}-resource-`),
   );
   const childSignals = filterByChild(data.childSignals);
-  const proactiveInsights = filterByChild(data.proactiveInsights);
   const wellbeingTrends = Object.fromEntries(
     Object.entries(data.wellbeingTrends).filter(([id]) => id !== childId),
   );

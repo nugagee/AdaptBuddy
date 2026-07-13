@@ -6,6 +6,7 @@ const navItems = [
   { to: ROUTES.TEACHER_DASHBOARD, label: 'Dashboard' },
   { to: ROUTES.TEACHER_CLASSES, label: 'Classes' },
   { to: ROUTES.TEACHER_STUDENTS, label: 'Students' },
+  { to: ROUTES.TEACHER_ASSIGNMENTS, label: 'Assignments' },
   { to: ROUTES.TEACHER_REPORTS, label: 'Reports' },
   { to: ROUTES.TEACHER_SETTINGS, label: 'Settings' },
 ];

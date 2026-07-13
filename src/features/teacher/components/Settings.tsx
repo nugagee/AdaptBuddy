@@ -17,12 +17,54 @@ import {
 } from 'features/teacher/services/teacherDashboardService';
 
 const notificationOptions = [
-  'Learner asks for help',
-  'Parent approves access',
-  'Parent declines access',
-  'Assignment is completed',
-  'High support signal appears',
-];
+  { id: 'learner_help', label: 'Learner asks for help' },
+  { id: 'parent_approval', label: 'Parent approves access' },
+  { id: 'parent_decline', label: 'Parent declines access' },
+  { id: 'assignment_completed', label: 'Assignment is completed' },
+  { id: 'high_support_signal', label: 'High support signal appears' },
+] as const;
+
+type NotificationOptionId = (typeof notificationOptions)[number]['id'];
+type NotificationPreferences = Record<NotificationOptionId, boolean>;
+
+const defaultNotificationPreferences = notificationOptions.reduce(
+  (preferences, option) => ({
+    ...preferences,
+    [option.id]: true,
+  }),
+  {} as NotificationPreferences,
+);
+
+const getNotificationStorageKey = (teacherId: string): string =>
+  `adaptbuddy-teacher-notifications:${teacherId}`;
+
+const readNotificationPreferences = (teacherId: string): NotificationPreferences => {
+  if (typeof window === 'undefined') return defaultNotificationPreferences;
+
+  try {
+    const raw = window.localStorage.getItem(getNotificationStorageKey(teacherId));
+    if (!raw) return defaultNotificationPreferences;
+    const parsed = JSON.parse(raw) as Partial<NotificationPreferences>;
+
+    return notificationOptions.reduce(
+      (preferences, option) => ({
+        ...preferences,
+        [option.id]: typeof parsed[option.id] === 'boolean' ? parsed[option.id] : true,
+      }),
+      {} as NotificationPreferences,
+    );
+  } catch {
+    return defaultNotificationPreferences;
+  }
+};
+
+const writeNotificationPreferences = (
+  teacherId: string,
+  preferences: NotificationPreferences,
+): void => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(getNotificationStorageKey(teacherId), JSON.stringify(preferences));
+};
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error && error.message) return error.message;
@@ -33,18 +75,35 @@ const getErrorMessage = (error: unknown): string => {
   return 'Could not load teacher settings.';
 };
 
+const formatDistanceToNow = (isoDate: string): string => {
+  const timestamp = new Date(isoDate).getTime();
+  if (!Number.isFinite(timestamp)) return 'just now';
+
+  const diffSeconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+  if (diffSeconds < 10) return 'just now';
+  if (diffSeconds < 60) return `${diffSeconds}s ago`;
+
+  const diffMinutes = Math.round(diffSeconds / 60);
+  return `${diffMinutes}m ago`;
+};
+
 const Settings: React.FC = () => {
   const { profile, user, isGuest } = useAuth();
   const [summary, setSummary] = useState<TeacherDashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [settingsSavedAt, setSettingsSavedAt] = useState<string | null>(null);
 
   const teacherName =
     [profile?.first_name, profile?.last_name].filter(Boolean).join(' ')
     || profile?.full_name
     || user?.email?.split('@')[0]
     || 'Teacher';
+  const teacherStorageId = profile?.id || user?.id || user?.email || 'guest-teacher';
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(() =>
+    readNotificationPreferences(teacherStorageId),
+  );
 
   const loadSettings = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
     if (mode === 'initial') setLoading(true);
@@ -66,6 +125,20 @@ const Settings: React.FC = () => {
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
+
+  useEffect(() => {
+    setNotificationPreferences(readNotificationPreferences(teacherStorageId));
+    setSettingsSavedAt(null);
+  }, [teacherStorageId]);
+
+  const updateNotificationPreference = (id: NotificationOptionId, enabled: boolean) => {
+    setNotificationPreferences((current) => {
+      const next = { ...current, [id]: enabled };
+      writeNotificationPreferences(teacherStorageId, next);
+      return next;
+    });
+    setSettingsSavedAt(new Date().toISOString());
+  };
 
   if (loading) {
     return (
@@ -163,18 +236,35 @@ const Settings: React.FC = () => {
 
         <section className="grid gap-6 xl:grid-cols-2">
           <article className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-soft dark:border-gray-800 dark:bg-gray-900/80">
-            <div className="flex items-center gap-3">
-              <Bell className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
-              <h2 className="text-xl font-extrabold text-adapt-navy dark:text-gray-100">Notifications</h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-center gap-3">
+                <Bell className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+                <div>
+                  <h2 className="text-xl font-extrabold text-adapt-navy dark:text-gray-100">Notifications</h2>
+                  <p className="text-sm text-slate-500 dark:text-gray-400">
+                    Saved for this teacher account on this device.
+                  </p>
+                </div>
+              </div>
+              {settingsSavedAt && (
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100">
+                  Saved {formatDistanceToNow(settingsSavedAt)}
+                </span>
+              )}
             </div>
             <div className="mt-4 grid gap-3">
               {notificationOptions.map((option) => (
                 <label
-                  key={option}
+                  key={option.id}
                   className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700 dark:bg-gray-950 dark:text-gray-200"
                 >
-                  {option}
-                  <input type="checkbox" defaultChecked className="h-5 w-5 accent-adapt-indigo" />
+                  {option.label}
+                  <input
+                    type="checkbox"
+                    checked={notificationPreferences[option.id]}
+                    onChange={(event) => updateNotificationPreference(option.id, event.target.checked)}
+                    className="h-5 w-5 accent-adapt-indigo"
+                  />
                 </label>
               ))}
             </div>

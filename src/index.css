@@ -265,3 +265,42 @@
   border-radius: 9999px;
   background: var(--range-fill);
 }
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  body * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    visibility: hidden !important;
+  }
+
+  .adaptbuddy-parent-review-print,
+  .adaptbuddy-parent-review-print * {
+    visibility: visible !important;
+  }
+
+  .adaptbuddy-parent-review-print {
+    left: 0 !important;
+    position: absolute !important;
+    top: 0 !important;
+    width: 100% !important;
+  }
+
+  .adaptbuddy-parent-review-print section,
+  .adaptbuddy-parent-review-print article,
+  .adaptbuddy-parent-review-print div {
+    break-inside: avoid;
+  }
+
+  .adaptbuddy-parent-review-print .adaptbuddy-no-print {
+    display: none !important;
+  }
+}

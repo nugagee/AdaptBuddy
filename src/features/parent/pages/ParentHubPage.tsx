@@ -55,7 +55,7 @@ import {
   type TrustedAdult,
 } from 'features/parent/services/parentDashboardService';
 
-type ParentDashboardTab = 'overview' | 'ai' | 'journal' | 'alerts' | 'support';
+type ParentDashboardTab = 'overview' | 'review' | 'ai' | 'journal' | 'alerts' | 'support';
 
 const riskStyles: Record<RiskLevel, { badge: string; card: string; dot: string; label: string }> = {
   low: {
@@ -836,6 +836,45 @@ const ParentHubPage: React.FC = () => {
   const newAlertsCount = childAlerts.filter((alert) => !alert.acknowledged).length;
   const highAlertsCount = childAlerts.filter((alert) => alert.riskLevel === 'high' && !alert.acknowledged).length;
   const globalHighAlerts = dashboardData?.recentAlerts.filter((alert) => alert.riskLevel === 'high' && !alert.acknowledged).length ?? 0;
+  const completedAssignmentsCount = childAssignments.filter(
+    (assignment) => assignment.status === 'completed' || assignment.status === 'submitted',
+  ).length;
+  const assignmentNeedsHelpCount = childAssignments.filter((assignment) => assignment.status === 'needs_help').length;
+  const assignmentCompletionRate =
+    childAssignments.length > 0 ? Math.round((completedAssignmentsCount / childAssignments.length) * 100) : null;
+  const supportSignalsCount =
+    assignmentNeedsHelpCount +
+    childEntries.filter((entry) => entry.supportLevel === 'urgent' || entry.signalLabel?.toLowerCase() === 'i need help').length;
+  const sensoryLoadCount =
+    childEntries.filter((entry) => entry.signalCategory === 'sensory').length +
+    childSignals.filter((signal) => ['too noisy', 'too bright'].includes(signal.emotion.toLowerCase())).length;
+  const calmEvidenceCount =
+    childEntries.filter((entry) => ['calm', 'good', 'happy'].includes((entry.signalLabel ?? entry.emotion).toLowerCase())).length +
+    childAssignments.filter((assignment) => assignment.moodAfterTask === 'calm').length;
+  const supportToolsUsed = Array.from(
+    new Set(
+      childAssignments.flatMap((assignment) => [
+        ...assignment.supportUsed,
+        ...assignment.supportTools,
+      ]),
+    ),
+  ).slice(0, 6);
+  const latestReviewSignal = [...childEntries]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  const reviewNextSteps = [
+    ...(highAlertsCount > 0
+      ? [`Acknowledge ${highAlertsCount} high-priority alert${highAlertsCount === 1 ? '' : 's'} today.`]
+      : []),
+    ...(assignmentNeedsHelpCount > 0
+      ? [`Ask the teacher about ${assignmentNeedsHelpCount} task${assignmentNeedsHelpCount === 1 ? '' : 's'} marked "needs help".`]
+      : []),
+    ...(sensoryLoadCount >= 2
+      ? ['Review noise, brightness, crowding, and transition timing around recent signals.']
+      : []),
+    ...(childTeacherClassRequests.length > 0
+      ? [`Review ${childTeacherClassRequests.length} teacher access request${childTeacherClassRequests.length === 1 ? '' : 's'}.`]
+      : []),
+  ];
 
   const getChildAlertCount = useCallback(
     (childId: string): number =>
@@ -910,10 +949,9 @@ const ParentHubPage: React.FC = () => {
     { label: 'Settings', icon: Settings, className: 'border-slate-200 bg-slate-50 text-slate-800' },
   ];
 
-  const assignmentNeedsHelpCount = childAssignments.filter((assignment) => assignment.status === 'needs_help').length;
-
   const tabItems: Array<{ id: ParentDashboardTab; label: string; badge?: number }> = [
     { id: 'overview', label: 'Overview' },
+    { id: 'review', label: 'Review', badge: reviewNextSteps.length },
     { id: 'ai', label: 'AI Digest', badge: childInsights.length },
     { id: 'journal', label: 'Journal', badge: childEntries.length },
     { id: 'alerts', label: 'Alerts', badge: newAlertsCount },
@@ -1718,7 +1756,7 @@ const ParentHubPage: React.FC = () => {
             </section>
 
             <section className="rounded-3xl border border-white/70 bg-white/80 p-2 shadow-soft backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
-              <div className="grid gap-2 sm:grid-cols-5">
+              <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
                 {tabItems.map((tab) => {
                   const active = activeTab === tab.id;
                   return (
@@ -2129,6 +2167,193 @@ const ParentHubPage: React.FC = () => {
               </div>
             </section>
               </>
+            )}
+
+            {activeTab === 'review' && (
+              <section className="space-y-6">
+                <section className="rounded-3xl border border-adapt-indigo/15 bg-gradient-to-br from-adapt-indigo/10 via-white to-adapt-teal/10 p-6 shadow-card dark:border-adapt-cyan/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+                        Support Review
+                      </p>
+                      <h2 className="mt-2 text-2xl font-extrabold text-adapt-navy dark:text-gray-100">
+                        What AdaptBuddy noticed for {currentChild.childName}
+                      </h2>
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-gray-300">
+                        A parent-friendly review of wellbeing signals, school tasks, support tools, and the next
+                        adult action. This is monitoring with consent and care, not surveillance.
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-xs font-black text-adapt-indigo shadow-sm dark:bg-gray-900 dark:text-adapt-cyan">
+                      <ShieldCheck className="h-4 w-4" aria-hidden />
+                      Parent-approved view
+                    </span>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      {
+                        label: 'Check-ins reviewed',
+                        value: childEntries.length,
+                        detail: `${calmEvidenceCount} calm or positive signal${calmEvidenceCount === 1 ? '' : 's'}`,
+                        icon: HeartPulse,
+                        tone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100',
+                      },
+                      {
+                        label: 'School task progress',
+                        value: childAssignments.length ? `${completedAssignmentsCount}/${childAssignments.length}` : '--',
+                        detail:
+                          assignmentCompletionRate === null
+                            ? 'No teacher tasks yet'
+                            : `${assignmentCompletionRate}% complete`,
+                        icon: ClipboardCheck,
+                        tone: 'bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-100',
+                      },
+                      {
+                        label: 'Needs attention',
+                        value: supportSignalsCount + newAlertsCount,
+                        detail: `${assignmentNeedsHelpCount} task help signal${assignmentNeedsHelpCount === 1 ? '' : 's'}`,
+                        icon: AlertTriangle,
+                        tone: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-100',
+                      },
+                      {
+                        label: 'Sensory load',
+                        value: sensoryLoadCount,
+                        detail: 'Noise, brightness, or regulation signals',
+                        icon: Activity,
+                        tone: 'bg-violet-50 text-violet-800 dark:bg-violet-950/40 dark:text-violet-100',
+                      },
+                    ].map(({ label, value, detail, icon: Icon, tone }) => (
+                      <article key={label} className={`rounded-2xl border border-white/70 p-5 shadow-sm ${tone}`}>
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-wide opacity-70">{label}</p>
+                            <p className="mt-3 text-3xl font-black">{value}</p>
+                            <p className="mt-1 text-sm font-semibold opacity-80">{detail}</p>
+                          </div>
+                          <Icon className="h-6 w-6 shrink-0 opacity-80" aria-hidden />
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
+                  <article className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+                      Review Notes
+                    </p>
+                    <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
+                      Signals worth discussing
+                    </h2>
+                    <div className="mt-5 space-y-3">
+                      {latestReviewSignal ? (
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 dark:border-gray-800 dark:bg-gray-950/40">
+                          <p className="text-sm font-black text-adapt-navy dark:text-gray-100">
+                            Latest shared signal: {getEmotionEmoji(latestReviewSignal.signalLabel ?? latestReviewSignal.emotion)}{' '}
+                            {latestReviewSignal.signalLabel ?? latestReviewSignal.emotion}
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-300">
+                            {latestReviewSignal.parentInsight ||
+                              latestReviewSignal.text ||
+                              'No written note was attached to this check-in.'}
+                          </p>
+                          <p className="mt-2 text-xs font-semibold text-slate-400">
+                            {formatRelativeTime(latestReviewSignal.createdAt)}
+                          </p>
+                        </div>
+                      ) : (
+                        <EmptyState
+                          title="No review signals yet"
+                          detail="Mood check-ins, task reflections, and journal signals will appear here."
+                        />
+                      )}
+
+                      {childInsights.slice(0, 3).map((insight) => (
+                        <div
+                          key={insight.id}
+                          className={`rounded-2xl border p-4 ${
+                            insight.priority === 'high'
+                              ? 'border-red-200 bg-red-50 text-red-800'
+                              : insight.priority === 'medium'
+                                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                : 'border-sky-200 bg-sky-50 text-sky-800'
+                          }`}
+                        >
+                          <p className="font-black">{insight.title}</p>
+                          <p className="mt-1 text-sm leading-6">{insight.detail}</p>
+                          <p className="mt-2 text-xs font-bold opacity-80">{insight.suggestedAction}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+
+                  <article className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+                      What Helped
+                    </p>
+                    <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
+                      Supports used recently
+                    </h2>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {supportToolsUsed.length > 0 ? (
+                        supportToolsUsed.map((tool) => (
+                          <span
+                            key={tool}
+                            className="rounded-full bg-adapt-indigo/10 px-3 py-2 text-xs font-black text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan"
+                          >
+                            {supportToolLabels[tool] ?? tool.replace(/_/g, ' ')}
+                          </span>
+                        ))
+                      ) : (
+                        <EmptyState
+                          title="No support tool evidence yet"
+                          detail="When tasks use supports like read-aloud, calm break, or visual steps, they will appear here."
+                        />
+                      )}
+                    </div>
+
+                    <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 dark:border-gray-800 dark:bg-gray-950/40">
+                      <p className="font-black text-adapt-navy dark:text-gray-100">Adults in the loop</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-300">
+                        {childTrustedAdults.length} trusted adult{childTrustedAdults.length === 1 ? '' : 's'} connected.
+                        {childTeacherClassRequests.length > 0
+                          ? ` ${childTeacherClassRequests.length} school access request${childTeacherClassRequests.length === 1 ? '' : 's'} waiting.`
+                          : ' No pending school access request.'}
+                      </p>
+                    </div>
+                  </article>
+                </section>
+
+                <section className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+                    Next Adult Actions
+                  </p>
+                  <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
+                    What to do next
+                  </h2>
+                  <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    {reviewNextSteps.length > 0 ? (
+                      reviewNextSteps.map((step) => (
+                        <div
+                          key={step}
+                          className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+                        >
+                          {step}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="md:col-span-2">
+                        <EmptyState
+                          title="No urgent follow-up"
+                          detail="Keep the routine steady and review again after the next few check-ins."
+                        />
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </section>
             )}
 
             {activeTab === 'ai' && (

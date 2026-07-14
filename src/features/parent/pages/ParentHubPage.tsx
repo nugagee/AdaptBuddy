@@ -17,6 +17,7 @@ import {
   Link2,
   MessageSquare,
   Plus,
+  Printer,
   RefreshCw,
   Settings,
   Shield,
@@ -861,6 +862,10 @@ const ParentHubPage: React.FC = () => {
   ).slice(0, 6);
   const latestReviewSignal = [...childEntries]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  const reviewGeneratedAt = new Intl.DateTimeFormat('en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date());
   const reviewNextSteps = [
     ...(highAlertsCount > 0
       ? [`Acknowledge ${highAlertsCount} high-priority alert${highAlertsCount === 1 ? '' : 's'} today.`]
@@ -2170,7 +2175,7 @@ const ParentHubPage: React.FC = () => {
             )}
 
             {activeTab === 'review' && (
-              <section className="space-y-6">
+              <section className="adaptbuddy-parent-review-print space-y-6">
                 <section className="rounded-3xl border border-adapt-indigo/15 bg-gradient-to-br from-adapt-indigo/10 via-white to-adapt-teal/10 p-6 shadow-card dark:border-adapt-cyan/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
@@ -2184,11 +2189,25 @@ const ParentHubPage: React.FC = () => {
                         A parent-friendly review of wellbeing signals, school tasks, support tools, and the next
                         adult action. This is monitoring with consent and care, not surveillance.
                       </p>
+                      <p className="mt-3 text-xs font-bold text-slate-500 dark:text-gray-400">
+                        Generated {reviewGeneratedAt}
+                        {currentChild.buddyId ? ` · Buddy ID ${currentChild.buddyId}` : ''}
+                      </p>
                     </div>
-                    <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-xs font-black text-adapt-indigo shadow-sm dark:bg-gray-900 dark:text-adapt-cyan">
-                      <ShieldCheck className="h-4 w-4" aria-hidden />
-                      Parent-approved view
-                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-xs font-black text-adapt-indigo shadow-sm dark:bg-gray-900 dark:text-adapt-cyan">
+                        <ShieldCheck className="h-4 w-4" aria-hidden />
+                        Parent-approved view
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="adaptbuddy-no-print inline-flex items-center gap-2 rounded-full bg-adapt-navy px-4 py-2 text-xs font-black text-white shadow-sm transition hover:bg-adapt-purple dark:bg-adapt-cyan dark:text-gray-950"
+                      >
+                        <Printer className="h-4 w-4" aria-hidden />
+                        Print review
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

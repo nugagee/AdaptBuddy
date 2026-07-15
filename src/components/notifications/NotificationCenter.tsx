@@ -103,7 +103,7 @@ const NotificationCenter: React.FC = () => {
           item.id === notification.id ? { ...item, status } : item,
         ),
       );
-      if (status === 'responded' || status === 'resolved') {
+      if (status === 'responded' || status === 'resolved' || notification.sourceType === 'adult_response') {
         setNotifications((current) => current.filter((item) => item.id !== notification.id));
       }
     } catch (statusError: unknown) {
@@ -180,6 +180,13 @@ const NotificationCenter: React.FC = () => {
               notifications.map((notification) => {
                 const busyPrefix = `${notification.id}:`;
                 const isBusy = Boolean(busyId?.startsWith(busyPrefix));
+                const availableStatusButtons = statusButtons.filter((button) => {
+                  if (notification.allowedStatuses) {
+                    return notification.allowedStatuses.includes(button.status);
+                  }
+                  if (notification.canResolve) return true;
+                  return button.status === 'seen' || button.status === 'escalated';
+                });
 
                 return (
                   <article
@@ -219,7 +226,7 @@ const NotificationCenter: React.FC = () => {
                         {notification.actionLabel}
                         <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                       </Link>
-                      {statusButtons.map((button) => (
+                      {availableStatusButtons.map((button) => (
                         <button
                           key={button.status}
                           type="button"

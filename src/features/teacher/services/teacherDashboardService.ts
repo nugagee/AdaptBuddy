@@ -167,6 +167,13 @@ export interface TeacherCareMeeting {
   createdAt: string;
 }
 
+export interface CreateTeacherCareMeetingInput {
+  childId: string;
+  urgency: TeacherMeetingUrgency;
+  agenda: string[];
+  notes?: string;
+}
+
 export interface TeacherVisibilitySettings {
   childName: boolean;
   neuroProfile: boolean;
@@ -561,18 +568,35 @@ const mapAssignment = (
 const mapSignal = (
   row: JournalEntryRow,
   profiles: Map<string, ProfileRow>,
+  visibility: TeacherVisibilitySettings = defaultVisibilitySettings,
 ): TeacherSupportSignal => ({
   id: row.id,
   childId: row.child_id,
-  childName: getProfileName(profiles.get(row.child_id)),
+  childName: visibility.childName ? getProfileName(profiles.get(row.child_id)) : 'Learner',
   emotion: row.emotion || getAnalysisString(row.ai_analysis, ['emotion']) || 'check-in',
   signalLabel: getAnalysisString(row.ai_analysis, ['signalLabel', 'signal_label']),
   signalCategory: getAnalysisString(row.ai_analysis, ['signalCategory', 'signal_category']),
   supportLevel: getAnalysisString(row.ai_analysis, ['supportLevel', 'support_level']),
-  text: row.text ?? '',
   riskLevel: normalizeRiskLevel(row.risk_level || getAnalysisString(row.ai_analysis, ['riskLevel', 'risk_level'])),
+  text: '',
   createdAt: row.created_at,
 });
+
+const withVisibleSignalText = (
+  signal: TeacherSupportSignal,
+  row: JournalEntryRow,
+  visibility: TeacherVisibilitySettings,
+): TeacherSupportSignal => {
+  const canShowText =
+    visibility.worryDiaryText
+    || visibility.dailyMood === 'full'
+    || (signal.riskLevel === 'high' && visibility.safeguardingAlerts);
+
+  return {
+    ...signal,
+    text: canShowText ? row.text ?? '' : '',
+  };
+};
 
 const getVisibleChildName = (
   childId: string,
@@ -860,6 +884,35 @@ export class TeacherDashboardService {
     if (error) throw error;
   }
 
+  static async requestCareMeeting(input: CreateTeacherCareMeetingInput): Promise<void> {
+    if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+    if (!input.childId) throw new Error('Choose a learner first.');
+    if (input.agenda.length === 0) throw new Error('Add at least one meeting point.');
+
+    const client = getSupabaseClient();
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError) throw userError;
+    const userId = userData.user?.id;
+    if (!userId) throw new Error('Please sign in with a teacher account to request meetings.');
+
+    const { error } = await client
+      .from('care_meetings')
+      .insert({
+        child_id: input.childId,
+        requested_by: userId,
+        assigned_to: userId,
+        meeting_type: 'teacher_signal_review',
+        status: 'requested',
+        urgency: input.urgency,
+        proposed_times: [],
+        agenda: input.agenda,
+        notes: input.notes?.trim() || null,
+        action_items: [],
+      });
+
+    if (error) throw error;
+  }
+
   static async getDashboardSummary(): Promise<TeacherDashboardSummary> {
     if (!isSupabaseConfigured) return this.getGuestSummary();
 
@@ -918,7 +971,7 @@ export class TeacherDashboardService {
       ]),
     );
     const [signals, submissionRows, familyMessages, careMeetings] = await Promise.all([
-      this.getLiveSignals(signalChildIds, profiles),
+      this.getLiveSignals(signalChildIds, profiles, visibilityByChild),
       this.getSubmissionRows(assignmentRows.map((assignment) => assignment.id)),
       this.getFamilyMessages(signalChildIds, teacherId, profiles, visibilityByChild),
       this.getCareMeetings(signalChildIds, profiles, visibilityByChild),
@@ -1096,6 +1149,7 @@ export class TeacherDashboardService {
   private static async getLiveSignals(
     childIds: string[],
     profiles: Map<string, ProfileRow>,
+    visibilityByChild: Map<string, TeacherVisibilitySettings>,
   ): Promise<TeacherSupportSignal[]> {
     if (childIds.length === 0) return [];
 
@@ -1108,7 +1162,21 @@ export class TeacherDashboardService {
       .limit(20);
 
     if (error) throw error;
-    return ((data ?? []) as JournalEntryRow[]).map((row) => mapSignal(row, profiles));
+    return ((data ?? []) as JournalEntryRow[])
+      .map((row) => {
+        const visibility = visibilityByChild.get(row.child_id) ?? defaultVisibilitySettings;
+        return withVisibleSignalText(mapSignal(row, profiles, visibility), row, visibility);
+      })
+      .filter((signal) => {
+        const visibility = visibilityByChild.get(signal.childId) ?? defaultVisibilitySettings;
+        const concernNeedsSafeguarding =
+          signal.riskLevel === 'high'
+          || signal.supportLevel === 'urgent'
+          || signal.signalLabel?.toLowerCase().includes('help');
+
+        if (concernNeedsSafeguarding) return visibility.safeguardingAlerts || visibility.dailyMood !== 'hidden';
+        return visibility.dailyMood !== 'hidden';
+      });
   }
 
   private static async getFamilyMessages(

@@ -282,11 +282,14 @@
     visibility: hidden !important;
   }
 
+  .adaptbuddy-report-print,
+  .adaptbuddy-report-print *,
   .adaptbuddy-parent-review-print,
   .adaptbuddy-parent-review-print * {
     visibility: visible !important;
   }
 
+  .adaptbuddy-report-print,
   .adaptbuddy-parent-review-print {
     left: 0 !important;
     position: absolute !important;
@@ -294,12 +297,16 @@
     width: 100% !important;
   }
 
+  .adaptbuddy-report-print section,
+  .adaptbuddy-report-print article,
+  .adaptbuddy-report-print div,
   .adaptbuddy-parent-review-print section,
   .adaptbuddy-parent-review-print article,
   .adaptbuddy-parent-review-print div {
     break-inside: avoid;
   }
 
+  .adaptbuddy-report-print .adaptbuddy-no-print,
   .adaptbuddy-parent-review-print .adaptbuddy-no-print {
     display: none !important;
   }

@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   BarChart3,
   CheckCircle2,
+  Download,
   FileText,
   Loader2,
   Printer,
@@ -31,6 +32,29 @@ const supportLabel = (value: string): string =>
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
+
+const escapeCsvValue = (value: string | number | null | undefined): string => {
+  const text = value === null || value === undefined ? '' : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+};
+
+const downloadTextFile = (filename: string, contents: string, mimeType: string) => {
+  const blob = new Blob([contents], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
+const slugify = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'class-report';
 
 type ReportRange = 'this_week' | 'last_week' | 'all';
 
@@ -181,6 +205,77 @@ const Reports: React.FC = () => {
     0,
   );
   const assigned = classAssignments.reduce((total, assignment) => total + assignment.progress.assignedCount, 0);
+  const reportGeneratedAt = new Intl.DateTimeFormat('en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date());
+
+  const handleExportCsv = () => {
+    if (!selectedClass) {
+      setError('Choose a class before exporting a report.');
+      return;
+    }
+
+    const headers = [
+      'Class',
+      'Range',
+      'Assignment',
+      'Learner',
+      'Buddy ID',
+      'Neurotypes',
+      'Status',
+      'Mood after task',
+      'Support used',
+      'Updated at',
+    ];
+    const rows = classAssignments.flatMap((assignment) => {
+      if (assignment.learnerProgress.length === 0) {
+        return [[
+          selectedClass.className,
+          rangeLabels[selectedRange],
+          assignment.title,
+          '',
+          '',
+          '',
+          'not_started',
+          '',
+          assignment.supportTools.map(supportLabel).join('; '),
+          assignment.createdAt,
+        ]];
+      }
+
+      return assignment.learnerProgress.map((learner) => [
+        selectedClass.className,
+        rangeLabels[selectedRange],
+        assignment.title,
+        learner.childName,
+        learner.buddyId ?? '',
+        learner.neurotypes.join('; '),
+        learner.status,
+        learner.moodAfterTask ?? '',
+        learner.supportUsed.map(supportLabel).join('; '),
+        learner.updatedAt ?? assignment.createdAt,
+      ]);
+    });
+
+    const csv = [
+      ['AdaptBuddy teacher class support report'],
+      [`Generated: ${reportGeneratedAt}`],
+      [`Class: ${selectedClass.className}`],
+      [`Range: ${rangeLabels[selectedRange]}`],
+      [],
+      headers,
+      ...rows,
+    ]
+      .map((row) => row.map(escapeCsvValue).join(','))
+      .join('\n');
+
+    downloadTextFile(
+      `${slugify(selectedClass.className)}-${selectedRange}-support-report.csv`,
+      csv,
+      'text/csv;charset=utf-8',
+    );
+  };
 
   if (loading) {
     return (
@@ -193,8 +288,11 @@ const Reports: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 px-4 py-6 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <TeacherHubNav />
+        <div className="adaptbuddy-no-print">
+          <TeacherHubNav />
+        </div>
 
+        <section className="adaptbuddy-report-print space-y-6">
         <header className="rounded-3xl border border-white/70 bg-white/85 p-6 shadow-card dark:border-gray-800 dark:bg-gray-900/80">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -208,8 +306,21 @@ const Reports: React.FC = () => {
                 Privacy-aware reports built from assignments, learner progress, support tools, and parent-approved
                 visibility.
               </p>
+              <p className="mt-3 text-xs font-bold text-slate-500 dark:text-gray-400">
+                Generated {reportGeneratedAt}
+                {selectedClass ? ` · ${selectedClass.className} · ${rangeLabels[selectedRange]}` : ''}
+              </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="adaptbuddy-no-print flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                disabled={!selectedClass}
+                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+              >
+                <Download className="h-4 w-4" aria-hidden />
+                Export CSV
+              </button>
               <button
                 type="button"
                 onClick={() => window.print()}
@@ -232,12 +343,12 @@ const Reports: React.FC = () => {
         </header>
 
         {error && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+          <div className="adaptbuddy-no-print rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
             {error}
           </div>
         )}
 
-        <section className="grid gap-4 rounded-3xl border border-white/70 bg-white/85 p-5 shadow-soft dark:border-gray-800 dark:bg-gray-900/80 md:grid-cols-2">
+        <section className="adaptbuddy-no-print grid gap-4 rounded-3xl border border-white/70 bg-white/85 p-5 shadow-soft dark:border-gray-800 dark:bg-gray-900/80 md:grid-cols-2">
           <label className="text-sm font-black text-adapt-navy dark:text-gray-100" htmlFor="report-class">
             Select class
             <select
@@ -362,6 +473,7 @@ const Reports: React.FC = () => {
               </p>
             </div>
           </aside>
+        </section>
         </section>
       </div>
     </div>

@@ -31,6 +31,7 @@ import ForgotPasswordPage from 'pages/ForgotPasswordPage';
 import AdminLoginPage from 'features/admin/pages/AdminLoginPage';
 import AdminDashboardPage from 'features/admin/pages/AdminDashboardPage';
 import AdminUsersPage from 'features/admin/pages/AdminUsersPage';
+import AdminAuditPage from 'features/admin/pages/AdminAuditPage';
 import AdminSettingsPage from 'features/admin/pages/AdminSettingsPage';
 import RequireAdminRoute from 'features/admin/components/RequireAdminRoute';
 
@@ -67,6 +68,7 @@ const AppRoutes: React.FC = () => (
     <Route path={ROUTES.ADMIN_LOGIN} element={<AdminLoginPage />} />
     <Route path={ROUTES.ADMIN_DASHBOARD} element={withAdmin(<AdminDashboardPage />)} />
     <Route path={ROUTES.ADMIN_USERS} element={withAdmin(<AdminUsersPage />)} />
+    <Route path={ROUTES.ADMIN_AUDIT} element={withAdmin(<AdminAuditPage />)} />
     <Route path={ROUTES.ADMIN_SETTINGS} element={withAdmin(<AdminSettingsPage />)} />
     <Route path={ROUTES.NEURO_SELECTOR} element={withAuth(<NeuroSelectorPage />)} />
     <Route path={ROUTES.COMPANION_ONBOARDING} element={withAuth(<CompanionOnboardingPage />)} />

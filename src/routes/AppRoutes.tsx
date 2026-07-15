@@ -19,6 +19,7 @@ import TeacherDashboard from 'features/teacher/components/TeacherDashboard';
 import Classes from 'features/teacher/components/Classes';
 import Students from 'features/teacher/components/Students';
 import Assignments from 'features/teacher/components/Assignments';
+import Messages from 'features/teacher/components/Messages';
 import Reports from 'features/teacher/components/Reports';
 import Settings from 'features/teacher/components/Settings';
 import RequireTeacherRoute from 'features/teacher/components/RequireTeacherRoute';
@@ -80,6 +81,7 @@ const AppRoutes: React.FC = () => (
     <Route path={ROUTES.TEACHER_CLASSES} element={withTeacherAuth(<Classes />)} />
     <Route path={ROUTES.TEACHER_STUDENTS} element={withTeacherAuth(<Students />)} />
     <Route path={ROUTES.TEACHER_ASSIGNMENTS} element={withTeacherAuth(<Assignments />)} />
+    <Route path={ROUTES.TEACHER_MESSAGES} element={withTeacherAuth(<Messages />)} />
     <Route path={ROUTES.TEACHER_REPORTS} element={withTeacherAuth(<Reports />)} />
     <Route path={ROUTES.TEACHER_SETTINGS} element={withTeacherAuth(<Settings />)} />
     <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />

@@ -1793,14 +1793,30 @@ export class ParentDashboardService {
   private static async getTeacherClassRequestsForChildren(childIds: string[]): Promise<TeacherClassRequest[]> {
     if (!isSupabaseConfigured || childIds.length === 0) return [];
 
-    const { data, error } = await getSupabaseClient().rpc('parent_teacher_class_requests', {
+    const { data, error } = await getSupabaseClient().rpc('parent_teacher_class_requests_audit', {
       p_child_ids: childIds,
     });
 
     if (error) {
       if (isSchemaUnavailableError(error)) {
-        logOptionalTableWarning('parent_teacher_class_requests', error);
-        return [];
+        logOptionalTableWarning('parent_teacher_class_requests_audit', error);
+
+        const { data: fallbackData, error: fallbackError } = await getSupabaseClient().rpc(
+          'parent_teacher_class_requests',
+          {
+            p_child_ids: childIds,
+          },
+        );
+
+        if (fallbackError) {
+          if (isSchemaUnavailableError(fallbackError)) {
+            logOptionalTableWarning('parent_teacher_class_requests', fallbackError);
+            return [];
+          }
+          throw fallbackError;
+        }
+
+        return ((fallbackData ?? []) as ParentTeacherClassRequestRpcRow[]).map(mapParentTeacherClassRequest);
       }
       throw error;
     }

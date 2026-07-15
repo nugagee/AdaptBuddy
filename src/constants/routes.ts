@@ -26,5 +26,6 @@ export const ROUTES = {
   ADMIN_LOGIN: '/admin/login',
   ADMIN_DASHBOARD: '/admin',
   ADMIN_USERS: '/admin/users',
+  ADMIN_AUDIT: '/admin/audit',
   ADMIN_SETTINGS: '/admin/settings',
 } as const;

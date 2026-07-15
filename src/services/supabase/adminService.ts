@@ -337,3 +337,620 @@ export async function fetchAdminAnalyticsSafe(): Promise<AdminAnalytics> {
     return computeAnalyticsFromProfiles(users);
   }
 }
+
+export type AdminVisibilityMoodLevel = 'hidden' | 'summary' | 'full';
+
+export interface AdminTeacherVisibilitySettings {
+  childName: boolean;
+  neuroProfile: boolean;
+  dailyMood: AdminVisibilityMoodLevel;
+  worryDiaryText: boolean;
+  safeguardingAlerts: boolean;
+  academicTasks: boolean;
+  personalNotes: boolean;
+}
+
+export interface AdminVisibilitySummary {
+  activeMemberships: number;
+  nameShared: number;
+  nameHidden: number;
+  neuroProfileShared: number;
+  moodSummaryShared: number;
+  moodFullyShared: number;
+  journalTextShared: number;
+  safeguardingHidden: number;
+  academicTasksShared: number;
+}
+
+export interface AdminSchoolRequestAudit {
+  id: string;
+  childId: string;
+  childName: string;
+  buddyId: string;
+  teacherName: string;
+  teacherEmail: string;
+  className: string;
+  schoolName: string;
+  classCode: string;
+  status: string;
+  requestMethod: string;
+  parentApproved: boolean;
+  teacherApproved: boolean;
+  visibility: AdminTeacherVisibilitySettings;
+  requestedAt: string;
+  teacherApprovedAt: string | null;
+  parentApprovedAt: string | null;
+  approvedAt: string | null;
+  declinedAt: string | null;
+}
+
+export interface AdminSafeguardingAlertAudit {
+  id: string;
+  childId: string;
+  childName: string;
+  buddyId: string;
+  riskLevel: string;
+  acknowledged: boolean;
+  createdAt: string;
+  source: string;
+}
+
+export interface AdminJournalSignalAudit {
+  id: string;
+  childId: string;
+  childName: string;
+  buddyId: string;
+  emotion: string;
+  riskLevel: string;
+  shared: boolean;
+  excerpt: string;
+  createdAt: string;
+}
+
+export interface AdminCommunicationAudit {
+  id: string;
+  childName: string;
+  buddyId: string;
+  senderName: string;
+  recipientName: string;
+  urgency: string;
+  summary: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface AdminCareMeetingAudit {
+  id: string;
+  childName: string;
+  buddyId: string;
+  requestedBy: string;
+  assignedTo: string;
+  meetingType: string;
+  status: string;
+  urgency: string;
+  scheduledAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminAssignmentAudit {
+  id: string;
+  title: string;
+  className: string;
+  schoolName: string;
+  teacherName: string;
+  assigned: number;
+  notStarted: number;
+  inProgress: number;
+  needsHelp: number;
+  completed: number;
+  submitted: number;
+  dueAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminAuditSnapshot {
+  generatedAt: string;
+  metrics: {
+    schoolRequestsPending: number;
+    activeSchoolLinks: number;
+    unresolvedAlerts: number;
+    highRiskAlerts: number;
+    sharedJournalSignals: number;
+    urgentMessages: number;
+    openMeetings: number;
+    assignmentsNeedingHelp: number;
+    visibilityExceptions: number;
+  };
+  visibilitySummary: AdminVisibilitySummary;
+  schoolRequests: AdminSchoolRequestAudit[];
+  safeguardingAlerts: AdminSafeguardingAlertAudit[];
+  journalSignals: AdminJournalSignalAudit[];
+  communications: AdminCommunicationAudit[];
+  careMeetings: AdminCareMeetingAudit[];
+  assignments: AdminAssignmentAudit[];
+  dataSources: Record<string, boolean>;
+  notes: string[];
+}
+
+interface DbErrorLike {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+}
+
+interface DbResultLike {
+  data: unknown;
+  error: DbErrorLike | null;
+}
+
+interface TeacherClassAuditRow {
+  id?: string;
+  teacher_id?: string;
+  school_name?: string;
+  class_name?: string;
+  class_code?: string;
+  subject?: string;
+  year_group?: string;
+  created_at?: string;
+}
+
+interface ClassJoinRequestAuditRow {
+  id?: string;
+  class_id?: string;
+  child_id?: string;
+  requested_by?: string;
+  request_method?: string;
+  requested_buddy_id?: string;
+  status?: string;
+  parent_approved?: boolean;
+  teacher_approved?: boolean;
+  visibility_settings?: unknown;
+  teacher_approved_at?: string | null;
+  parent_approved_at?: string | null;
+  approved_at?: string | null;
+  declined_at?: string | null;
+  created_at?: string;
+}
+
+interface ClassMembershipAuditRow {
+  id?: string;
+  class_id?: string;
+  child_id?: string;
+  teacher_id?: string;
+  visibility_settings?: unknown;
+  status?: string;
+  joined_at?: string;
+}
+
+interface AlertAuditRow {
+  id?: string;
+  child_id?: string;
+  risk_level?: string;
+  acknowledged_at?: string | null;
+  acknowledged_by?: string | null;
+  created_at?: string;
+  journal_entry_id?: string | null;
+}
+
+interface JournalAuditRow {
+  id?: string;
+  child_id?: string;
+  emotion?: string;
+  text?: string;
+  risk_level?: string;
+  is_shared?: boolean;
+  created_at?: string;
+}
+
+interface ParentTeacherMessageAuditRow {
+  id?: string;
+  child_id?: string;
+  sender_id?: string;
+  recipient_id?: string | null;
+  body?: string;
+  urgency?: string;
+  ai_summary?: string | null;
+  read_at?: string | null;
+  created_at?: string;
+}
+
+interface CareMeetingAuditRow {
+  id?: string;
+  child_id?: string;
+  requested_by?: string;
+  assigned_to?: string | null;
+  meeting_type?: string;
+  status?: string;
+  urgency?: string;
+  scheduled_at?: string | null;
+  created_at?: string;
+}
+
+interface TeacherAssignmentAuditRow {
+  id?: string;
+  class_id?: string;
+  teacher_id?: string;
+  title?: string;
+  due_at?: string | null;
+  created_at?: string;
+}
+
+interface AssignmentSubmissionAuditRow {
+  id?: string;
+  assignment_id?: string;
+  child_id?: string;
+  status?: string;
+  support_used?: string[];
+  mood_after_task?: string | null;
+  submitted_at?: string | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function asString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function asBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function normalizeVisibilitySettings(value: unknown): AdminTeacherVisibilitySettings {
+  const raw = isRecord(value) ? value : {};
+  const legacyMoodSummary = raw.show_mood_summary ?? raw.showMoodSummary;
+  const moodValue = asString(raw.dailyMood, '');
+  const dailyMood: AdminVisibilityMoodLevel =
+    moodValue === 'hidden' || moodValue === 'summary' || moodValue === 'full'
+      ? moodValue
+      : legacyMoodSummary === false
+        ? 'hidden'
+        : 'summary';
+
+  return {
+    childName: asBoolean(raw.childName ?? raw.show_name ?? raw.showName, false),
+    neuroProfile: asBoolean(raw.neuroProfile ?? raw.show_neurotypes ?? raw.showNeurotypes, false),
+    dailyMood,
+    worryDiaryText: asBoolean(raw.worryDiaryText ?? raw.show_journal ?? raw.showJournal, false),
+    safeguardingAlerts: asBoolean(raw.safeguardingAlerts, true),
+    academicTasks: asBoolean(raw.academicTasks, true),
+    personalNotes: asBoolean(raw.personalNotes, false),
+  };
+}
+
+function profileDisplayName(profile: Profile | undefined, fallback = 'Unknown'): string {
+  if (!profile) return fallback;
+  const fullName = asString(profile.full_name);
+  if (fullName) return fullName;
+  const composed = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+  if (composed) return composed;
+  return asString(profile.child_name, asString(profile.email, fallback));
+}
+
+function profileBuddyId(profile: Profile | undefined): string {
+  return asString(profile?.buddy_id, 'No Buddy ID');
+}
+
+function excerpt(value: unknown, maxLength = 110): string {
+  const text = asString(value, 'No shared text.');
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
+async function readAuditRows<T>(
+  source: string,
+  query: PromiseLike<DbResultLike>,
+  dataSources: Record<string, boolean>,
+  notes: string[],
+): Promise<T[]> {
+  try {
+    const { data, error } = await query;
+    if (error) {
+      dataSources[source] = false;
+      notes.push(`${source}: ${error.message ?? 'not available'}`);
+      return [];
+    }
+
+    dataSources[source] = true;
+    return Array.isArray(data) ? (data as T[]) : [];
+  } catch (err: unknown) {
+    dataSources[source] = false;
+    notes.push(`${source}: ${err instanceof Error ? err.message : 'not available'}`);
+    return [];
+  }
+}
+
+export async function fetchAdminAuditSnapshot(): Promise<AdminAuditSnapshot> {
+  const client = getSupabaseClient();
+  const notes: string[] = [];
+  const dataSources: Record<string, boolean> = {};
+
+  const [analytics, users] = await Promise.all([
+    fetchAdminAnalyticsSafe().catch((err: unknown) => {
+      notes.push(`analytics: ${err instanceof Error ? err.message : 'not available'}`);
+      return normalizeAnalytics(null);
+    }),
+    fetchAllUsers().catch((err: unknown) => {
+      notes.push(`profiles: ${err instanceof Error ? err.message : 'not available'}`);
+      return [] as Profile[];
+    }),
+  ]);
+
+  const profileMap = new Map(users.map((user) => [user.id, user]));
+
+  const [
+    classes,
+    requests,
+    memberships,
+    alerts,
+    journalEntries,
+    messages,
+    meetings,
+    assignments,
+    submissions,
+  ] = await Promise.all([
+    readAuditRows<TeacherClassAuditRow>(
+      'teacher_classes',
+      client.from('teacher_classes').select('*').order('created_at', { ascending: false }).limit(80),
+      dataSources,
+      notes,
+    ),
+    readAuditRows<ClassJoinRequestAuditRow>(
+      'class_join_requests',
+      client.from('class_join_requests').select('*').order('created_at', { ascending: false }).limit(80),
+      dataSources,
+      notes,
+    ),
+    readAuditRows<ClassMembershipAuditRow>(
+      'class_memberships',
+      client.from('class_memberships').select('*').order('joined_at', { ascending: false }).limit(120),
+      dataSources,
+      notes,
+    ),
+    readAuditRows<AlertAuditRow>(
+      'alerts',
+      client.from('alerts').select('*').order('created_at', { ascending: false }).limit(50),
+      dataSources,
+      notes,
+    ),
+    readAuditRows<JournalAuditRow>(
+      'journal_entries',
+      client.from('journal_entries').select('*').order('created_at', { ascending: false }).limit(50),
+      dataSources,
+      notes,
+    ),
+    readAuditRows<ParentTeacherMessageAuditRow>(
+      'parent_teacher_messages',
+      client.from('parent_teacher_messages').select('*').order('created_at', { ascending: false }).limit(50),
+      dataSources,
+      notes,
+    ),
+    readAuditRows<CareMeetingAuditRow>(
+      'care_meetings',
+      client.from('care_meetings').select('*').order('created_at', { ascending: false }).limit(50),
+      dataSources,
+      notes,
+    ),
+    readAuditRows<TeacherAssignmentAuditRow>(
+      'teacher_assignments',
+      client.from('teacher_assignments').select('*').order('created_at', { ascending: false }).limit(80),
+      dataSources,
+      notes,
+    ),
+    readAuditRows<AssignmentSubmissionAuditRow>(
+      'assignment_submissions',
+      client.from('assignment_submissions').select('*').order('updated_at', { ascending: false }).limit(200),
+      dataSources,
+      notes,
+    ),
+  ]);
+
+  const classMap = new Map(classes.map((row) => [asString(row.id), row]));
+  const submissionsByAssignment = submissions.reduce<Record<string, AssignmentSubmissionAuditRow[]>>(
+    (acc, submission) => {
+      const assignmentId = asString(submission.assignment_id);
+      if (!assignmentId) return acc;
+      acc[assignmentId] = [...(acc[assignmentId] ?? []), submission];
+      return acc;
+    },
+    {},
+  );
+  const membershipsByClass = memberships.reduce<Record<string, ClassMembershipAuditRow[]>>(
+    (acc, membership) => {
+      const classId = asString(membership.class_id);
+      if (!classId || membership.status !== 'active') return acc;
+      acc[classId] = [...(acc[classId] ?? []), membership];
+      return acc;
+    },
+    {},
+  );
+
+  const activeMemberships = memberships.filter((membership) => membership.status === 'active');
+  const visibilitySummary = activeMemberships.reduce<AdminVisibilitySummary>(
+    (summary, membership) => {
+      const visibility = normalizeVisibilitySettings(membership.visibility_settings);
+      summary.activeMemberships += 1;
+      if (visibility.childName) summary.nameShared += 1;
+      else summary.nameHidden += 1;
+      if (visibility.neuroProfile) summary.neuroProfileShared += 1;
+      if (visibility.dailyMood === 'summary') summary.moodSummaryShared += 1;
+      if (visibility.dailyMood === 'full') summary.moodFullyShared += 1;
+      if (visibility.worryDiaryText) summary.journalTextShared += 1;
+      if (!visibility.safeguardingAlerts) summary.safeguardingHidden += 1;
+      if (visibility.academicTasks) summary.academicTasksShared += 1;
+      return summary;
+    },
+    {
+      activeMemberships: 0,
+      nameShared: 0,
+      nameHidden: 0,
+      neuroProfileShared: 0,
+      moodSummaryShared: 0,
+      moodFullyShared: 0,
+      journalTextShared: 0,
+      safeguardingHidden: 0,
+      academicTasksShared: 0,
+    },
+  );
+
+  const schoolRequests: AdminSchoolRequestAudit[] = requests.map((request) => {
+    const classRow = classMap.get(asString(request.class_id));
+    const child = profileMap.get(asString(request.child_id));
+    const teacher = profileMap.get(asString(classRow?.teacher_id ?? request.requested_by));
+
+    return {
+      id: asString(request.id),
+      childId: asString(request.child_id),
+      childName: profileDisplayName(child, 'Learner'),
+      buddyId: profileBuddyId(child),
+      teacherName: profileDisplayName(teacher, 'Teacher'),
+      teacherEmail: asString(teacher?.email, 'No email'),
+      className: asString(classRow?.class_name, 'Class'),
+      schoolName: asString(classRow?.school_name, 'School not set'),
+      classCode: asString(classRow?.class_code, 'No code'),
+      status: asString(request.status, 'pending'),
+      requestMethod: asString(request.request_method, 'buddy_id'),
+      parentApproved: request.parent_approved === true,
+      teacherApproved: request.teacher_approved === true,
+      visibility: normalizeVisibilitySettings(request.visibility_settings),
+      requestedAt: asString(request.created_at),
+      teacherApprovedAt: request.teacher_approved_at ?? null,
+      parentApprovedAt: request.parent_approved_at ?? null,
+      approvedAt: request.approved_at ?? null,
+      declinedAt: request.declined_at ?? null,
+    };
+  });
+
+  const safeguardingAlerts: AdminSafeguardingAlertAudit[] = alerts.map((alert) => {
+    const child = profileMap.get(asString(alert.child_id));
+    return {
+      id: asString(alert.id),
+      childId: asString(alert.child_id),
+      childName: profileDisplayName(child, 'Learner'),
+      buddyId: profileBuddyId(child),
+      riskLevel: asString(alert.risk_level, 'medium'),
+      acknowledged: Boolean(alert.acknowledged_at || alert.acknowledged_by),
+      createdAt: asString(alert.created_at),
+      source: alert.journal_entry_id ? 'journal' : 'support signal',
+    };
+  });
+
+  const journalSignals: AdminJournalSignalAudit[] = journalEntries.map((entry) => {
+    const child = profileMap.get(asString(entry.child_id));
+    return {
+      id: asString(entry.id),
+      childId: asString(entry.child_id),
+      childName: profileDisplayName(child, 'Learner'),
+      buddyId: profileBuddyId(child),
+      emotion: asString(entry.emotion, 'signal'),
+      riskLevel: asString(entry.risk_level, 'low'),
+      shared: entry.is_shared !== false,
+      excerpt: excerpt(entry.text),
+      createdAt: asString(entry.created_at),
+    };
+  });
+
+  const communications: AdminCommunicationAudit[] = messages.map((message) => {
+    const child = profileMap.get(asString(message.child_id));
+    const sender = profileMap.get(asString(message.sender_id));
+    const recipient = profileMap.get(asString(message.recipient_id));
+    return {
+      id: asString(message.id),
+      childName: profileDisplayName(child, 'Learner'),
+      buddyId: profileBuddyId(child),
+      senderName: profileDisplayName(sender, 'Sender'),
+      recipientName: profileDisplayName(recipient, 'Family or school'),
+      urgency: asString(message.urgency, 'normal'),
+      summary: excerpt(message.ai_summary || message.body, 120),
+      read: Boolean(message.read_at),
+      createdAt: asString(message.created_at),
+    };
+  });
+
+  const careMeetings: AdminCareMeetingAudit[] = meetings.map((meeting) => {
+    const child = profileMap.get(asString(meeting.child_id));
+    const requestedBy = profileMap.get(asString(meeting.requested_by));
+    const assignedTo = profileMap.get(asString(meeting.assigned_to));
+    return {
+      id: asString(meeting.id),
+      childName: profileDisplayName(child, 'Learner'),
+      buddyId: profileBuddyId(child),
+      requestedBy: profileDisplayName(requestedBy, 'Requester'),
+      assignedTo: profileDisplayName(assignedTo, 'Not assigned'),
+      meetingType: asString(meeting.meeting_type, 'parent_teacher'),
+      status: asString(meeting.status, 'requested'),
+      urgency: asString(meeting.urgency, 'routine'),
+      scheduledAt: meeting.scheduled_at ?? null,
+      createdAt: asString(meeting.created_at),
+    };
+  });
+
+  const assignmentAudits: AdminAssignmentAudit[] = assignments.map((assignment) => {
+    const assignmentId = asString(assignment.id);
+    const classRow = classMap.get(asString(assignment.class_id));
+    const teacher = profileMap.get(asString(classRow?.teacher_id ?? assignment.teacher_id));
+    const classMemberships = membershipsByClass[asString(assignment.class_id)] ?? [];
+    const assignmentSubmissions = submissionsByAssignment[assignmentId] ?? [];
+    const statusCounts = assignmentSubmissions.reduce<Record<string, number>>((acc, submission) => {
+      const status = asString(submission.status, 'not_started');
+      acc[status] = (acc[status] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    const assigned = Math.max(classMemberships.length, assignmentSubmissions.length);
+    const started =
+      (statusCounts.in_progress ?? 0) +
+      (statusCounts.needs_help ?? 0) +
+      (statusCounts.completed ?? 0) +
+      (statusCounts.submitted ?? 0);
+
+    return {
+      id: assignmentId,
+      title: asString(assignment.title, 'Untitled assignment'),
+      className: asString(classRow?.class_name, 'Class'),
+      schoolName: asString(classRow?.school_name, 'School not set'),
+      teacherName: profileDisplayName(teacher, 'Teacher'),
+      assigned,
+      notStarted: Math.max(assigned - started, 0),
+      inProgress: statusCounts.in_progress ?? 0,
+      needsHelp: statusCounts.needs_help ?? 0,
+      completed: statusCounts.completed ?? 0,
+      submitted: statusCounts.submitted ?? 0,
+      dueAt: assignment.due_at ?? null,
+      createdAt: asString(assignment.created_at),
+    };
+  });
+
+  const schoolRequestsPending = schoolRequests.filter((request) =>
+    ['pending', 'pending_parent', 'pending_teacher'].includes(request.status),
+  ).length;
+  const unresolvedAlerts = safeguardingAlerts.filter((alert) => !alert.acknowledged).length;
+  const highRiskAlerts = safeguardingAlerts.filter(
+    (alert) => !alert.acknowledged && alert.riskLevel === 'high',
+  ).length;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    metrics: {
+      schoolRequestsPending,
+      activeSchoolLinks: visibilitySummary.activeMemberships,
+      unresolvedAlerts,
+      highRiskAlerts,
+      sharedJournalSignals: analytics.shared_journal_entries || journalSignals.filter((signal) => signal.shared).length,
+      urgentMessages: communications.filter((message) => message.urgency === 'urgent').length,
+      openMeetings: careMeetings.filter((meeting) => !['completed', 'cancelled'].includes(meeting.status)).length,
+      assignmentsNeedingHelp: assignmentAudits.reduce((sum, assignment) => sum + assignment.needsHelp, 0),
+      visibilityExceptions: visibilitySummary.journalTextShared + visibilitySummary.safeguardingHidden,
+    },
+    visibilitySummary,
+    schoolRequests,
+    safeguardingAlerts,
+    journalSignals,
+    communications,
+    careMeetings,
+    assignments: assignmentAudits,
+    dataSources,
+    notes,
+  };
+}

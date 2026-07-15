@@ -5,6 +5,7 @@ import {
   LogOut,
   Settings,
   Shield,
+  ShieldCheck,
   Users,
 } from 'lucide-react';
 import { useAuth } from 'hooks/useAuth';
@@ -14,6 +15,7 @@ import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
 const navItems = [
   { to: ROUTES.ADMIN_DASHBOARD, label: 'Overview', icon: LayoutDashboard },
   { to: ROUTES.ADMIN_USERS, label: 'Users', icon: Users },
+  { to: ROUTES.ADMIN_AUDIT, label: 'Audit', icon: ShieldCheck },
   { to: ROUTES.ADMIN_SETTINGS, label: 'Platform', icon: Settings },
 ];
 

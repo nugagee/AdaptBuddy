@@ -214,6 +214,16 @@ export interface TeacherClassRequest {
   parentApproved: boolean;
   teacherApproved: boolean;
   visibilitySettings: TeacherClassVisibilitySettings;
+  teacherApprovedBy?: string | null;
+  teacherApprovedAt?: string | null;
+  teacherApprovedByName?: string | null;
+  parentApprovedBy?: string | null;
+  parentApprovedAt?: string | null;
+  parentApprovedByName?: string | null;
+  approvedAt?: string | null;
+  declinedBy?: string | null;
+  declinedAt?: string | null;
+  declinedByName?: string | null;
   createdAt: string;
 }
 
@@ -519,6 +529,16 @@ interface ParentTeacherClassRequestRpcRow {
   parent_approved: boolean | null;
   teacher_approved: boolean | null;
   visibility_settings: unknown;
+  teacher_approved_by?: string | null;
+  teacher_approved_at?: string | null;
+  teacher_approved_by_name?: string | null;
+  parent_approved_by?: string | null;
+  parent_approved_at?: string | null;
+  parent_approved_by_name?: string | null;
+  approved_at?: string | null;
+  declined_by?: string | null;
+  declined_at?: string | null;
+  declined_by_name?: string | null;
   created_at: string;
 }
 
@@ -933,6 +953,16 @@ const mapParentTeacherClassRequest = (row: ParentTeacherClassRequestRpcRow): Tea
   parentApproved: row.parent_approved === true,
   teacherApproved: row.teacher_approved === true,
   visibilitySettings: normalizeTeacherVisibility(row.visibility_settings),
+  teacherApprovedBy: row.teacher_approved_by ?? null,
+  teacherApprovedAt: row.teacher_approved_at ?? null,
+  teacherApprovedByName: row.teacher_approved_by_name ?? null,
+  parentApprovedBy: row.parent_approved_by ?? null,
+  parentApprovedAt: row.parent_approved_at ?? null,
+  parentApprovedByName: row.parent_approved_by_name ?? null,
+  approvedAt: row.approved_at ?? null,
+  declinedBy: row.declined_by ?? null,
+  declinedAt: row.declined_at ?? null,
+  declinedByName: row.declined_by_name ?? null,
   createdAt: row.created_at,
 });
 

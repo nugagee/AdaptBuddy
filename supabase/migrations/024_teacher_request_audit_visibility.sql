@@ -2,6 +2,8 @@
 -- Exposes approval timeline fields to parent dashboards and sanitizes
 -- visibility JSON on parent approval so clients cannot add unknown keys.
 
+drop function if exists public.parent_teacher_class_requests(uuid[]);
+
 create or replace function public.parent_teacher_class_requests(
   p_child_ids uuid[] default null
 )

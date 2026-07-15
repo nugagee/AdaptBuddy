@@ -19,6 +19,7 @@ export const ROUTES = {
   TEACHER_CLASSES: '/teacher/classes',
   TEACHER_STUDENTS: '/teacher/students',
   TEACHER_ASSIGNMENTS: '/teacher/assignments',
+  TEACHER_SIGNALS: '/teacher/signals',
   TEACHER_MESSAGES: '/teacher/messages',
   TEACHER_REPORTS: '/teacher/reports',
   TEACHER_SETTINGS: '/teacher/settings',

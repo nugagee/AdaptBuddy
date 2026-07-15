@@ -2,12 +2,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   BarChart3,
+  Brain,
   CheckCircle2,
+  ClipboardCheck,
   Download,
   FileText,
+  HeartPulse,
   Loader2,
   Printer,
   RefreshCw,
+  ShieldCheck,
   Users,
 } from 'lucide-react';
 import TeacherHubNav from 'features/teacher/components/TeacherHubNav';
@@ -15,6 +19,8 @@ import {
   TeacherDashboardService,
   type TeacherAssignment,
   type TeacherDashboardSummary,
+  type TeacherStudent,
+  type TeacherSupportSignal,
 } from 'features/teacher/services/teacherDashboardService';
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
@@ -130,6 +136,94 @@ const getMoodSummary = (assignments: TeacherAssignment[]): string => {
   return top ? supportLabel(top[0]) : 'No mood check-ins yet';
 };
 
+const formatNeurotypes = (values: string[]): string =>
+  values.length
+    ? values
+        .slice(0, 4)
+        .map((value) => supportLabel(value))
+        .join(', ')
+    : 'Hidden or not set';
+
+const getSignalLabel = (signal: TeacherSupportSignal): string =>
+  signal.signalLabel || supportLabel(signal.emotion);
+
+const getSignalCategory = (signal: TeacherSupportSignal): string =>
+  supportLabel(signal.signalCategory || signal.supportLevel || 'wellbeing');
+
+const getLearnerAssignments = (assignments: TeacherAssignment[], childId: string) =>
+  assignments
+    .map((assignment) => ({
+      assignment,
+      progress: assignment.learnerProgress.find((learner) => learner.childId === childId),
+    }))
+    .filter((row) => row.progress);
+
+const getLearnerMostUsedSupport = (assignments: TeacherAssignment[], childId: string): string => {
+  const counts = new Map<string, number>();
+
+  getLearnerAssignments(assignments, childId).forEach(({ assignment, progress }) => {
+    const supports = progress?.supportUsed.length ? progress.supportUsed : assignment.supportTools;
+    supports.forEach((support) => counts.set(support, (counts.get(support) ?? 0) + 1));
+  });
+
+  const [top] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  return top ? supportLabel(top[0]) : 'Visual steps';
+};
+
+const getLearnerMoodSummary = (assignments: TeacherAssignment[], childId: string): string => {
+  const counts = new Map<string, number>();
+
+  getLearnerAssignments(assignments, childId).forEach(({ progress }) => {
+    if (progress?.moodAfterTask) {
+      counts.set(progress.moodAfterTask, (counts.get(progress.moodAfterTask) ?? 0) + 1);
+    }
+  });
+
+  const [top] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  return top ? supportLabel(top[0]) : 'No mood check-ins yet';
+};
+
+const getPlanRecommendations = (
+  student: TeacherStudent | null,
+  assignments: TeacherAssignment[],
+  signals: TeacherSupportSignal[],
+): string[] => {
+  const joinedSignals = signals
+    .map((signal) => `${signal.signalLabel ?? ''} ${signal.signalCategory ?? ''} ${signal.emotion} ${signal.text}`)
+    .join(' ')
+    .toLowerCase();
+  const supports = getLearnerMostUsedSupport(assignments, student?.childId ?? '').toLowerCase();
+  const recommendations = new Set<string>();
+
+  if (student?.neurotypes.some((value) => /autism/i.test(value))) {
+    recommendations.add('Use visual steps, predictable transitions, and one instruction at a time.');
+  }
+  if (student?.neurotypes.some((value) => /dyslexia/i.test(value))) {
+    recommendations.add('Offer read aloud, line focus, and oral response options where appropriate.');
+  }
+  if (student?.neurotypes.some((value) => /adhd/i.test(value))) {
+    recommendations.add('Keep tasks short, add movement breaks, and check back after the first step.');
+  }
+  if (/noise|loud|sound/.test(joinedSignals)) {
+    recommendations.add('Reduce noise load with a quieter seat, headphones, or a brief calm reset.');
+  }
+  if (/light|bright/.test(joinedSignals)) {
+    recommendations.add('Reduce visual glare and avoid dense written instructions.');
+  }
+  if (/confused|stuck|help/.test(joinedSignals)) {
+    recommendations.add('Restate the task as one small next step and show an example.');
+  }
+  if (/worried|anxious|overwhelm/.test(joinedSignals)) {
+    recommendations.add('Lower demands briefly, validate the feeling, then return to a predictable step.');
+  }
+  if (supports && supports !== 'visual steps') {
+    recommendations.add(`Prioritise ${supports} because it already appears useful for this learner.`);
+  }
+
+  recommendations.add('Message family if the same signal repeats or support needs increase.');
+  return Array.from(recommendations).slice(0, 5);
+};
+
 const ReportMetric: React.FC<{
   label: string;
   value: string | number;
@@ -154,7 +248,9 @@ const ReportMetric: React.FC<{
 const Reports: React.FC = () => {
   const [summary, setSummary] = useState<TeacherDashboardSummary | null>(null);
   const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedRange, setSelectedRange] = useState<ReportRange>('this_week');
+  const [printMode, setPrintMode] = useState<'class' | 'support' | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -198,6 +294,51 @@ const Reports: React.FC = () => {
     () => summary?.students.filter((student) => student.classId === selectedClassId) ?? [],
     [selectedClassId, summary?.students],
   );
+
+  useEffect(() => {
+    setSelectedStudentId((current) => {
+      if (current && classStudents.some((student) => student.childId === current)) return current;
+      return classStudents[0]?.childId ?? '';
+    });
+  }, [classStudents]);
+
+  const selectedStudent = useMemo(
+    () => classStudents.find((student) => student.childId === selectedStudentId) ?? null,
+    [classStudents, selectedStudentId],
+  );
+
+  const learnerAssignmentRows = useMemo(
+    () => (selectedStudent ? getLearnerAssignments(classAssignments, selectedStudent.childId) : []),
+    [classAssignments, selectedStudent],
+  );
+
+  const learnerSignals = useMemo(
+    () =>
+      selectedStudent
+        ? (summary?.liveSignals.filter((signal) => signal.childId === selectedStudent.childId) ?? []).slice(0, 4)
+        : [],
+    [selectedStudent, summary?.liveSignals],
+  );
+
+  const learnerMeetings = useMemo(
+    () =>
+      selectedStudent
+        ? (summary?.careMeetings.filter((meeting) => meeting.childId === selectedStudent.childId) ?? [])
+        : [],
+    [selectedStudent, summary?.careMeetings],
+  );
+
+  const learnerCompleted = learnerAssignmentRows.filter(({ progress }) =>
+    progress?.status === 'completed' || progress?.status === 'submitted',
+  ).length;
+  const learnerNeedsHelp = learnerAssignmentRows.filter(({ progress }) => progress?.status === 'needs_help').length;
+  const learnerMostUsedSupport = selectedStudent
+    ? getLearnerMostUsedSupport(classAssignments, selectedStudent.childId)
+    : 'Visual steps';
+  const learnerMoodSummary = selectedStudent
+    ? getLearnerMoodSummary(classAssignments, selectedStudent.childId)
+    : 'No mood check-ins yet';
+  const learnerRecommendations = getPlanRecommendations(selectedStudent, classAssignments, learnerSignals);
 
   const helpRequests = classAssignments.reduce((total, assignment) => total + assignment.progress.needsHelp, 0);
   const completed = classAssignments.reduce(
@@ -277,6 +418,65 @@ const Reports: React.FC = () => {
     );
   };
 
+  const handlePrint = (mode: 'class' | 'support') => {
+    setPrintMode(mode);
+    window.setTimeout(() => {
+      const resetPrintMode = () => setPrintMode(null);
+      window.addEventListener('afterprint', resetPrintMode, { once: true });
+      window.print();
+      window.setTimeout(resetPrintMode, 1000);
+    }, 0);
+  };
+
+  const handleExportSupportPlan = () => {
+    if (!selectedClass || !selectedStudent) {
+      setError('Choose a learner before exporting a support plan.');
+      return;
+    }
+
+    const assignmentLines = learnerAssignmentRows.length
+      ? learnerAssignmentRows.map(({ assignment, progress }) =>
+          `- ${assignment.title}: ${supportLabel(progress?.status ?? 'not_started')}`
+        )
+      : ['- No assignment activity yet.'];
+    const signalLines = learnerSignals.length
+      ? learnerSignals.map((signal) => `- ${getSignalLabel(signal)} (${signal.riskLevel})`)
+      : ['- No shared support signals in this range.'];
+
+    const plan = [
+      'AdaptBuddy Learner Support Plan',
+      `Generated: ${reportGeneratedAt}`,
+      `Class: ${selectedClass.className}`,
+      `Learner: ${selectedStudent.childName}`,
+      `Buddy ID: ${selectedStudent.buddyId ?? 'Hidden'}`,
+      `Support profile: ${selectedStudent.visibilitySettings.neuroProfile ? formatNeurotypes(selectedStudent.neurotypes) : 'Hidden by family'}`,
+      '',
+      'Current Snapshot',
+      `- Assignments completed: ${learnerCompleted}/${learnerAssignmentRows.length}`,
+      `- Needs help: ${learnerNeedsHelp}`,
+      `- Most useful support: ${learnerMostUsedSupport}`,
+      `- Common mood after tasks: ${learnerMoodSummary}`,
+      '',
+      'Recommended Classroom Adjustments',
+      ...learnerRecommendations.map((recommendation) => `- ${recommendation}`),
+      '',
+      'Recent Assignment Activity',
+      ...assignmentLines,
+      '',
+      'Recent Shared Signals',
+      ...signalLines,
+      '',
+      'Privacy Boundary',
+      'This plan uses parent-approved visibility. Private journal text and personal notes remain hidden unless explicitly shared.',
+    ].join('\n');
+
+    downloadTextFile(
+      `${slugify(selectedStudent.childName)}-${slugify(selectedClass.className)}-support-plan.txt`,
+      plan,
+      'text/plain;charset=utf-8',
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-gray-950">
@@ -292,7 +492,7 @@ const Reports: React.FC = () => {
           <TeacherHubNav />
         </div>
 
-        <section className="adaptbuddy-report-print space-y-6">
+        <section className={`${printMode === 'support' ? 'adaptbuddy-no-print' : 'adaptbuddy-report-print'} space-y-6`}>
         <header className="rounded-3xl border border-white/70 bg-white/85 p-6 shadow-card dark:border-gray-800 dark:bg-gray-900/80">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -323,7 +523,7 @@ const Reports: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => handlePrint('class')}
                 className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
               >
                 <Printer className="h-4 w-4" aria-hidden />
@@ -474,6 +674,200 @@ const Reports: React.FC = () => {
             </div>
           </aside>
         </section>
+        </section>
+
+        <section className={`${printMode === 'support' ? 'adaptbuddy-support-plan-print' : ''} space-y-6`}>
+          <header className="adaptbuddy-no-print rounded-3xl border border-white/70 bg-white/85 p-6 shadow-card dark:border-gray-800 dark:bg-gray-900/80">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-adapt-indigo dark:text-adapt-cyan">
+                  Learner support plan
+                </p>
+                <h2 className="mt-2 text-3xl font-extrabold text-adapt-navy dark:text-gray-100">
+                  One-page printable plan
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 dark:text-gray-400">
+                  A concise support sheet for classroom use, parent meetings, SENCO reviews, or clinician conversations.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[minmax(15rem,1fr)_auto_auto]">
+                <select
+                  value={selectedStudentId}
+                  onChange={(event) => setSelectedStudentId(event.target.value)}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                  aria-label="Choose learner for support plan"
+                >
+                  <option value="">Choose learner</option>
+                  {classStudents.map((student) => (
+                    <option key={student.childId} value={student.childId}>
+                      {student.childName} · {student.buddyId ?? 'Buddy ID hidden'}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => handlePrint('support')}
+                  disabled={!selectedStudent}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                >
+                  <Printer className="h-4 w-4" aria-hidden />
+                  Print plan
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportSupportPlan}
+                  disabled={!selectedStudent}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-50 dark:bg-adapt-cyan dark:text-gray-950"
+                >
+                  <Download className="h-4 w-4" aria-hidden />
+                  Download
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {selectedStudent && selectedClass ? (
+            <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-card dark:border-gray-800 dark:bg-gray-900">
+              <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 dark:border-gray-800 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.2em] text-adapt-indigo dark:text-adapt-cyan">
+                    AdaptBuddy support plan
+                  </p>
+                  <h2 className="mt-2 text-3xl font-extrabold text-adapt-navy dark:text-gray-100">
+                    {selectedStudent.childName}
+                  </h2>
+                  <p className="mt-2 text-sm font-semibold text-slate-500 dark:text-gray-400">
+                    {selectedClass.className} · {selectedClass.schoolName || 'School not set'} · Generated {reportGeneratedAt}
+                  </p>
+                </div>
+                <div className="grid gap-2 text-sm lg:min-w-72">
+                  <div className="rounded-2xl bg-slate-50 p-3 dark:bg-gray-950">
+                    <p className="text-xs font-bold text-slate-500 dark:text-gray-400">Buddy ID</p>
+                    <p className="mt-1 font-mono font-black text-adapt-indigo dark:text-adapt-cyan">
+                      {selectedStudent.buddyId ?? 'Hidden'}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3 dark:bg-gray-950">
+                    <p className="text-xs font-bold text-slate-500 dark:text-gray-400">Support profile</p>
+                    <p className="mt-1 font-black text-adapt-navy dark:text-gray-100">
+                      {selectedStudent.visibilitySettings.neuroProfile
+                        ? formatNeurotypes(selectedStudent.neurotypes)
+                        : 'Hidden by family'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl bg-sky-50 p-4 dark:bg-sky-950/20">
+                  <ClipboardCheck className="h-5 w-5 text-sky-700 dark:text-sky-200" aria-hidden />
+                  <p className="mt-2 text-2xl font-black text-adapt-navy dark:text-gray-100">
+                    {learnerCompleted}/{learnerAssignmentRows.length}
+                  </p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-gray-400">Tasks complete</p>
+                </div>
+                <div className="rounded-2xl bg-amber-50 p-4 dark:bg-amber-950/20">
+                  <AlertTriangle className="h-5 w-5 text-amber-700 dark:text-amber-200" aria-hidden />
+                  <p className="mt-2 text-2xl font-black text-adapt-navy dark:text-gray-100">{learnerNeedsHelp}</p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-gray-400">Needs-help tasks</p>
+                </div>
+                <div className="rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-950/20">
+                  <HeartPulse className="h-5 w-5 text-emerald-700 dark:text-emerald-200" aria-hidden />
+                  <p className="mt-2 text-lg font-black text-adapt-navy dark:text-gray-100">{learnerMoodSummary}</p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-gray-400">Mood after tasks</p>
+                </div>
+                <div className="rounded-2xl bg-violet-50 p-4 dark:bg-violet-950/20">
+                  <Brain className="h-5 w-5 text-violet-700 dark:text-violet-200" aria-hidden />
+                  <p className="mt-2 text-lg font-black text-adapt-navy dark:text-gray-100">{learnerMostUsedSupport}</p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-gray-400">Most useful support</p>
+                </div>
+              </section>
+
+              <section className="mt-5 grid gap-5 xl:grid-cols-[1fr_0.9fr]">
+                <div className="rounded-3xl border border-slate-100 bg-slate-50 p-5 dark:border-gray-800 dark:bg-gray-950">
+                  <h3 className="text-lg font-extrabold text-adapt-navy dark:text-gray-100">
+                    Classroom adjustments
+                  </h3>
+                  <ul className="mt-3 space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-gray-300">
+                    {learnerRecommendations.map((recommendation) => (
+                      <li key={recommendation}>• {recommendation}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="rounded-3xl border border-slate-100 bg-slate-50 p-5 dark:border-gray-800 dark:bg-gray-950">
+                  <h3 className="text-lg font-extrabold text-adapt-navy dark:text-gray-100">Recent shared signals</h3>
+                  <div className="mt-3 space-y-2">
+                    {learnerSignals.length > 0 ? (
+                      learnerSignals.map((signal) => (
+                        <div key={signal.id} className="rounded-2xl bg-white p-3 text-sm dark:bg-gray-900">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-black text-adapt-navy dark:text-gray-100">{getSignalLabel(signal)}</p>
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-black capitalize text-slate-600 dark:bg-gray-800 dark:text-gray-200">
+                              {signal.riskLevel}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-gray-400">
+                            {getSignalCategory(signal)}
+                          </p>
+                          {signal.text && (
+                            <p className="mt-2 text-sm leading-5 text-slate-600 dark:text-gray-300">{signal.text}</p>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm font-semibold text-slate-500 dark:border-gray-800 dark:text-gray-400">
+                        No shared support signals yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <section className="mt-5 grid gap-5 xl:grid-cols-2">
+                <div className="rounded-3xl border border-slate-100 bg-white p-5 dark:border-gray-800 dark:bg-gray-950">
+                  <h3 className="text-lg font-extrabold text-adapt-navy dark:text-gray-100">Assignment focus</h3>
+                  <div className="mt-3 space-y-2">
+                    {learnerAssignmentRows.length > 0 ? (
+                      learnerAssignmentRows.slice(0, 4).map(({ assignment, progress }) => (
+                        <div key={assignment.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 text-sm dark:bg-gray-900">
+                          <p className="font-semibold text-slate-700 dark:text-gray-300">{assignment.title}</p>
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-adapt-indigo dark:bg-gray-950 dark:text-adapt-cyan">
+                            {supportLabel(progress?.status ?? 'not_started')}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm font-semibold text-slate-500 dark:text-gray-400">No learner assignment activity yet.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-adapt-indigo/15 bg-adapt-indigo/5 p-5 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/10">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+                    <h3 className="text-lg font-extrabold text-adapt-navy dark:text-gray-100">Family coordination</h3>
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm font-semibold leading-6 text-slate-600 dark:text-gray-300">
+                    <p>Open meetings: {learnerMeetings.filter((meeting) => meeting.status !== 'completed' && meeting.status !== 'cancelled').length}</p>
+                    <p>Daily mood visibility: {selectedStudent.visibilitySettings.dailyMood}</p>
+                    <p>Worry diary text: {selectedStudent.visibilitySettings.worryDiaryText ? 'shared' : 'hidden'}</p>
+                    <p>Private notes: {selectedStudent.visibilitySettings.personalNotes ? 'shared' : 'hidden'}</p>
+                  </div>
+                </div>
+              </section>
+
+              <p className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-xs font-semibold leading-5 text-slate-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+                Privacy boundary: this support plan uses parent-approved visibility only. It is a classroom support aid,
+                not a diagnostic document. Private journal text, personal notes, and hidden profile information remain
+                excluded unless the family explicitly shares them.
+              </p>
+            </article>
+          ) : (
+            <div className="rounded-3xl border border-dashed border-slate-200 bg-white/75 p-8 text-center text-slate-500 dark:border-gray-800 dark:bg-gray-900/70 dark:text-gray-400">
+              Choose a class with a connected learner to create a support plan.
+            </div>
+          )}
         </section>
       </div>
     </div>

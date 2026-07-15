@@ -3,6 +3,8 @@ import {
   AlertTriangle,
   Bell,
   BookOpenCheck,
+  CalendarCheck,
+  CalendarClock,
   CheckCircle2,
   ClipboardList,
   GraduationCap,
@@ -13,6 +15,7 @@ import {
   Plus,
   RefreshCw,
   School,
+  Send,
   ShieldAlert,
   Users,
   XCircle,
@@ -21,9 +24,12 @@ import { useAuth } from 'hooks/useAuth';
 import TeacherHubNav from 'features/teacher/components/TeacherHubNav';
 import {
   TeacherDashboardService,
+  type TeacherCareMeeting,
   type TeacherClass,
   type TeacherDashboardSummary,
+  type TeacherFamilyMessage,
   type TeacherJoinRequest,
+  type TeacherMeetingStatus,
   type TeacherStudent,
   type TeacherSupportSignal,
 } from 'features/teacher/services/teacherDashboardService';
@@ -76,6 +82,19 @@ const formatBuddyIdInput = (value: string): string => {
 
 const isPendingRequestStatus = (status: TeacherJoinRequest['status']): boolean =>
   status === 'pending' || status === 'pending_parent' || status === 'pending_teacher';
+
+const messageUrgencyStyles: Record<TeacherFamilyMessage['urgency'], string> = {
+  normal: 'bg-slate-100 text-slate-700 dark:bg-gray-800 dark:text-gray-200',
+  support: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-100',
+  urgent: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-100',
+};
+
+const meetingStatusStyles: Record<TeacherCareMeeting['status'], string> = {
+  requested: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-100',
+  scheduled: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-100',
+  completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100',
+  cancelled: 'bg-slate-100 text-slate-700 dark:bg-gray-800 dark:text-gray-200',
+};
 
 const StatCard: React.FC<{
   label: string;
@@ -239,6 +258,138 @@ const SignalRow: React.FC<{ signal: TeacherSupportSignal }> = ({ signal }) => (
   </div>
 );
 
+const FamilyMessageCard: React.FC<{
+  message: TeacherFamilyMessage;
+  replyDraft: string;
+  busy: boolean;
+  onReplyDraftChange: (value: string) => void;
+  onReply: () => void;
+}> = ({ message, replyDraft, busy, onReplyDraftChange, onReply }) => (
+  <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft dark:border-gray-800 dark:bg-gray-900">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-adapt-indigo dark:text-adapt-cyan">
+          {message.isFromTeacher ? 'Teacher reply' : 'Family message'} · {message.childName}
+        </p>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-700 dark:text-gray-300">{message.body}</p>
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <span className={`rounded-full px-3 py-1 text-xs font-black capitalize ${messageUrgencyStyles[message.urgency]}`}>
+          {message.urgency}
+        </span>
+        <span className="text-xs font-semibold text-slate-400">{formatRelativeTime(message.createdAt)}</span>
+      </div>
+    </div>
+
+    {message.aiTalkingPoints.length > 0 && (
+      <div className="mt-3 rounded-2xl bg-slate-50 p-3 dark:bg-gray-950">
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Meeting talking points</p>
+        <ul className="mt-2 space-y-1 text-sm font-semibold text-slate-600 dark:text-gray-300">
+          {message.aiTalkingPoints.slice(0, 3).map((point) => (
+            <li key={point}>• {point}</li>
+          ))}
+        </ul>
+      </div>
+    )}
+
+    {!message.isFromTeacher && (
+      <div className="mt-4">
+        <textarea
+          value={replyDraft}
+          onChange={(event) => onReplyDraftChange(event.target.value)}
+          rows={3}
+          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          placeholder="Reply with one clear support step..."
+        />
+        <button
+          type="button"
+          onClick={onReply}
+          disabled={!replyDraft.trim() || busy}
+          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white transition hover:bg-adapt-purple disabled:opacity-60 dark:bg-adapt-cyan dark:text-gray-950"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
+          {busy ? 'Sending...' : 'Send reply'}
+        </button>
+      </div>
+    )}
+  </article>
+);
+
+const CareMeetingCard: React.FC<{
+  meeting: TeacherCareMeeting;
+  noteDraft: string;
+  busy: boolean;
+  onNoteChange: (value: string) => void;
+  onStatusUpdate: (status: TeacherMeetingStatus) => void;
+}> = ({ meeting, noteDraft, busy, onNoteChange, onStatusUpdate }) => (
+  <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft dark:border-gray-800 dark:bg-gray-900">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-adapt-indigo dark:text-adapt-cyan">
+          {meeting.meetingType.replace(/_/g, ' ')} · {meeting.childName}
+        </p>
+        <h3 className="mt-1 text-lg font-extrabold text-adapt-navy dark:text-gray-100">
+          {meeting.urgency === 'urgent' ? 'Urgent meeting request' : 'Support meeting request'}
+        </h3>
+        <p className="mt-1 text-xs font-semibold text-slate-400">{formatRelativeTime(meeting.createdAt)}</p>
+      </div>
+      <span className={`rounded-full px-3 py-1 text-xs font-black capitalize ${meetingStatusStyles[meeting.status]}`}>
+        {meeting.status}
+      </span>
+    </div>
+
+    <div className="mt-3 rounded-2xl bg-slate-50 p-3 dark:bg-gray-950">
+      <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Agenda</p>
+      {meeting.agenda.length > 0 ? (
+        <ul className="mt-2 space-y-1 text-sm font-semibold text-slate-600 dark:text-gray-300">
+          {meeting.agenda.slice(0, 4).map((point) => (
+            <li key={point}>• {point}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-slate-500 dark:text-gray-400">No agenda yet.</p>
+      )}
+    </div>
+
+    <textarea
+      value={noteDraft}
+      onChange={(event) => onNoteChange(event.target.value)}
+      rows={2}
+      className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+      placeholder={meeting.notes || 'Add teacher note before updating...'}
+    />
+    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+      <button
+        type="button"
+        onClick={() => onStatusUpdate('scheduled')}
+        disabled={busy || meeting.status === 'scheduled'}
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-100 px-3 py-2 text-xs font-black text-sky-700 transition hover:bg-sky-200 disabled:opacity-60 dark:bg-sky-950/40 dark:text-sky-100"
+      >
+        <CalendarClock className="h-4 w-4" aria-hidden />
+        Schedule
+      </button>
+      <button
+        type="button"
+        onClick={() => onStatusUpdate('completed')}
+        disabled={busy || meeting.status === 'completed'}
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-100 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-200 disabled:opacity-60 dark:bg-emerald-950/40 dark:text-emerald-100"
+      >
+        <CalendarCheck className="h-4 w-4" aria-hidden />
+        Complete
+      </button>
+      <button
+        type="button"
+        onClick={() => onStatusUpdate('cancelled')}
+        disabled={busy || meeting.status === 'cancelled'}
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-200 disabled:opacity-60 dark:bg-gray-800 dark:text-gray-200"
+      >
+        <XCircle className="h-4 w-4" aria-hidden />
+        Cancel
+      </button>
+    </div>
+  </article>
+);
+
 const TeacherDashboard: React.FC = () => {
   const { profile, user, isGuest } = useAuth();
   const [summary, setSummary] = useState<TeacherDashboardSummary | null>(null);
@@ -257,6 +408,10 @@ const TeacherDashboard: React.FC = () => {
     yearGroup: '',
   });
   const [buddyIdInput, setBuddyIdInput] = useState('');
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [meetingNotes, setMeetingNotes] = useState<Record<string, string>>({});
+  const [busyMessageId, setBusyMessageId] = useState<string | null>(null);
+  const [busyMeetingId, setBusyMeetingId] = useState<string | null>(null);
 
   const teacherName =
     [profile?.first_name, profile?.last_name].filter(Boolean).join(' ')
@@ -298,6 +453,13 @@ const TeacherDashboard: React.FC = () => {
   const selectedClassStudents = selectedClass
     ? summary?.students.filter((student) => student.classId === selectedClass.id) ?? []
     : summary?.students ?? [];
+  const selectedClassChildIds = new Set(selectedClassStudents.map((student) => student.childId));
+  const selectedClassMessages = selectedClass
+    ? summary?.familyMessages.filter((message) => selectedClassChildIds.has(message.childId)) ?? []
+    : summary?.familyMessages ?? [];
+  const selectedClassMeetings = selectedClass
+    ? summary?.careMeetings.filter((meeting) => selectedClassChildIds.has(meeting.childId)) ?? []
+    : summary?.careMeetings ?? [];
 
   const handleCreateClass = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -386,6 +548,58 @@ const TeacherDashboard: React.FC = () => {
     }
   };
 
+  const handleReplyToMessage = async (message: TeacherFamilyMessage) => {
+    const draft = replyDrafts[message.id]?.trim() ?? '';
+    if (!draft || busyMessageId) return;
+    setBusyMessageId(message.id);
+    setError(null);
+    setActionStatus(null);
+
+    try {
+      if (isGuest) {
+        setActionStatus('Guest demo: replies save after signing in as a teacher.');
+      } else {
+        const urgency = /urgent|unsafe|risk|safeguard|crisis/i.test(draft)
+          ? 'urgent'
+          : /worried|anxious|overwhelmed|support|help/i.test(draft)
+            ? 'support'
+            : 'normal';
+        await TeacherDashboardService.sendFamilyMessage(message.childId, draft, message.senderId, urgency);
+        setReplyDrafts((current) => ({ ...current, [message.id]: '' }));
+        setActionStatus('Reply sent to the family thread.');
+      }
+      await loadDashboard('refresh');
+    } catch (replyError) {
+      console.error('Error sending family reply:', replyError);
+      setError(getErrorMessage(replyError, 'Could not send the reply.'));
+    } finally {
+      setBusyMessageId(null);
+    }
+  };
+
+  const handleMeetingStatusUpdate = async (meeting: TeacherCareMeeting, status: TeacherMeetingStatus) => {
+    if (busyMeetingId) return;
+    setBusyMeetingId(meeting.id);
+    setError(null);
+    setActionStatus(null);
+
+    try {
+      if (isGuest) {
+        setActionStatus('Guest demo: meeting updates save after signing in as a teacher.');
+      } else {
+        await TeacherDashboardService.updateCareMeetingStatus(meeting.id, status, meetingNotes[meeting.id]);
+        setMeetingNotes((current) => ({ ...current, [meeting.id]: '' }));
+        setActionStatus(`Meeting marked ${status.replace(/_/g, ' ')}.`);
+      }
+      await loadDashboard('refresh');
+    } catch (meetingError) {
+      console.error('Error updating meeting:', meetingError);
+      setError(getErrorMessage(meetingError, 'Could not update the meeting.'));
+    } finally {
+      setBusyMeetingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-gray-950">
@@ -403,6 +617,8 @@ const TeacherDashboard: React.FC = () => {
     pendingRequests: 0,
     supportAlerts: 0,
     assignmentsDue: 0,
+    unreadMessages: 0,
+    meetingRequests: 0,
   };
 
   return (
@@ -448,12 +664,13 @@ const TeacherDashboard: React.FC = () => {
           </div>
         )}
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5" aria-label="Teacher dashboard metrics">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6" aria-label="Teacher dashboard metrics">
           <StatCard label="Classes" value={totals.classes} detail="Active teaching groups" icon={School} tone="bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-200" />
           <StatCard label="Students" value={totals.students} detail="Connected learners" icon={Users} tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200" />
           <StatCard label="Requests" value={totals.pendingRequests} detail="Waiting for review" icon={Bell} tone="bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200" />
           <StatCard label="Signals" value={totals.supportAlerts} detail="Need attention" icon={ShieldAlert} tone="bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-200" />
           <StatCard label="Due" value={totals.assignmentsDue} detail="Assignments this week" icon={ClipboardList} tone="bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-200" />
+          <StatCard label="Messages" value={totals.unreadMessages} detail={`${totals.meetingRequests} meeting requests`} icon={MessageSquare} tone="bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-100" />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
@@ -621,10 +838,72 @@ const TeacherDashboard: React.FC = () => {
           </aside>
         </section>
 
+        <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+              <div>
+                <h2 className="text-xl font-extrabold text-adapt-navy dark:text-gray-100">Family messages</h2>
+                <p className="text-sm text-slate-500 dark:text-gray-400">
+                  Reply with one clear support step. Private journal text stays hidden unless a family shares it.
+                </p>
+              </div>
+            </div>
+            {selectedClassMessages.length ? (
+              selectedClassMessages.slice(0, 4).map((message) => (
+                <FamilyMessageCard
+                  key={message.id}
+                  message={message}
+                  replyDraft={replyDrafts[message.id] ?? ''}
+                  busy={busyMessageId === message.id}
+                  onReplyDraftChange={(value) =>
+                    setReplyDrafts((current) => ({ ...current, [message.id]: value }))
+                  }
+                  onReply={() => void handleReplyToMessage(message)}
+                />
+              ))
+            ) : (
+              <div className="rounded-3xl border border-dashed border-slate-200 bg-white/75 p-8 text-center text-slate-500 dark:border-gray-800 dark:bg-gray-900/70 dark:text-gray-400">
+                Parent-teacher messages for connected learners will appear here.
+              </div>
+            )}
+          </div>
+
+          <aside className="space-y-4">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+              <div>
+                <h2 className="text-xl font-extrabold text-adapt-navy dark:text-gray-100">Meeting requests</h2>
+                <p className="text-sm text-slate-500 dark:text-gray-400">
+                  Turn family concerns into scheduled reviews and support-plan actions.
+                </p>
+              </div>
+            </div>
+            {selectedClassMeetings.length ? (
+              selectedClassMeetings.slice(0, 4).map((meeting) => (
+                <CareMeetingCard
+                  key={meeting.id}
+                  meeting={meeting}
+                  noteDraft={meetingNotes[meeting.id] ?? ''}
+                  busy={busyMeetingId === meeting.id}
+                  onNoteChange={(value) =>
+                    setMeetingNotes((current) => ({ ...current, [meeting.id]: value }))
+                  }
+                  onStatusUpdate={(status) => void handleMeetingStatusUpdate(meeting, status)}
+                />
+              ))
+            ) : (
+              <div className="rounded-3xl border border-dashed border-slate-200 bg-white/75 p-8 text-center text-slate-500 dark:border-gray-800 dark:bg-gray-900/70 dark:text-gray-400">
+                Meeting requests from families will appear here.
+              </div>
+            )}
+          </aside>
+        </section>
+
         <section className="grid gap-4 md:grid-cols-3">
           {[
             { title: 'Assignments', detail: 'Create supported class tasks and let learners mark progress from their dashboard.', icon: BookOpenCheck },
-            { title: 'Messages', detail: 'Next phase: parent-teacher and teacher-learner communication threads.', icon: MessageSquare },
+            { title: 'Messages', detail: 'Family threads now show on the teacher dashboard with reply support and talking points.', icon: MessageSquare },
             { title: 'Reports', detail: 'Next phase: weekly class support reports and printable accommodations.', icon: Layers3 },
           ].map(({ title, detail, icon: Icon }) => (
             <article key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft dark:border-gray-800 dark:bg-gray-900">

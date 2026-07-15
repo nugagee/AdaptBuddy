@@ -130,6 +130,43 @@ export interface TeacherSupportSignal {
   createdAt: string;
 }
 
+export type TeacherMessageUrgency = 'normal' | 'support' | 'urgent';
+
+export interface TeacherFamilyMessage {
+  id: string;
+  childId: string;
+  childName: string;
+  senderId: string;
+  recipientId?: string | null;
+  body: string;
+  urgency: TeacherMessageUrgency;
+  aiSummary?: string | null;
+  aiTalkingPoints: string[];
+  createdAt: string;
+  readAt?: string | null;
+  isFromTeacher: boolean;
+}
+
+export type TeacherMeetingStatus = 'requested' | 'scheduled' | 'completed' | 'cancelled';
+export type TeacherMeetingUrgency = 'routine' | 'soon' | 'urgent';
+
+export interface TeacherCareMeeting {
+  id: string;
+  childId: string;
+  childName: string;
+  requestedBy: string;
+  assignedTo?: string | null;
+  meetingType: string;
+  status: TeacherMeetingStatus;
+  urgency: TeacherMeetingUrgency;
+  proposedTimes: string[];
+  scheduledAt?: string | null;
+  agenda: string[];
+  notes?: string | null;
+  actionItems: string[];
+  createdAt: string;
+}
+
 export interface TeacherVisibilitySettings {
   childName: boolean;
   neuroProfile: boolean;
@@ -146,12 +183,16 @@ export interface TeacherDashboardSummary {
   joinRequests: TeacherJoinRequest[];
   assignments: TeacherAssignment[];
   liveSignals: TeacherSupportSignal[];
+  familyMessages: TeacherFamilyMessage[];
+  careMeetings: TeacherCareMeeting[];
   totals: {
     classes: number;
     students: number;
     pendingRequests: number;
     supportAlerts: number;
     assignmentsDue: number;
+    unreadMessages: number;
+    meetingRequests: number;
   };
 }
 
@@ -234,6 +275,35 @@ interface JournalEntryRow {
   created_at: string;
 }
 
+interface ParentTeacherMessageRow {
+  id: string;
+  child_id: string;
+  sender_id: string;
+  recipient_id: string | null;
+  body: string;
+  urgency: string | null;
+  ai_summary: string | null;
+  ai_talking_points: string[] | null;
+  created_at: string;
+  read_at: string | null;
+}
+
+interface CareMeetingRow {
+  id: string;
+  child_id: string;
+  requested_by: string;
+  assigned_to: string | null;
+  meeting_type: string;
+  status: string | null;
+  urgency: string | null;
+  proposed_times: unknown;
+  scheduled_at: string | null;
+  agenda: unknown;
+  notes: string | null;
+  action_items: unknown;
+  created_at: string;
+}
+
 interface BuddyRequestRow {
   request_id: string;
   class_id: string;
@@ -312,6 +382,41 @@ const getAnalysisString = (analysis: Record<string, unknown> | null, keys: strin
 const normalizeRiskLevel = (value: string | null | undefined): TeacherSupportSignal['riskLevel'] => {
   if (value === 'medium' || value === 'high') return value;
   return 'low';
+};
+
+const normalizeMessageUrgency = (value: string | null | undefined): TeacherMessageUrgency => {
+  if (value === 'support' || value === 'urgent') return value;
+  return 'normal';
+};
+
+const normalizeMeetingStatus = (value: string | null | undefined): TeacherMeetingStatus => {
+  if (value === 'scheduled' || value === 'completed' || value === 'cancelled') return value;
+  return 'requested';
+};
+
+const normalizeMeetingUrgency = (value: string | null | undefined): TeacherMeetingUrgency => {
+  if (value === 'soon' || value === 'urgent') return value;
+  return 'routine';
+};
+
+const toStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string');
+  }
+  return [];
+};
+
+const isSchemaUnavailableError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? String((error as { code?: unknown }).code) : '';
+  const message = 'message' in error ? String((error as { message?: unknown }).message).toLowerCase() : '';
+  return (
+    code === '42P01'
+    || code === 'PGRST205'
+    || message.includes('schema cache')
+    || message.includes('does not exist')
+    || message.includes('could not find the table')
+  );
 };
 
 const assignmentSelectColumns =
@@ -466,6 +571,56 @@ const mapSignal = (
   supportLevel: getAnalysisString(row.ai_analysis, ['supportLevel', 'support_level']),
   text: row.text ?? '',
   riskLevel: normalizeRiskLevel(row.risk_level || getAnalysisString(row.ai_analysis, ['riskLevel', 'risk_level'])),
+  createdAt: row.created_at,
+});
+
+const getVisibleChildName = (
+  childId: string,
+  profiles: Map<string, ProfileRow>,
+  visibilityByChild: Map<string, TeacherVisibilitySettings>,
+): string => {
+  const visibility = visibilityByChild.get(childId) ?? defaultVisibilitySettings;
+  return visibility.childName ? getProfileName(profiles.get(childId)) : 'Learner';
+};
+
+const mapFamilyMessage = (
+  row: ParentTeacherMessageRow,
+  teacherId: string | null,
+  profiles: Map<string, ProfileRow>,
+  visibilityByChild: Map<string, TeacherVisibilitySettings>,
+): TeacherFamilyMessage => ({
+  id: row.id,
+  childId: row.child_id,
+  childName: getVisibleChildName(row.child_id, profiles, visibilityByChild),
+  senderId: row.sender_id,
+  recipientId: row.recipient_id,
+  body: row.body,
+  urgency: normalizeMessageUrgency(row.urgency),
+  aiSummary: row.ai_summary,
+  aiTalkingPoints: row.ai_talking_points ?? [],
+  createdAt: row.created_at,
+  readAt: row.read_at,
+  isFromTeacher: Boolean(teacherId && row.sender_id === teacherId),
+});
+
+const mapCareMeeting = (
+  row: CareMeetingRow,
+  profiles: Map<string, ProfileRow>,
+  visibilityByChild: Map<string, TeacherVisibilitySettings>,
+): TeacherCareMeeting => ({
+  id: row.id,
+  childId: row.child_id,
+  childName: getVisibleChildName(row.child_id, profiles, visibilityByChild),
+  requestedBy: row.requested_by,
+  assignedTo: row.assigned_to,
+  meetingType: row.meeting_type,
+  status: normalizeMeetingStatus(row.status),
+  urgency: normalizeMeetingUrgency(row.urgency),
+  proposedTimes: toStringArray(row.proposed_times),
+  scheduledAt: row.scheduled_at,
+  agenda: toStringArray(row.agenda),
+  notes: row.notes,
+  actionItems: toStringArray(row.action_items),
   createdAt: row.created_at,
 });
 
@@ -645,10 +800,72 @@ export class TeacherDashboardService {
     if (error) throw error;
   }
 
+  static async sendFamilyMessage(
+    childId: string,
+    body: string,
+    recipientId?: string | null,
+    urgency: TeacherMessageUrgency = 'normal',
+  ): Promise<void> {
+    if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+    if (!childId) throw new Error('Choose a learner first.');
+    if (!body.trim()) throw new Error('Write a message first.');
+
+    const client = getSupabaseClient();
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError) throw userError;
+    const userId = userData.user?.id;
+    if (!userId) throw new Error('Please sign in with a teacher account to send messages.');
+
+    const { error } = await client
+      .from('parent_teacher_messages')
+      .insert({
+        child_id: childId,
+        sender_id: userId,
+        recipient_id: recipientId ?? null,
+        body: body.trim(),
+        urgency,
+        ai_summary: TeacherDashboardService.summarizeTeacherMessage(body),
+        ai_talking_points: TeacherDashboardService.suggestTeacherTalkingPoints(body),
+      });
+
+    if (error) throw error;
+  }
+
+  static async updateCareMeetingStatus(
+    meetingId: string,
+    status: TeacherMeetingStatus,
+    notes?: string,
+  ): Promise<void> {
+    if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+    if (!meetingId) throw new Error('Choose a meeting first.');
+
+    const client = getSupabaseClient();
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError) throw userError;
+    const userId = userData.user?.id;
+    if (!userId) throw new Error('Please sign in with a teacher account to update meetings.');
+
+    const update: Record<string, unknown> = {
+      status,
+      assigned_to: userId,
+    };
+    if (status === 'scheduled') update.scheduled_at = new Date().toISOString();
+    if (notes?.trim()) update.notes = notes.trim();
+
+    const { error } = await client
+      .from('care_meetings')
+      .update(update)
+      .eq('id', meetingId);
+
+    if (error) throw error;
+  }
+
   static async getDashboardSummary(): Promise<TeacherDashboardSummary> {
     if (!isSupabaseConfigured) return this.getGuestSummary();
 
     const client = getSupabaseClient();
+    const { data: userData } = await client.auth.getUser();
+    const teacherId = userData.user?.id ?? null;
     const { data: classRows, error: classError } = await client
       .from('teacher_classes')
       .select('id, teacher_id, school_name, class_name, class_code, subject, year_group, created_at')
@@ -665,12 +882,16 @@ export class TeacherDashboardService {
         joinRequests: [],
         assignments: [],
         liveSignals: [],
+        familyMessages: [],
+        careMeetings: [],
         totals: {
           classes: 0,
           students: 0,
           pendingRequests: 0,
           supportAlerts: 0,
           assignmentsDue: 0,
+          unreadMessages: 0,
+          meetingRequests: 0,
         },
       };
     }
@@ -690,9 +911,17 @@ export class TeacherDashboardService {
     ]));
     const signalChildIds = Array.from(new Set(activeMembershipRows.map((membership) => membership.child_id)));
     const profiles = await this.getProfiles(profileChildIds);
-    const [signals, submissionRows] = await Promise.all([
+    const visibilityByChild = new Map(
+      activeMembershipRows.map((membership) => [
+        membership.child_id,
+        normalizeVisibility(membership.visibility_settings),
+      ]),
+    );
+    const [signals, submissionRows, familyMessages, careMeetings] = await Promise.all([
       this.getLiveSignals(signalChildIds, profiles),
       this.getSubmissionRows(assignmentRows.map((assignment) => assignment.id)),
+      this.getFamilyMessages(signalChildIds, teacherId, profiles, visibilityByChild),
+      this.getCareMeetings(signalChildIds, profiles, visibilityByChild),
     ]);
     const assignments = assignmentRows.map((row) =>
       mapAssignment(row, buildAssignmentProgress(row, membershipRows, submissionRows, profiles)),
@@ -755,12 +984,16 @@ export class TeacherDashboardService {
       joinRequests,
       assignments,
       liveSignals: signals,
+      familyMessages,
+      careMeetings,
       totals: {
         classes: classes.length,
         students: students.length,
         pendingRequests: joinRequests.filter((request) => pendingRequestStatuses.includes(request.status)).length,
         supportAlerts: signals.filter((signal) => signal.riskLevel !== 'low' || signal.supportLevel === 'urgent').length,
         assignmentsDue,
+        unreadMessages: familyMessages.filter((message) => !message.isFromTeacher && !message.readAt).length,
+        meetingRequests: careMeetings.filter((meeting) => meeting.status === 'requested').length,
       },
     };
   }
@@ -878,6 +1111,87 @@ export class TeacherDashboardService {
     return ((data ?? []) as JournalEntryRow[]).map((row) => mapSignal(row, profiles));
   }
 
+  private static async getFamilyMessages(
+    childIds: string[],
+    teacherId: string | null,
+    profiles: Map<string, ProfileRow>,
+    visibilityByChild: Map<string, TeacherVisibilitySettings>,
+  ): Promise<TeacherFamilyMessage[]> {
+    if (childIds.length === 0) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('parent_teacher_messages')
+      .select('id, child_id, sender_id, recipient_id, body, urgency, ai_summary, ai_talking_points, created_at, read_at')
+      .in('child_id', childIds)
+      .order('created_at', { ascending: false })
+      .limit(12);
+
+    if (error) {
+      if (isSchemaUnavailableError(error)) return [];
+      throw error;
+    }
+
+    return ((data ?? []) as ParentTeacherMessageRow[]).map((row) =>
+      mapFamilyMessage(row, teacherId, profiles, visibilityByChild),
+    );
+  }
+
+  private static async getCareMeetings(
+    childIds: string[],
+    profiles: Map<string, ProfileRow>,
+    visibilityByChild: Map<string, TeacherVisibilitySettings>,
+  ): Promise<TeacherCareMeeting[]> {
+    if (childIds.length === 0) return [];
+
+    const { data, error } = await getSupabaseClient()
+      .from('care_meetings')
+      .select('id, child_id, requested_by, assigned_to, meeting_type, status, urgency, proposed_times, scheduled_at, agenda, notes, action_items, created_at')
+      .in('child_id', childIds)
+      .order('created_at', { ascending: false })
+      .limit(12);
+
+    if (error) {
+      if (isSchemaUnavailableError(error)) return [];
+      throw error;
+    }
+
+    return ((data ?? []) as CareMeetingRow[]).map((row) =>
+      mapCareMeeting(row, profiles, visibilityByChild),
+    );
+  }
+
+  private static summarizeTeacherMessage(body: string): string {
+    const normalized = body.trim();
+    if (!normalized) return 'Teacher reply saved for the family.';
+    if (/urgent|unsafe|risk|safeguard|crisis/i.test(normalized)) {
+      return 'Teacher flagged this as requiring urgent adult follow-up.';
+    }
+    if (/homework|assignment|task|reading|math|writing/i.test(normalized)) {
+      return 'Teacher reply focuses on learning support and task progress.';
+    }
+    if (/anxious|worried|overwhelmed|upset|frustrated/i.test(normalized)) {
+      return 'Teacher reply focuses on wellbeing and regulation support.';
+    }
+    return 'Teacher reply saved for parent-teacher coordination.';
+  }
+
+  private static suggestTeacherTalkingPoints(body: string): string[] {
+    const normalized = body.toLowerCase();
+    const points = ['Agree one small next step for home and school.'];
+
+    if (/homework|assignment|task|reading|math|writing/.test(normalized)) {
+      points.push('Clarify which support tool helped or was missing during the task.');
+    }
+    if (/anxious|worried|overwhelmed|frustrated|too noisy|too bright/.test(normalized)) {
+      points.push('Compare the timing of the signal with classroom demands and transitions.');
+    }
+    if (/meeting|senco|review|plan/.test(normalized)) {
+      points.push('Bring one example, one pattern, and one proposed adjustment to the meeting.');
+    }
+
+    return points.slice(0, 3);
+  }
+
   private static getGuestSummary(): TeacherDashboardSummary {
     const now = new Date().toISOString();
     const classId = 'guest-class';
@@ -984,12 +1298,53 @@ export class TeacherDashboardService {
         },
       ],
       liveSignals,
+      familyMessages: [
+        {
+          id: 'guest-message-1',
+          childId,
+          childName: 'Alex A.',
+          senderId: 'guest-parent',
+          recipientId: 'guest-teacher',
+          body: 'Alex said the writing task felt too noisy today. Could we try line focus and a quieter start tomorrow?',
+          urgency: 'support',
+          aiSummary: 'Family is asking for sensory and writing support after a noisy task.',
+          aiTalkingPoints: [
+            'Review noise level before writing tasks.',
+            'Try line focus and a quiet first step.',
+          ],
+          createdAt: now,
+          readAt: null,
+          isFromTeacher: false,
+        },
+      ],
+      careMeetings: [
+        {
+          id: 'guest-meeting-1',
+          childId,
+          childName: 'Alex A.',
+          requestedBy: 'guest-parent',
+          assignedTo: 'guest-teacher',
+          meetingType: 'support_plan',
+          status: 'requested',
+          urgency: 'soon',
+          proposedTimes: [],
+          agenda: [
+            'Review writing support after noisy lessons.',
+            'Agree visual steps for longer tasks.',
+          ],
+          notes: null,
+          actionItems: [],
+          createdAt: now,
+        },
+      ],
       totals: {
         classes: 1,
         students: 1,
         pendingRequests: 1,
         supportAlerts: 1,
         assignmentsDue: 2,
+        unreadMessages: 1,
+        meetingRequests: 1,
       },
     };
   }

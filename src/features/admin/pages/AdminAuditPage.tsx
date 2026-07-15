@@ -8,8 +8,10 @@ import {
   Link2,
   Loader2,
   MessageSquareWarning,
+  Printer,
   RefreshCw,
   ShieldAlert,
+  FileDown,
   UsersRound,
 } from 'lucide-react';
 import AdminLayout from 'features/admin/components/AdminLayout';
@@ -136,6 +138,87 @@ function SchoolRequestTimeline({ request }: { request: AdminSchoolRequestAudit }
   );
 }
 
+function buildAuditEvidenceReport(snapshot: AdminAuditSnapshot): string {
+  const liveSources = Object.entries(snapshot.dataSources)
+    .filter(([, ok]) => ok)
+    .map(([source]) => source)
+    .join(', ') || 'None';
+  const blockedSources = Object.entries(snapshot.dataSources)
+    .filter(([, ok]) => !ok)
+    .map(([source]) => source)
+    .join(', ') || 'None';
+
+  const lines = [
+    'AdaptBuddy Admin Audit Evidence Report',
+    `Generated: ${new Date(snapshot.generatedAt).toLocaleString('en-GB')}`,
+    '',
+    'Executive Snapshot',
+    `- Pending school requests: ${snapshot.metrics.schoolRequestsPending}`,
+    `- Active school links: ${snapshot.metrics.activeSchoolLinks}`,
+    `- Unresolved safeguarding alerts: ${snapshot.metrics.unresolvedAlerts}`,
+    `- High-risk unresolved alerts: ${snapshot.metrics.highRiskAlerts}`,
+    `- Shared journal signals: ${snapshot.metrics.sharedJournalSignals}`,
+    `- Urgent messages: ${snapshot.metrics.urgentMessages}`,
+    `- Open meetings: ${snapshot.metrics.openMeetings}`,
+    `- Needs-help assignment submissions: ${snapshot.metrics.assignmentsNeedingHelp}`,
+    `- Visibility exceptions requiring review: ${snapshot.metrics.visibilityExceptions}`,
+    '',
+    'Privacy Visibility Posture',
+    `- Active memberships: ${snapshot.visibilitySummary.activeMemberships}`,
+    `- Child names shared: ${snapshot.visibilitySummary.nameShared}`,
+    `- Child names hidden: ${snapshot.visibilitySummary.nameHidden}`,
+    `- Neuro profiles shared: ${snapshot.visibilitySummary.neuroProfileShared}`,
+    `- Mood summaries shared: ${snapshot.visibilitySummary.moodSummaryShared}`,
+    `- Full mood shared: ${snapshot.visibilitySummary.moodFullyShared}`,
+    `- Journal text shared: ${snapshot.visibilitySummary.journalTextShared}`,
+    `- Safeguarding hidden: ${snapshot.visibilitySummary.safeguardingHidden}`,
+    '',
+    'Data Source Health',
+    `- Live: ${liveSources}`,
+    `- Blocked or unavailable: ${blockedSources}`,
+    '',
+    'Recent School Access Requests',
+    ...snapshot.schoolRequests.slice(0, 12).map(
+      (request) =>
+        `- ${request.className} (${request.schoolName}) | ${request.teacherName} -> ${request.childName} ${request.buddyId} | ${request.status} | parent=${request.parentApproved ? 'yes' : 'no'} teacher=${request.teacherApproved ? 'yes' : 'no'}`,
+    ),
+    '',
+    'Recent Safeguarding Alerts',
+    ...snapshot.safeguardingAlerts.slice(0, 12).map(
+      (alert) =>
+        `- ${alert.childName} ${alert.buddyId} | ${alert.riskLevel} | ${alert.acknowledged ? 'acknowledged' : 'unresolved'} | ${formatDate(alert.createdAt)}`,
+    ),
+    '',
+    'Assignment Support Demand',
+    ...snapshot.assignments.slice(0, 12).map(
+      (assignment) =>
+        `- ${assignment.title} | ${assignment.className} | assigned=${assignment.assigned} help=${assignment.needsHelp} complete=${assignment.completed + assignment.submitted}`,
+    ),
+    '',
+    'Audit Notes',
+    ...(snapshot.notes.length > 0 ? snapshot.notes.map((note) => `- ${note}`) : ['- No audit notes.']),
+    '',
+    'Posture Statement',
+    'This report is generated from a read-only administrator console. It supports governance, safeguarding review, funding due diligence, and internal operational monitoring without expanding parent or teacher permissions.',
+  ];
+
+  return lines.join('\n');
+}
+
+function downloadAuditEvidenceReport(snapshot: AdminAuditSnapshot): void {
+  const report = buildAuditEvidenceReport(snapshot);
+  const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  anchor.href = url;
+  anchor.download = `adaptbuddy-admin-audit-${date}.txt`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 const AdminAuditPage: React.FC = () => {
   const [snapshot, setSnapshot] = useState<AdminAuditSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -165,7 +248,7 @@ const AdminAuditPage: React.FC = () => {
 
   return (
     <AdminLayout title="Audit & safeguarding">
-      <div className="space-y-8">
+      <div className="adaptbuddy-admin-audit-print space-y-8">
         <section className="rounded-2xl border border-white/10 bg-slate-900/60 p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -178,19 +261,39 @@ const AdminAuditPage: React.FC = () => {
                 signals, assignment support, messages, and meeting coordination.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              ) : (
-                <RefreshCw className="h-4 w-4" aria-hidden />
-              )}
-              Refresh
-            </button>
+            <div className="adaptbuddy-no-print flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void load()}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <RefreshCw className="h-4 w-4" aria-hidden />
+                )}
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                disabled={!snapshot}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Printer className="h-4 w-4" aria-hidden />
+                Print
+              </button>
+              <button
+                type="button"
+                onClick={() => snapshot && downloadAuditEvidenceReport(snapshot)}
+                disabled={!snapshot}
+                className="inline-flex items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/15 px-4 py-2 text-sm font-bold text-indigo-200 transition hover:bg-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <FileDown className="h-4 w-4" aria-hidden />
+                Evidence report
+              </button>
+            </div>
           </div>
         </section>
 

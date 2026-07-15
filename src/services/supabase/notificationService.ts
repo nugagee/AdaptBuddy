@@ -7,7 +7,8 @@ export type NotificationSourceType =
   | 'teacher_message'
   | 'care_meeting'
   | 'class_request'
-  | 'assignment_help';
+  | 'assignment_help'
+  | 'adult_response';
 
 export type NotificationSeverity = 'low' | 'medium' | 'high' | 'urgent';
 export type NotificationStatus = 'unread' | 'seen' | 'responded' | 'escalated' | 'resolved';
@@ -28,12 +29,23 @@ export interface SupportNotification {
   actionUrl: string;
   actionLabel: string;
   canResolve: boolean;
+  allowedStatuses?: NotificationStatus[];
 }
 
 interface ReceiptRow {
   source_type: NotificationSourceType;
   source_id: string;
   status: NotificationStatus | null;
+}
+
+interface AdultResponseReceiptRow {
+  id: string;
+  source_id: string;
+  status: NotificationStatus | null;
+  note?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at?: string | null;
 }
 
 interface ProfileRow {
@@ -179,6 +191,48 @@ function normalizeSeverity(value: unknown): NotificationSeverity {
 
 function statusFor(ctx: NotificationContext, sourceType: NotificationSourceType, sourceId: string): NotificationStatus {
   return ctx.receipts.get(sourceKey(sourceType, sourceId)) ?? 'unread';
+}
+
+function adultResponseTitle(status: string): string {
+  switch (status) {
+    case 'seen':
+      return 'An adult has seen your signal';
+    case 'responded':
+      return 'An adult responded to your signal';
+    case 'escalated':
+      return 'An adult is getting extra support';
+    case 'resolved':
+      return 'Your support signal was resolved';
+    default:
+      return 'A trusted adult responded';
+  }
+}
+
+function buildChildResponseNote(notification: SupportNotification, status: NotificationStatus): string {
+  switch (status) {
+    case 'seen':
+      return 'A trusted adult has seen this and knows you asked for support.';
+    case 'responded':
+      return 'A trusted adult has responded. You do not have to hold this alone.';
+    case 'escalated':
+      return 'A trusted adult is getting extra support so the right person can help.';
+    case 'resolved':
+      return 'A trusted adult marked this as resolved. You can ask again if you still need help.';
+    default:
+      return 'A trusted adult has responded to your support signal.';
+  }
+}
+
+function isMissingChildResponseRpc(error: unknown): boolean {
+  if (!isRecord(error)) return false;
+  const code = asString(error.code);
+  const message = asString(error.message).toLowerCase();
+  return (
+    code === '42883'
+    || code === 'PGRST202'
+    || message.includes('notify_child_of_adult_response')
+    || message.includes('could not find the function')
+  );
 }
 
 function mapChildInfo(ctx: NotificationContext, childId: string): Pick<SupportNotification, 'childId' | 'childName' | 'buddyId'> {
@@ -516,6 +570,46 @@ async function buildAssignmentHelp(
   });
 }
 
+async function buildChildAdultResponses(ctx: NotificationContext): Promise<SupportNotification[]> {
+  if (ctx.role !== 'child') return [];
+
+  const rows = await safeRows<AdultResponseReceiptRow>(
+    getSupabaseClient()
+      .from('support_notification_receipts')
+      .select('id, source_id, status, note, metadata, created_at, updated_at')
+      .eq('user_id', ctx.userId)
+      .eq('source_type', 'adult_response')
+      .eq('status', 'unread')
+      .order('updated_at', { ascending: false })
+      .limit(12),
+  );
+
+  return rows.map((row) => {
+    const metadata = isRecord(row.metadata) ? row.metadata : {};
+    const adultStatus = asString(metadata.adult_status, 'responded');
+    const severity: NotificationSeverity = adultStatus === 'escalated' ? 'medium' : 'low';
+
+    return {
+      id: sourceKey('adult_response', row.source_id),
+      sourceType: 'adult_response',
+      sourceId: row.source_id,
+      role: ctx.role,
+      childId: ctx.userId,
+      childName: getDisplayName(ctx.profileMap.get(ctx.userId), 'You'),
+      buddyId: ctx.profileMap.get(ctx.userId)?.buddy_id ?? null,
+      title: adultResponseTitle(adultStatus),
+      body: asString(row.note, 'A trusted adult has responded to your support signal.'),
+      severity,
+      status: statusFor(ctx, 'adult_response', row.source_id),
+      createdAt: row.updated_at || row.created_at,
+      actionUrl: ROUTES.CHILD_DASHBOARD,
+      actionLabel: 'Back to dashboard',
+      canResolve: false,
+      allowedStatuses: ['seen'],
+    };
+  });
+}
+
 export class NotificationService {
   static async getNotifications(profile: Profile): Promise<SupportNotification[]> {
     if (!isSupabaseConfigured || !profile?.id) return [];
@@ -573,16 +667,25 @@ export class NotificationService {
 
     const ctx: NotificationContext = { userId, role, profile, profileMap, receipts };
 
-    const [alerts, journalSignals, messages, meetings, classRequests, assignmentHelp] = await Promise.all([
+    const [
+      alerts,
+      journalSignals,
+      messages,
+      meetings,
+      classRequests,
+      assignmentHelp,
+      childAdultResponses,
+    ] = await Promise.all([
       buildAlerts(ctx, childIds),
       role === 'child' ? Promise.resolve([]) : buildJournalSignals(ctx, childIds),
       role === 'child' ? Promise.resolve([]) : buildMessages(ctx, childIds),
       role === 'child' ? Promise.resolve([]) : buildMeetings(ctx, childIds),
       role === 'child' ? Promise.resolve([]) : buildClassRequests(ctx, childIds, classIds, classMap),
       buildAssignmentHelp(ctx, childIds, assignments),
+      role === 'child' ? buildChildAdultResponses(ctx) : Promise.resolve([]),
     ]);
 
-    return [...alerts, ...journalSignals, ...messages, ...meetings, ...classRequests, ...assignmentHelp]
+    return [...alerts, ...journalSignals, ...messages, ...meetings, ...classRequests, ...assignmentHelp, ...childAdultResponses]
       .filter((notification) => unresolvedStatuses.includes(notification.status) || notification.severity === 'urgent')
       .sort((a, b) => {
         const severityRank: Record<NotificationSeverity, number> = { urgent: 4, high: 3, medium: 2, low: 1 };
@@ -654,6 +757,25 @@ export class NotificationService {
         .update({ read_at: now })
         .eq('id', notification.sourceId)
         .is('read_at', null);
+    }
+
+    if (
+      notification.role !== 'child'
+      && notification.sourceType !== 'adult_response'
+      && notification.childId
+      && ['seen', 'responded', 'escalated', 'resolved'].includes(status)
+    ) {
+      const { error: childResponseError } = await client.rpc('notify_child_of_adult_response', {
+        p_child_id: notification.childId,
+        p_source_type: notification.sourceType,
+        p_source_id: notification.sourceId,
+        p_status: status,
+        p_note: buildChildResponseNote(notification, status),
+      });
+
+      if (childResponseError && !isMissingChildResponseRpc(childResponseError)) {
+        throw childResponseError;
+      }
     }
   }
 }

@@ -205,6 +205,42 @@ const signalColorForAnalysis = (analysis: EmotionAnalysis | null | undefined, em
   return signalColorForEmotion(emotion);
 };
 
+const deriveSupportRiskLevel = (
+  analysis: EmotionAnalysis | null | undefined,
+  emotion: string,
+  text: string,
+): RiskLevel => {
+  if (analysis?.riskLevel === 'high' || analysis?.supportLevel === 'urgent') return 'high';
+
+  const signalText = [
+    analysis?.signalLabel,
+    analysis?.signalCategory,
+    analysis?.supportLevel,
+    analysis?.emotion,
+    emotion,
+    text,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (/\bi need help\b|\bneed help\b|\bhelp me\b|\bplease help\b/.test(signalText)) {
+    return 'high';
+  }
+
+  if (
+    analysis?.riskLevel === 'medium'
+    || analysis?.supportLevel === 'concern'
+    || analysis?.signalCategory === 'sensory'
+    || analysis?.signalCategory === 'cognitive'
+    || /too noisy|too bright|confused|worried|frustrated|overwhelmed|stuck|scared/.test(signalText)
+  ) {
+    return 'medium';
+  }
+
+  return analysis?.riskLevel ?? 'low';
+};
+
 export async function saveJournalEntry({
   childId,
   emotion,
@@ -216,7 +252,7 @@ export async function saveJournalEntry({
   if (!isSupabaseConfigured) return;
 
   const client = getSupabaseClient();
-  const riskLevel: RiskLevel = analysis?.riskLevel ?? 'low';
+  const riskLevel = deriveSupportRiskLevel(analysis, emotion, text);
 
   const { data, error } = await client
     .from('journal_entries')

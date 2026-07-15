@@ -52,6 +52,7 @@ import {
   type ParentMessage,
   type RiskLevel,
   type TeacherClassRequest,
+  type TeacherClassRequestStatus,
   type TeacherClassVisibilitySettings,
   type TrustedAdult,
 } from 'features/parent/services/parentDashboardService';
@@ -121,6 +122,15 @@ const supportToolLabels: Record<string, string> = {
   writing_support: 'Writing support',
   teacher_help: 'Teacher help',
 };
+
+const pendingTeacherRequestStatuses: TeacherClassRequestStatus[] = [
+  'pending',
+  'pending_parent',
+  'pending_teacher',
+];
+
+const isPendingTeacherClassRequest = (request: TeacherClassRequest): boolean =>
+  pendingTeacherRequestStatuses.includes(request.status);
 
 const formatRelativeTime = (isoDate: string): string => {
   const timestamp = new Date(isoDate).getTime();
@@ -241,6 +251,51 @@ const defaultTeacherVisibility: TeacherClassVisibilitySettings = {
   personalNotes: false,
 };
 
+const getTeacherVisibilityChips = (visibility: TeacherClassVisibilitySettings): string[] => {
+  const chips = [
+    visibility.childName ? 'Child name' : null,
+    visibility.neuroProfile ? 'Neuro profile' : null,
+    visibility.dailyMood !== 'hidden'
+      ? visibility.dailyMood === 'full'
+        ? 'Full mood'
+        : 'Mood summary'
+      : null,
+    visibility.safeguardingAlerts ? 'Safeguarding alerts' : null,
+    visibility.academicTasks ? 'Academic tasks' : null,
+    visibility.worryDiaryText ? 'Worry diary text' : null,
+    visibility.personalNotes ? 'Personal notes' : null,
+  ].filter((chip): chip is string => Boolean(chip));
+
+  return chips.length > 0 ? chips : ['No optional data shared'];
+};
+
+const TeacherRequestAuditTrail: React.FC<{ request: TeacherClassRequest }> = ({ request }) => (
+  <div className="mt-4 grid gap-2 rounded-2xl border border-indigo-100 bg-white/70 p-3 text-xs font-bold text-slate-500 dark:border-gray-800 dark:bg-gray-950/50 dark:text-gray-400 sm:grid-cols-2">
+    <span>Requested {formatRelativeTime(request.createdAt)}</span>
+    <span>
+      Teacher approval:{' '}
+      {request.teacherApprovedAt
+        ? `${formatRelativeTime(request.teacherApprovedAt)} by ${request.teacherApprovedByName ?? request.teacherName}`
+        : request.teacherApproved
+          ? 'Saved'
+          : 'Waiting'}
+    </span>
+    <span>
+      Parent approval:{' '}
+      {request.parentApprovedAt
+        ? `${formatRelativeTime(request.parentApprovedAt)} by ${request.parentApprovedByName ?? 'parent/guardian'}`
+        : 'Waiting for parent'}
+    </span>
+    {request.approvedAt && <span>Access active {formatRelativeTime(request.approvedAt)}</span>}
+    {request.declinedAt && (
+      <span>
+        Declined {formatRelativeTime(request.declinedAt)}
+        {request.declinedByName ? ` by ${request.declinedByName}` : ''}
+      </span>
+    )}
+  </div>
+);
+
 const TeacherClassRequestCard: React.FC<{
   request: TeacherClassRequest;
   visibility: TeacherClassVisibilitySettings;
@@ -270,6 +325,7 @@ const TeacherClassRequestCard: React.FC<{
           <p className="mt-2 font-mono text-xs font-black text-adapt-indigo dark:text-adapt-cyan">
             {request.requestedBuddyId ?? 'Buddy ID hidden'} · {formatRelativeTime(request.createdAt)}
           </p>
+          <TeacherRequestAuditTrail request={request} />
         </div>
         <span className="rounded-full bg-white px-3 py-1 text-xs font-black capitalize text-adapt-indigo dark:bg-gray-900 dark:text-adapt-cyan">
           {request.status.replace(/_/g, ' ')}
@@ -339,6 +395,55 @@ const TeacherClassRequestCard: React.FC<{
           <X className="h-4 w-4" aria-hidden />
           Decline
         </button>
+      </div>
+    </article>
+  );
+};
+
+const SchoolAccessHistoryCard: React.FC<{ request: TeacherClassRequest }> = ({ request }) => {
+  const visibilityChips = getTeacherVisibilityChips(request.visibilitySettings);
+  const statusTone =
+    request.status === 'approved'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100'
+      : request.status === 'declined' || request.status === 'cancelled'
+        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100'
+      : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-gray-800 dark:bg-gray-950/40 dark:text-gray-200';
+
+  return (
+    <article className="rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-card dark:border-gray-800 dark:bg-gray-900/75">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+            School access history
+          </p>
+          <h3 className="mt-1 text-lg font-extrabold text-adapt-navy dark:text-gray-100">
+            {request.className} · {request.teacherName}
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-gray-300">
+            {request.schoolName || 'School not set'} {request.subject ? `· ${request.subject}` : ''}
+          </p>
+        </div>
+        <span className={`rounded-full border px-3 py-1 text-xs font-black capitalize ${statusTone}`}>
+          {request.status.replace(/_/g, ' ')}
+        </span>
+      </div>
+
+      <TeacherRequestAuditTrail request={request} />
+
+      <div className="mt-4">
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+          {request.status === 'approved' ? 'Visibility granted' : 'Visibility settings'}
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {visibilityChips.map((chip) => (
+            <span
+              key={chip}
+              className="rounded-full bg-adapt-indigo/10 px-3 py-1 text-xs font-black text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan"
+            >
+              {chip}
+            </span>
+          ))}
+        </div>
       </div>
     </article>
   );
@@ -817,6 +922,16 @@ const ParentHubPage: React.FC = () => {
     [currentChild, dashboardData],
   );
 
+  const pendingTeacherClassRequests = useMemo(
+    () => childTeacherClassRequests.filter(isPendingTeacherClassRequest),
+    [childTeacherClassRequests],
+  );
+
+  const schoolAccessHistory = useMemo(
+    () => childTeacherClassRequests.filter((request) => !isPendingTeacherClassRequest(request)).slice(0, 4),
+    [childTeacherClassRequests],
+  );
+
   const childAssignments = useMemo(
     () =>
       currentChild
@@ -876,8 +991,12 @@ const ParentHubPage: React.FC = () => {
     ...(sensoryLoadCount >= 2
       ? ['Review noise, brightness, crowding, and transition timing around recent signals.']
       : []),
-    ...(childTeacherClassRequests.length > 0
-      ? [`Review ${childTeacherClassRequests.length} teacher access request${childTeacherClassRequests.length === 1 ? '' : 's'}.`]
+    ...(pendingTeacherClassRequests.length > 0
+      ? [
+          `Review ${pendingTeacherClassRequests.length} teacher access request${
+            pendingTeacherClassRequests.length === 1 ? '' : 's'
+          }.`,
+        ]
       : []),
   ];
 
@@ -960,7 +1079,7 @@ const ParentHubPage: React.FC = () => {
     { id: 'ai', label: 'AI Digest', badge: childInsights.length },
     { id: 'journal', label: 'Journal', badge: childEntries.length },
     { id: 'alerts', label: 'Alerts', badge: newAlertsCount },
-    { id: 'support', label: 'Support', badge: childTrustedAdults.length + childTeacherClassRequests.length + assignmentNeedsHelpCount },
+    { id: 'support', label: 'Support', badge: childTrustedAdults.length + pendingTeacherClassRequests.length + assignmentNeedsHelpCount },
   ];
 
   const coachResponse = useMemo(() => {
@@ -2337,8 +2456,8 @@ const ParentHubPage: React.FC = () => {
                       <p className="font-black text-adapt-navy dark:text-gray-100">Adults in the loop</p>
                       <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-300">
                         {childTrustedAdults.length} trusted adult{childTrustedAdults.length === 1 ? '' : 's'} connected.
-                        {childTeacherClassRequests.length > 0
-                          ? ` ${childTeacherClassRequests.length} school access request${childTeacherClassRequests.length === 1 ? '' : 's'} waiting.`
+                        {pendingTeacherClassRequests.length > 0
+                          ? ` ${pendingTeacherClassRequests.length} school access request${pendingTeacherClassRequests.length === 1 ? '' : 's'} waiting.`
                           : ' No pending school access request.'}
                       </p>
                     </div>
@@ -2634,7 +2753,7 @@ const ParentHubPage: React.FC = () => {
               <section className="space-y-6">
                 {renderBuddyIdLinkCard('compact')}
 
-                {childTeacherClassRequests.length > 0 && (
+                {pendingTeacherClassRequests.length > 0 && (
                   <section className="space-y-4">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
@@ -2648,7 +2767,7 @@ const ParentHubPage: React.FC = () => {
                       </p>
                     </div>
                     <div className="grid gap-4">
-                      {childTeacherClassRequests.map((request) => (
+                      {pendingTeacherClassRequests.map((request) => (
                         <TeacherClassRequestCard
                           key={request.id}
                           request={request}
@@ -2658,6 +2777,27 @@ const ParentHubPage: React.FC = () => {
                           onApprove={() => void handleApproveTeacherClassRequest(request)}
                           onDecline={() => void handleDeclineTeacherClassRequest(request)}
                         />
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {schoolAccessHistory.length > 0 && (
+                  <section className="space-y-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+                        Access audit trail
+                      </p>
+                      <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
+                        School access already reviewed
+                      </h2>
+                      <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-400">
+                        A clear record of teacher requests, parent approval, and the visibility settings that were granted.
+                      </p>
+                    </div>
+                    <div className="grid gap-4">
+                      {schoolAccessHistory.map((request) => (
+                        <SchoolAccessHistoryCard key={request.id} request={request} />
                       ))}
                     </div>
                   </section>

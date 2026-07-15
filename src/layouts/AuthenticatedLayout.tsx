@@ -1,5 +1,6 @@
 import React from 'react';
 import AuthSuccessBanner from 'components/auth/AuthSuccessBanner';
+import NotificationCenter from 'components/notifications/NotificationCenter';
 import ChildSessionTracker from 'features/child/components/layout/ChildSessionTracker';
 import { useAuth } from 'hooks/useAuth';
 
@@ -17,6 +18,7 @@ const AuthenticatedLayout: React.FC<AuthenticatedLayoutProps> = ({ children }) =
       {trackChildSession && <ChildSessionTracker />}
       <AuthSuccessBanner />
       {children}
+      <NotificationCenter />
     </div>
   );
 };

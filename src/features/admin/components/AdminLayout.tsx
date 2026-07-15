@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react';
+import NotificationCenter from 'components/notifications/NotificationCenter';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
 import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
@@ -89,6 +90,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, title }) => {
           <h1 className="text-xl font-bold text-white">{title ?? 'Admin Console'}</h1>
         </header>
         <main className="flex-1 p-8">{children}</main>
+        <NotificationCenter />
       </div>
     </div>
   );

@@ -24,6 +24,7 @@ interface AssignmentRow {
   support_tools: string[] | null;
   due_at: string | null;
   created_at: string;
+  archived_at?: string | null;
 }
 
 interface ClassMembershipRow {
@@ -55,6 +56,21 @@ const normalizeAssignmentType = (value: string | null | undefined): TeacherAssig
 
 const normalizeSubmissionStatus = (value: string | null | undefined): AssignmentStatus =>
   submissionStatuses.includes(value as AssignmentStatus) ? (value as AssignmentStatus) : 'not_started';
+
+const assignmentSelectColumns =
+  'id, class_id, title, description, assignment_type, support_tools, due_at, created_at, archived_at';
+const legacyAssignmentSelectColumns =
+  'id, class_id, title, description, assignment_type, support_tools, due_at, created_at';
+
+const isMissingAssignmentLifecycleColumn = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  const message = 'message' in error ? String((error as { message?: unknown }).message).toLowerCase() : '';
+  return message.includes('archived_at') && (
+    message.includes('schema cache')
+    || message.includes('column')
+    || message.includes('could not find')
+  );
+};
 
 const mapAssignment = (row: AssignmentRow, submission?: SubmissionRow): ChildTeacherAssignment => ({
   id: row.id,
@@ -90,13 +106,26 @@ export class ChildAssignmentService {
 
     const { data: assignmentData, error: assignmentError } = await client
       .from('teacher_assignments')
-      .select('id, class_id, title, description, assignment_type, support_tools, due_at, created_at')
+      .select(assignmentSelectColumns)
       .in('class_id', classIds)
+      .is('archived_at', null)
       .order('created_at', { ascending: false })
       .limit(12);
 
-    if (assignmentError) throw assignmentError;
-    const assignments = (assignmentData ?? []) as AssignmentRow[];
+    if (assignmentError && !isMissingAssignmentLifecycleColumn(assignmentError)) throw assignmentError;
+
+    let assignments = (assignmentData ?? []) as AssignmentRow[];
+    if (assignmentError) {
+      const { data: legacyAssignmentData, error: legacyAssignmentError } = await client
+        .from('teacher_assignments')
+        .select(legacyAssignmentSelectColumns)
+        .in('class_id', classIds)
+        .order('created_at', { ascending: false })
+        .limit(12);
+
+      if (legacyAssignmentError) throw legacyAssignmentError;
+      assignments = (legacyAssignmentData ?? []) as AssignmentRow[];
+    }
     const assignmentIds = assignments.map((assignment) => assignment.id);
 
     if (assignmentIds.length === 0) return [];

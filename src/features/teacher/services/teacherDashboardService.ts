@@ -73,12 +73,23 @@ export interface TeacherAssignment {
   supportTools: string[];
   dueAt?: string;
   createdAt: string;
+  updatedAt?: string;
+  archivedAt?: string;
   progress: TeacherAssignmentProgressSummary;
   learnerProgress: TeacherAssignmentLearnerProgress[];
 }
 
 export interface CreateTeacherAssignmentInput {
   classId: string;
+  title: string;
+  description: string;
+  assignmentType: TeacherAssignmentType;
+  supportTools: string[];
+  dueAt?: string;
+}
+
+export interface UpdateTeacherAssignmentInput {
+  assignmentId: string;
   title: string;
   description: string;
   assignmentType: TeacherAssignmentType;
@@ -189,6 +200,8 @@ interface TeacherAssignmentRow {
   support_tools: string[] | null;
   due_at: string | null;
   created_at: string;
+  updated_at?: string | null;
+  archived_at?: string | null;
 }
 
 interface AssignmentSubmissionRow {
@@ -299,6 +312,21 @@ const getAnalysisString = (analysis: Record<string, unknown> | null, keys: strin
 const normalizeRiskLevel = (value: string | null | undefined): TeacherSupportSignal['riskLevel'] => {
   if (value === 'medium' || value === 'high') return value;
   return 'low';
+};
+
+const assignmentSelectColumns =
+  'id, class_id, teacher_id, title, description, assignment_type, support_tools, due_at, created_at, updated_at, archived_at';
+const legacyAssignmentSelectColumns =
+  'id, class_id, teacher_id, title, description, assignment_type, support_tools, due_at, created_at';
+
+const isMissingAssignmentLifecycleColumn = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  const message = 'message' in error ? String((error as { message?: unknown }).message).toLowerCase() : '';
+  return message.includes('archived_at') && (
+    message.includes('schema cache')
+    || message.includes('column')
+    || message.includes('could not find')
+  );
 };
 
 const mapClass = (
@@ -419,6 +447,8 @@ const mapAssignment = (
   supportTools: row.support_tools ?? [],
   dueAt: row.due_at ?? undefined,
   createdAt: row.created_at,
+  updatedAt: row.updated_at ?? undefined,
+  archivedAt: row.archived_at ?? undefined,
   progress: progressData?.progress ?? emptyAssignmentProgress(),
   learnerProgress: progressData?.learnerProgress ?? [],
 });
@@ -550,11 +580,50 @@ export class TeacherDashboardService {
         support_tools: input.supportTools,
         due_at: input.dueAt || null,
       })
-      .select('id, class_id, teacher_id, title, description, assignment_type, support_tools, due_at, created_at')
+      .select(legacyAssignmentSelectColumns)
       .single();
 
     if (error) throw error;
     return mapAssignment(data as TeacherAssignmentRow);
+  }
+
+  static async updateAssignment(input: UpdateTeacherAssignmentInput): Promise<TeacherAssignment> {
+    if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+    if (!input.assignmentId) throw new Error('Choose an assignment first.');
+    if (!input.title.trim()) throw new Error('Add an assignment title first.');
+
+    const { data, error } = await getSupabaseClient()
+      .from('teacher_assignments')
+      .update({
+        title: input.title.trim(),
+        description: input.description.trim() || null,
+        assignment_type: input.assignmentType,
+        support_tools: input.supportTools,
+        due_at: input.dueAt || null,
+      })
+      .eq('id', input.assignmentId)
+      .select(legacyAssignmentSelectColumns)
+      .single();
+
+    if (error) throw error;
+    return mapAssignment(data as TeacherAssignmentRow);
+  }
+
+  static async archiveAssignment(assignmentId: string): Promise<void> {
+    if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+    if (!assignmentId) throw new Error('Choose an assignment first.');
+
+    const { error } = await getSupabaseClient()
+      .from('teacher_assignments')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', assignmentId);
+
+    if (error) {
+      if (isMissingAssignmentLifecycleColumn(error)) {
+        throw new Error('Assignment archiving needs the latest Supabase migration. Run migration 023 first.');
+      }
+      throw error;
+    }
   }
 
   static async approveJoinRequest(requestId: string): Promise<MembershipResultRow> {
@@ -719,13 +788,27 @@ export class TeacherDashboardService {
   }
 
   private static async getAssignmentRows(classIds: string[]): Promise<TeacherAssignmentRow[]> {
-    const { data, error } = await getSupabaseClient()
+    const client = getSupabaseClient();
+    const { data, error } = await client
       .from('teacher_assignments')
-      .select('id, class_id, teacher_id, title, description, assignment_type, support_tools, due_at, created_at')
+      .select(assignmentSelectColumns)
       .in('class_id', classIds)
+      .is('archived_at', null)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      if (isMissingAssignmentLifecycleColumn(error)) {
+        const { data: legacyData, error: legacyError } = await client
+          .from('teacher_assignments')
+          .select(legacyAssignmentSelectColumns)
+          .in('class_id', classIds)
+          .order('created_at', { ascending: false });
+
+        if (legacyError) throw legacyError;
+        return ((legacyData ?? []) as TeacherAssignmentRow[]).map((row) => ({ ...row, archived_at: null }));
+      }
+      throw error;
+    }
     return (data ?? []) as TeacherAssignmentRow[];
   }
 

@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Archive,
   BookOpenCheck,
   CalendarClock,
   CheckCircle2,
   ClipboardList,
   Eye,
   Loader2,
+  Pencil,
   RefreshCw,
   Save,
   SlidersHorizontal,
@@ -63,6 +65,14 @@ const formatDate = (isoDate?: string): string => {
   }).format(date);
 };
 
+const toDateTimeLocalValue = (isoDate?: string): string => {
+  if (!isoDate) return '';
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return '';
+  const localTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localTime.toISOString().slice(0, 16);
+};
+
 const getTypeLabel = (type: TeacherAssignmentType): string =>
   assignmentTypes.find((item) => item.id === type)?.label ?? 'Task';
 
@@ -77,7 +87,10 @@ const AssignmentCard: React.FC<{
   assignment: TeacherAssignment;
   className: string;
   onViewProgress: (assignment: TeacherAssignment) => void;
-}> = ({ assignment, className, onViewProgress }) => (
+  onEdit: (assignment: TeacherAssignment) => void;
+  onArchive: (assignment: TeacherAssignment) => void;
+  isArchiving?: boolean;
+}> = ({ assignment, className, onViewProgress, onEdit, onArchive, isArchiving = false }) => (
   <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft dark:border-gray-800 dark:bg-gray-900">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
@@ -127,14 +140,33 @@ const AssignmentCard: React.FC<{
         </div>
       ))}
     </div>
-    <button
-      type="button"
-      onClick={() => onViewProgress(assignment)}
-      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-adapt-indigo/20 bg-adapt-indigo/10 px-4 py-3 text-sm font-black text-adapt-indigo transition hover:bg-adapt-indigo/15 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/10 dark:text-adapt-cyan"
-    >
-      <Eye className="h-4 w-4" aria-hidden />
-      View learner progress
-    </button>
+    <div className="mt-4 grid gap-2 sm:grid-cols-3">
+      <button
+        type="button"
+        onClick={() => onViewProgress(assignment)}
+        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-adapt-indigo/20 bg-adapt-indigo/10 px-4 py-3 text-sm font-black text-adapt-indigo transition hover:bg-adapt-indigo/15 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/10 dark:text-adapt-cyan"
+      >
+        <Eye className="h-4 w-4" aria-hidden />
+        Progress
+      </button>
+      <button
+        type="button"
+        onClick={() => onEdit(assignment)}
+        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:border-adapt-indigo/30 hover:text-adapt-indigo dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+      >
+        <Pencil className="h-4 w-4" aria-hidden />
+        Edit
+      </button>
+      <button
+        type="button"
+        onClick={() => onArchive(assignment)}
+        disabled={isArchiving}
+        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800 transition hover:bg-amber-100 disabled:opacity-60 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+      >
+        {isArchiving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Archive className="h-4 w-4" aria-hidden />}
+        {isArchiving ? 'Archiving' : 'Archive'}
+      </button>
+    </div>
   </article>
 );
 
@@ -238,6 +270,8 @@ const Assignments: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [selectedAssignment, setSelectedAssignment] = useState<TeacherAssignment | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState<TeacherAssignment | null>(null);
+  const [archivingAssignmentId, setArchivingAssignmentId] = useState<string | null>(null);
   const [form, setForm] = useState({
     classId: '',
     title: '',
@@ -274,6 +308,18 @@ const Assignments: React.FC = () => {
     [summary?.classes],
   );
 
+  const resetForm = useCallback(() => {
+    setEditingAssignment(null);
+    setForm((current) => ({
+      ...current,
+      title: '',
+      description: '',
+      dueAt: '',
+      assignmentType: 'reading',
+      supportTools: ['visual_steps'],
+    }));
+  }, []);
+
   const toggleSupport = (tool: string) => {
     setForm((current) => ({
       ...current,
@@ -296,29 +342,77 @@ const Assignments: React.FC = () => {
         return;
       }
 
-      const assignment = await TeacherDashboardService.createAssignment({
-        classId: form.classId,
+      const payload = {
         title: form.title,
         description: form.description,
         assignmentType: form.assignmentType,
         supportTools: form.supportTools,
         dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : undefined,
-      });
+      };
 
-      setActionStatus(`${assignment.title} was assigned to ${classNames.get(assignment.classId) ?? 'the class'}.`);
-      setForm((current) => ({
-        ...current,
-        title: '',
-        description: '',
-        dueAt: '',
-        supportTools: ['visual_steps'],
-      }));
+      if (editingAssignment) {
+        const assignment = await TeacherDashboardService.updateAssignment({
+          assignmentId: editingAssignment.id,
+          ...payload,
+        });
+        setActionStatus(`${assignment.title} was updated.`);
+        setEditingAssignment(null);
+      } else {
+        const assignment = await TeacherDashboardService.createAssignment({
+          classId: form.classId,
+          ...payload,
+        });
+        setActionStatus(`${assignment.title} was assigned to ${classNames.get(assignment.classId) ?? 'the class'}.`);
+      }
+
+      resetForm();
       await loadAssignments('refresh');
     } catch (saveError) {
       console.error('Error creating assignment:', saveError);
-      setError(getErrorMessage(saveError, 'Could not create assignment.'));
+      setError(getErrorMessage(saveError, editingAssignment ? 'Could not update assignment.' : 'Could not create assignment.'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEditAssignment = (assignment: TeacherAssignment) => {
+    setEditingAssignment(assignment);
+    setError(null);
+    setActionStatus(null);
+    setForm({
+      classId: assignment.classId,
+      title: assignment.title,
+      description: assignment.description ?? '',
+      assignmentType: assignment.assignmentType,
+      dueAt: toDateTimeLocalValue(assignment.dueAt),
+      supportTools: assignment.supportTools.length ? assignment.supportTools : ['visual_steps'],
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleArchiveAssignment = async (assignment: TeacherAssignment) => {
+    if (isGuest) {
+      setActionStatus('Guest demo: sign in with a teacher account to archive assignments.');
+      return;
+    }
+    const confirmed = window.confirm(`Archive "${assignment.title}"? It will leave active child, parent, and teacher views.`);
+    if (!confirmed) return;
+
+    setArchivingAssignmentId(assignment.id);
+    setError(null);
+    setActionStatus(null);
+
+    try {
+      await TeacherDashboardService.archiveAssignment(assignment.id);
+      if (editingAssignment?.id === assignment.id) resetForm();
+      if (selectedAssignment?.id === assignment.id) setSelectedAssignment(null);
+      setActionStatus(`${assignment.title} was archived.`);
+      await loadAssignments('refresh');
+    } catch (archiveError) {
+      console.error('Error archiving assignment:', archiveError);
+      setError(getErrorMessage(archiveError, 'Could not archive assignment.'));
+    } finally {
+      setArchivingAssignmentId(null);
     }
   };
 
@@ -382,8 +476,14 @@ const Assignments: React.FC = () => {
                 <BookOpenCheck className="h-5 w-5" aria-hidden />
               </span>
               <div>
-                <h2 className="text-lg font-extrabold text-adapt-navy dark:text-gray-100">Create assignment</h2>
-                <p className="text-sm text-slate-500 dark:text-gray-400">Choose a class, task type, and support tools.</p>
+                <h2 className="text-lg font-extrabold text-adapt-navy dark:text-gray-100">
+                  {editingAssignment ? 'Edit assignment' : 'Create assignment'}
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-gray-400">
+                  {editingAssignment
+                    ? 'Update the title, instructions, due date, or support tools.'
+                    : 'Choose a class, task type, and support tools.'}
+                </p>
               </div>
             </div>
 
@@ -391,6 +491,7 @@ const Assignments: React.FC = () => {
               <select
                 value={form.classId}
                 onChange={(event) => setForm((current) => ({ ...current, classId: event.target.value }))}
+                disabled={Boolean(editingAssignment)}
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
               >
                 <option value="">Choose class</option>
@@ -462,14 +563,26 @@ const Assignments: React.FC = () => {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={!form.classId || !form.title.trim() || saving}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white transition hover:bg-adapt-purple disabled:opacity-60 dark:bg-adapt-cyan dark:text-gray-950"
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}
-              {saving ? 'Publishing...' : 'Publish assignment'}
-            </button>
+            <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+              <button
+                type="submit"
+                disabled={!form.classId || !form.title.trim() || saving}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white transition hover:bg-adapt-purple disabled:opacity-60 dark:bg-adapt-cyan dark:text-gray-950"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Save className="h-4 w-4" aria-hidden />}
+                {saving ? (editingAssignment ? 'Saving...' : 'Publishing...') : editingAssignment ? 'Save changes' : 'Publish assignment'}
+              </button>
+              {editingAssignment && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  disabled={saving}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
           </form>
 
           <div className="space-y-4">
@@ -491,6 +604,9 @@ const Assignments: React.FC = () => {
                     assignment={assignment}
                     className={classNames.get(assignment.classId) ?? 'Class'}
                     onViewProgress={setSelectedAssignment}
+                    onEdit={handleEditAssignment}
+                    onArchive={handleArchiveAssignment}
+                    isArchiving={archivingAssignmentId === assignment.id}
                   />
                 ))}
               </div>

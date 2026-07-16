@@ -15,6 +15,7 @@ import {
 import { useAuth } from 'hooks/useAuth';
 import {
   SupportTimelineService,
+  type SupportResponseMetrics,
   type SupportTimelineItem,
   type SupportTimelineKind,
   type SupportTimelineSeverity,
@@ -69,6 +70,14 @@ function formatRelativeTime(value: string): string {
   return days === 1 ? 'Yesterday' : `${days} days ago`;
 }
 
+function formatDuration(minutes: number | null): string {
+  if (minutes === null) return 'No data yet';
+  if (minutes < 1) return 'Under 1 min';
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const hours = minutes / 60;
+  return `${hours < 10 ? hours.toFixed(1) : Math.round(hours)} hr`;
+}
+
 const SupportTimelinePanel: React.FC<SupportTimelinePanelProps> = ({
   title = 'Support timeline',
   subtitle = 'Signal, response, escalation, and reassurance evidence in one place.',
@@ -79,6 +88,7 @@ const SupportTimelinePanel: React.FC<SupportTimelinePanelProps> = ({
 }) => {
   const { profile } = useAuth();
   const [items, setItems] = useState<SupportTimelineItem[]>([]);
+  const [metrics, setMetrics] = useState<SupportResponseMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -95,9 +105,11 @@ const SupportTimelinePanel: React.FC<SupportTimelinePanelProps> = ({
     setError('');
 
     try {
-      const timeline = await SupportTimelineService.getTimeline(profile, { childIds: requestedChildIds, limit });
-      setItems(timeline);
+      const timelineBundle = await SupportTimelineService.getTimelineBundle(profile, { childIds: requestedChildIds, limit });
+      setItems(timelineBundle.items);
+      setMetrics(timelineBundle.metrics);
     } catch (timelineError: unknown) {
+      setMetrics(null);
       setError(timelineError instanceof Error ? timelineError.message : 'Could not load support timeline.');
     } finally {
       setLoading(false);
@@ -119,6 +131,33 @@ const SupportTimelinePanel: React.FC<SupportTimelinePanelProps> = ({
   const itemClass = isDark
     ? 'border-white/10 bg-white/5'
     : 'border-slate-100 bg-slate-50/80 dark:border-gray-800 dark:bg-gray-950/40';
+  const metricClass = isDark
+    ? 'border-white/10 bg-white/5'
+    : 'border-slate-100 bg-white/80 dark:border-gray-800 dark:bg-gray-950/40';
+  const metricCards = metrics
+    ? [
+        {
+          label: 'First response',
+          value: formatDuration(metrics.averageFirstResponseMinutes),
+          detail: `${metrics.responseEventCount} response event${metrics.responseEventCount === 1 ? '' : 's'}`,
+        },
+        {
+          label: 'Seen time',
+          value: formatDuration(metrics.averageSeenMinutes),
+          detail: `${metrics.seenCount} seen`,
+        },
+        {
+          label: 'Resolved time',
+          value: formatDuration(metrics.averageResolvedMinutes),
+          detail: `${metrics.resolvedCount} resolved`,
+        },
+        {
+          label: 'Open / escalated',
+          value: `${metrics.openAlertCount} / ${metrics.escalatedCount}`,
+          detail: `${metrics.sourceCount} tracked signal${metrics.sourceCount === 1 ? '' : 's'}`,
+        },
+      ]
+    : [];
 
   return (
     <section className={wrapperClass}>
@@ -157,6 +196,24 @@ const SupportTimelinePanel: React.FC<SupportTimelinePanelProps> = ({
         <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100">
           {error}
         </p>
+      )}
+
+      {metrics && (
+        <div className={`mt-4 grid gap-3 ${compact ? 'grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-4'}`}>
+          {metricCards.map((metric) => (
+            <div key={metric.label} className={`rounded-2xl border p-4 ${metricClass}`}>
+              <p className={`text-[0.68rem] font-black uppercase tracking-[0.16em] ${mutedClass}`}>
+                {metric.label}
+              </p>
+              <p className={`mt-2 text-xl font-black ${headingClass}`}>
+                {metric.value}
+              </p>
+              <p className={`mt-1 text-xs font-bold ${mutedClass}`}>
+                {metric.detail}
+              </p>
+            </div>
+          ))}
+        </div>
       )}
 
       <div className={compact ? 'mt-4 space-y-3' : 'mt-6 space-y-3'}>

@@ -15,6 +15,7 @@ import {
   TeacherDashboardService,
   type TeacherDashboardSummary,
 } from 'features/teacher/services/teacherDashboardService';
+import FeedbackPulsePanel from 'components/feedback/FeedbackPulsePanel';
 
 const notificationOptions = [
   { id: 'learner_help', label: 'Learner asks for help' },
@@ -300,6 +301,14 @@ const Settings: React.FC = () => {
             </div>
           </article>
         </section>
+
+        <FeedbackPulsePanel
+          title="Teacher feedback loop"
+          subtitle="Tell us where the class workflow is strong, where it slows you down, and what would help SENCO or classroom support."
+          sourceArea="teacher_settings"
+          showSummary
+          compact
+        />
 
         <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900/60 dark:bg-emerald-950/30">
           <div className="flex items-start gap-3">

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link2, Settings, ShieldCheck, Sparkles, UsersRound } from 'lucide-react';
+import FeedbackPulsePanel from 'components/feedback/FeedbackPulsePanel';
 import AdminLayout from 'features/admin/components/AdminLayout';
 import AdminStatCard from 'features/admin/components/AdminStatCard';
 import {
@@ -177,6 +178,14 @@ const AdminSettingsPage: React.FC = () => {
               </div>
             </div>
           </section>
+
+          <FeedbackPulsePanel
+            title="Product feedback pulse"
+            subtitle="Cross-role feedback themes from parents, teachers, children, and administrators. Use this to spot friction, safety concerns, and feature requests."
+            sourceArea="admin_settings"
+            showSummary
+            variant="dark"
+          />
         </div>
       ) : null}
     </AdminLayout>

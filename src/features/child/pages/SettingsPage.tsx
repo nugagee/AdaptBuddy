@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Camera, Check, Copy, KeyRound, Loader2, Plus, Save, ShieldCheck, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import FeedbackPulsePanel from 'components/feedback/FeedbackPulsePanel';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import { NEURO_OPTION_MAP } from 'constants/neuroOptions';
 import { useAuth } from 'hooks/useAuth';
@@ -591,6 +592,14 @@ const SettingsPage: React.FC = () => {
               </button>
             </div>
           </section>
+
+          <FeedbackPulsePanel
+            title="Tell us about your space"
+            subtitle="You can tell AdaptBuddy what feels good, confusing, too much, or helpful."
+            sourceArea="child_settings"
+            childId={activeProfile.id}
+            compact
+          />
 
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
             <button

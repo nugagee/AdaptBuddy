@@ -39,6 +39,7 @@ import {
 } from 'recharts';
 import { ROUTES } from 'constants/routes';
 import { useAuth } from 'hooks/useAuth';
+import FeedbackPulsePanel from 'components/feedback/FeedbackPulsePanel';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import SupportActionQueue from 'components/support/SupportActionQueue';
 import SupportPlanDraftPanel from 'components/support/SupportPlanDraftPanel';
@@ -756,14 +757,12 @@ const ParentHubPage: React.FC = () => {
   const [acknowledgingAlertId, setAcknowledgingAlertId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ParentDashboardTab>('overview');
   const [messageDraft, setMessageDraft] = useState('');
-  const [feedbackDraft, setFeedbackDraft] = useState('');
   const [coachDraft, setCoachDraft] = useState('');
   const [buddyIdInput, setBuddyIdInput] = useState('');
   const [buddyRelationship, setBuddyRelationship] = useState(profile?.role === 'teacher' ? 'teacher' : 'parent');
   const [actionStatus, setActionStatus] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isRequestingMeeting, setIsRequestingMeeting] = useState(false);
-  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
   const [isLinkingBuddyId, setIsLinkingBuddyId] = useState(false);
   const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
   const [showAddChildPanel, setShowAddChildPanel] = useState(false);
@@ -1212,39 +1211,6 @@ const ParentHubPage: React.FC = () => {
       setError(getErrorMessage(meetingError, 'Could not request the meeting.'));
     } finally {
       setIsRequestingMeeting(false);
-    }
-  };
-
-  const handleSubmitFeedback = async () => {
-    if (!feedbackDraft.trim() || isSendingFeedback) return;
-    setIsSendingFeedback(true);
-    setActionStatus('');
-    setError(null);
-
-    try {
-      if (!isGuest) {
-        await ParentDashboardService.submitParentFeedback(currentChild?.childId ?? null, feedbackDraft);
-      }
-      if (isGuest) {
-        setDashboardData((current) =>
-          current
-            ? {
-                ...current,
-                parentFeedbackThemes: [
-                  { theme: 'Demo feedback', count: 1, sentiment: 'positive' },
-                  ...current.parentFeedbackThemes,
-                ],
-              }
-            : current,
-        );
-      }
-      setFeedbackDraft('');
-      setActionStatus('Feedback sent. Thank you for shaping AdaptBuddy.');
-    } catch (feedbackError) {
-      console.error('Error sending parent feedback:', feedbackError);
-      setError(getErrorMessage(feedbackError, 'Could not send feedback.'));
-    } finally {
-      setIsSendingFeedback(false);
     }
   };
 
@@ -2585,38 +2551,14 @@ const ParentHubPage: React.FC = () => {
                     </div>
                   </article>
 
-                  <article className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
-                      Parent Feedback Loop
-                    </p>
-                    <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
-                      Tell us what families need
-                    </h2>
-                    <textarea
-                      value={feedbackDraft}
-                      onChange={(event) => setFeedbackDraft(event.target.value)}
-                      rows={4}
-                      className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                      placeholder="What is working? What is confusing? What would help at home or school?"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSubmitFeedback}
-                      disabled={!feedbackDraft.trim() || isSendingFeedback}
-                      className="mt-3 w-full rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white transition hover:bg-adapt-purple disabled:opacity-60 dark:bg-adapt-cyan dark:text-gray-950"
-                    >
-                      {isSendingFeedback ? 'Sending...' : 'Send feedback'}
-                    </button>
-                    {dashboardData?.parentFeedbackThemes.length ? (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {dashboardData.parentFeedbackThemes.map((theme) => (
-                          <span key={theme.theme} className="rounded-full bg-adapt-indigo/10 px-3 py-1 text-xs font-black text-adapt-indigo dark:text-adapt-cyan">
-                            {theme.theme} · {theme.count}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </article>
+                  <FeedbackPulsePanel
+                    title="Tell us what families need"
+                    subtitle="Share what is working at home, what feels confusing, and what would make family-school support stronger."
+                    sourceArea="parent_review"
+                    childId={currentChild?.childId ?? null}
+                    showSummary
+                    compact
+                  />
                 </div>
               </section>
             )}

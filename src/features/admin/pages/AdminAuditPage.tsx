@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from 'features/admin/components/AdminLayout';
 import AdminStatCard from 'features/admin/components/AdminStatCard';
+import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
 import {
   fetchAdminAuditSnapshot,
   type AdminAuditSnapshot,
@@ -339,6 +340,13 @@ const AdminAuditPage: React.FC = () => {
             </section>
 
             <SourceHealth snapshot={snapshot} />
+
+            <SupportTimelinePanel
+              title="Support response history"
+              subtitle="Cross-role evidence of signals, acknowledgements, escalations, child reassurance, meetings, messages, and assignment help."
+              limit={28}
+              variant="dark"
+            />
 
             <section className="grid gap-6 xl:grid-cols-3">
               <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-5 xl:col-span-2">

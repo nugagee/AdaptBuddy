@@ -716,6 +716,13 @@ export class NotificationService {
       escalated_at: status === 'escalated' ? now : null,
       resolved_at: status === 'resolved' ? now : null,
     };
+    const metadata = {
+      child_id: notification.childId ?? null,
+      child_name: notification.childName ?? null,
+      buddy_id: notification.buddyId ?? null,
+      severity: notification.severity,
+      title: notification.title,
+    };
 
     const { data: receipt, error } = await client
       .from('support_notification_receipts')
@@ -726,6 +733,7 @@ export class NotificationService {
           source_id: notification.sourceId,
           status,
           note: note?.trim() || null,
+          metadata,
           ...statusPatch,
         },
         { onConflict: 'user_id,source_type,source_id' },
@@ -742,6 +750,7 @@ export class NotificationService {
       source_id: notification.sourceId,
       status,
       note: note?.trim() || null,
+      metadata,
     });
 
     if (notification.sourceType === 'alert' && ['responded', 'resolved'].includes(status)) {

@@ -40,6 +40,7 @@ import {
 import { ROUTES } from 'constants/routes';
 import { useAuth } from 'hooks/useAuth';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
+import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
 import ParentHubNavbar from 'features/parent/components/layout/ParentHubNavbar';
 import {
   ParentDashboardService,
@@ -2752,6 +2753,13 @@ const ParentHubPage: React.FC = () => {
             {activeTab === 'support' && (
               <section className="space-y-6">
                 {renderBuddyIdLinkCard('compact')}
+
+                <SupportTimelinePanel
+                  title={`${currentChild.childName}'s support response timeline`}
+                  subtitle="A clear evidence trail of support signals, adult responses, meetings, messages, and task help."
+                  childIds={[currentChild.childId]}
+                  compact
+                />
 
                 {pendingTeacherClassRequests.length > 0 && (
                   <section className="space-y-4">

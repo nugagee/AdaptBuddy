@@ -41,6 +41,7 @@ import { ROUTES } from 'constants/routes';
 import { useAuth } from 'hooks/useAuth';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import SupportActionQueue from 'components/support/SupportActionQueue';
+import SupportPlanDraftPanel from 'components/support/SupportPlanDraftPanel';
 import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
 import ParentHubNavbar from 'features/parent/components/layout/ParentHubNavbar';
 import {
@@ -2758,6 +2759,13 @@ const ParentHubPage: React.FC = () => {
                 <SupportActionQueue
                   title={`${currentChild.childName}'s open support actions`}
                   subtitle="Signals, alerts, messages, class requests, and task-help items that still need a visible adult response."
+                  childIds={[currentChild.childId]}
+                  compact
+                />
+
+                <SupportPlanDraftPanel
+                  title={`${currentChild.childName}'s support plan draft`}
+                  subtitle="A one-page draft built from repeated shared signals, alerts, task-help requests, meetings, and adult responses."
                   childIds={[currentChild.childId]}
                   compact
                 />

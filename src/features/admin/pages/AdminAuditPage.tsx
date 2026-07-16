@@ -17,6 +17,7 @@ import {
 import AdminLayout from 'features/admin/components/AdminLayout';
 import AdminStatCard from 'features/admin/components/AdminStatCard';
 import SupportActionQueue from 'components/support/SupportActionQueue';
+import SupportPlanDraftPanel from 'components/support/SupportPlanDraftPanel';
 import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
 import {
   fetchAdminAuditSnapshot,
@@ -346,6 +347,13 @@ const AdminAuditPage: React.FC = () => {
               title="Open safeguarding/support actions"
               subtitle="Cross-role work queue for unresolved alerts, urgent support signals, assignment-help requests, messages, and escalations."
               limit={12}
+              variant="dark"
+            />
+
+            <SupportPlanDraftPanel
+              title="Support plan drafts"
+              subtitle="Early cross-role planning drafts generated from repeated evidence. These are support aids, not diagnostic documents."
+              limit={4}
               variant="dark"
             />
 

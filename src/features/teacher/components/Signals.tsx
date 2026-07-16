@@ -22,6 +22,7 @@ import {
   type TeacherMeetingUrgency,
   type TeacherSupportSignal,
 } from 'features/teacher/services/teacherDashboardService';
+import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
 
 type RiskFilter = 'all' | TeacherSupportSignal['riskLevel'];
 type SignalAction = 'message' | 'meeting' | 'review';
@@ -185,6 +186,11 @@ const Signals: React.FC = () => {
         .map((student) => student.childId) ?? [],
     );
   }, [selectedClassId, summary?.students]);
+
+  const timelineChildIds = useMemo(
+    () => (selectedClassChildIds ? Array.from(selectedClassChildIds) : undefined),
+    [selectedClassChildIds],
+  );
 
   const classSignals = useMemo(
     () =>
@@ -432,6 +438,13 @@ const Signals: React.FC = () => {
             </div>
           </div>
         </section>
+
+        <SupportTimelinePanel
+          title="Class support response timeline"
+          subtitle="Durable evidence of learner signals, adult responses, family messages, meetings, and assignment support."
+          childIds={timelineChildIds}
+          compact
+        />
 
         <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
           <div className="space-y-4">

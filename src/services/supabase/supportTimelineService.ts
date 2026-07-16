@@ -31,6 +31,27 @@ export interface SupportTimelineOptions {
   limit?: number;
 }
 
+export interface SupportResponseMetrics {
+  sourceCount: number;
+  responseEventCount: number;
+  seenCount: number;
+  respondedCount: number;
+  resolvedCount: number;
+  escalatedCount: number;
+  openAlertCount: number;
+  averageFirstResponseMinutes: number | null;
+  averageSeenMinutes: number | null;
+  averageRespondedMinutes: number | null;
+  averageResolvedMinutes: number | null;
+  fastestResponseMinutes: number | null;
+  latestResponseAt?: string;
+}
+
+export interface SupportTimelineBundle {
+  items: SupportTimelineItem[];
+  metrics: SupportResponseMetrics;
+}
+
 interface ProfileRow {
   id: string;
   email?: string | null;
@@ -79,6 +100,7 @@ interface AssignmentSubmissionRow {
   status?: string | null;
   support_used?: string[] | null;
   mood_after_task?: string | null;
+  created_at?: string | null;
   updated_at?: string | null;
   submitted_at?: string | null;
   teacher_assignments?: { title?: string | null } | { title?: string | null }[] | null;
@@ -129,6 +151,7 @@ interface SourceInfo {
   title?: string;
   detail?: string;
   severity?: SupportTimelineSeverity;
+  createdAt?: string;
 }
 
 const supportSourceTypes = [
@@ -275,7 +298,50 @@ function sourceKey(sourceType: string, sourceId: string): string {
   return `${sourceType}:${sourceId}`;
 }
 
+function createEmptyMetrics(overrides: Partial<SupportResponseMetrics> = {}): SupportResponseMetrics {
+  return {
+    sourceCount: 0,
+    responseEventCount: 0,
+    seenCount: 0,
+    respondedCount: 0,
+    resolvedCount: 0,
+    escalatedCount: 0,
+    openAlertCount: 0,
+    averageFirstResponseMinutes: null,
+    averageSeenMinutes: null,
+    averageRespondedMinutes: null,
+    averageResolvedMinutes: null,
+    fastestResponseMinutes: null,
+    ...overrides,
+  };
+}
+
+function average(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return Math.round((total / values.length) * 10) / 10;
+}
+
+function minutesBetween(start?: string | null, end?: string | null): number | null {
+  const startTime = new Date(start ?? '').getTime();
+  const endTime = new Date(end ?? '').getTime();
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) return null;
+  return Math.max(0, Math.round(((endTime - startTime) / 60000) * 10) / 10);
+}
+
 export class SupportTimelineService {
+  static async getTimelineBundle(
+    profile: Profile,
+    options: SupportTimelineOptions = {},
+  ): Promise<SupportTimelineBundle> {
+    const [items, metrics] = await Promise.all([
+      this.getTimeline(profile, options),
+      this.getResponseMetrics(profile, options),
+    ]);
+
+    return { items, metrics };
+  }
+
   static async getTimeline(profile: Profile, options: SupportTimelineOptions = {}): Promise<SupportTimelineItem[]> {
     if (!isSupabaseConfigured || !profile?.id) return this.getGuestTimeline(options.childIds?.[0]);
 
@@ -310,6 +376,7 @@ export class SupportTimelineService {
         title: label,
         detail: summarize(row.text, 'Shared check-in was saved.'),
         severity,
+        createdAt: row.created_at,
       });
       timeline.push({
         id: sourceKey('signal', row.id),
@@ -332,6 +399,7 @@ export class SupportTimelineService {
         title: `${labelize(severity)} alert`,
         detail: row.acknowledged_at ? 'Alert acknowledged by an adult.' : 'Alert is awaiting adult acknowledgement.',
         severity,
+        createdAt: row.created_at,
       });
       timeline.push({
         id: sourceKey('alert', row.id),
@@ -356,6 +424,7 @@ export class SupportTimelineService {
         title,
         detail: `Assignment status: ${labelize(status)}.`,
         severity,
+        createdAt: row.updated_at || row.submitted_at || row.created_at || undefined,
       });
       timeline.push({
         id: `${sourceKey('assignment', row.assignment_id)}:${row.child_id}`,
@@ -370,7 +439,7 @@ export class SupportTimelineService {
         severity,
         actorLabel: 'Child',
         evidenceLabel: 'Assignment progress',
-        createdAt: row.updated_at || row.submitted_at || new Date().toISOString(),
+        createdAt: row.updated_at || row.submitted_at || row.created_at || new Date().toISOString(),
       });
     });
 
@@ -381,6 +450,7 @@ export class SupportTimelineService {
         title: 'Family-school message',
         detail: summarize(row.ai_summary || row.body, 'Message was sent.'),
         severity,
+        createdAt: row.created_at,
       });
       timeline.push({
         id: sourceKey('message', row.id),
@@ -403,6 +473,7 @@ export class SupportTimelineService {
         title: `${labelize(asString(row.meeting_type, 'support'))} meeting`,
         detail: `Meeting status: ${labelize(asString(row.status, 'requested'))}.`,
         severity,
+        createdAt: row.created_at,
       });
       timeline.push({
         id: sourceKey('meeting', row.id),
@@ -424,6 +495,7 @@ export class SupportTimelineService {
         title: 'School access request',
         detail: `Request status: ${labelize(asString(row.status, 'pending'))}.`,
         severity: 'medium',
+        createdAt: row.created_at,
       });
       timeline.push({
         id: sourceKey('class_request', row.id),
@@ -472,6 +544,122 @@ export class SupportTimelineService {
       .slice(0, limit);
   }
 
+  static async getResponseMetrics(
+    profile: Profile,
+    options: SupportTimelineOptions = {},
+  ): Promise<SupportResponseMetrics> {
+    if (!isSupabaseConfigured || !profile?.id) return this.getGuestMetrics();
+
+    const scopedChildIds = await getScopedChildIds(profile);
+    const childIds = filterChildIds(scopedChildIds, options.childIds);
+    if (childIds.length === 0 && profile.role !== 'admin') return createEmptyMetrics();
+
+    const limit = Math.max(options.limit ?? 36, 80);
+    const [journalRows, alertRows, assignmentRows, messageRows, meetingRows, classRequestRows, eventRows] =
+      await Promise.all([
+        this.getJournalRows(childIds, limit),
+        this.getAlertRows(childIds, limit),
+        this.getAssignmentRows(childIds, limit),
+        this.getMessageRows(childIds, limit),
+        this.getMeetingRows(childIds, limit),
+        this.getClassRequestRows(childIds, limit),
+        this.getNotificationEvents(profile, limit),
+      ]);
+
+    const sourceInfo = new Map<string, SourceInfo>();
+    const registerSource = (sourceType: string, sourceId: string, childId?: string, createdAt?: string | null) => {
+      if (!sourceId) return;
+      sourceInfo.set(sourceKey(sourceType, sourceId), {
+        childId,
+        createdAt: createdAt ?? undefined,
+      });
+    };
+
+    journalRows.forEach((row) => registerSource('journal_signal', row.id, row.child_id, row.created_at));
+    alertRows.forEach((row) => registerSource('alert', row.id, row.child_id, row.created_at));
+    assignmentRows.forEach((row) => {
+      registerSource(
+        'assignment_help',
+        row.assignment_id,
+        row.child_id,
+        row.updated_at || row.submitted_at || row.created_at,
+      );
+    });
+    messageRows.forEach((row) => registerSource('teacher_message', row.id, row.child_id, row.created_at));
+    meetingRows.forEach((row) => registerSource('care_meeting', row.id, row.child_id, row.created_at));
+    classRequestRows.forEach((row) => registerSource('class_request', row.id, row.child_id, row.created_at));
+
+    const childScope = new Set(childIds);
+    const firstResponseBySource = new Map<string, number>();
+    const seenDurations: number[] = [];
+    const respondedDurations: number[] = [];
+    const resolvedDurations: number[] = [];
+    const allDurations: number[] = [];
+    let responseEventCount = 0;
+    let seenCount = 0;
+    let respondedCount = 0;
+    let resolvedCount = 0;
+    let escalatedCount = 0;
+    let latestResponseAt: string | undefined;
+
+    eventRows.forEach((row) => {
+      const metadata = isRecord(row.metadata) ? row.metadata : {};
+      const originalSourceType = asString(metadata.original_source_type, row.source_type);
+      const originalSourceId = asString(metadata.original_source_id, row.source_id);
+      const originalKey = sourceKey(originalSourceType, originalSourceId);
+      const fallbackKey = sourceKey(row.source_type, row.source_id);
+      const info = sourceInfo.get(originalKey) ?? sourceInfo.get(fallbackKey);
+      const metadataChildId = asString(metadata.child_id);
+      const childId = info?.childId ?? (metadataChildId || undefined);
+
+      if (childScope.size > 0 && childId && !childScope.has(childId)) return;
+      if (childScope.size > 0 && !childId && profile.role !== 'admin') return;
+
+      const status = asString(row.status).toLowerCase();
+      if (!['seen', 'responded', 'resolved', 'escalated'].includes(status)) return;
+
+      responseEventCount += 1;
+      if (status === 'seen') seenCount += 1;
+      if (status === 'responded') respondedCount += 1;
+      if (status === 'resolved') resolvedCount += 1;
+      if (status === 'escalated') escalatedCount += 1;
+
+      if (!latestResponseAt || new Date(row.created_at).getTime() > new Date(latestResponseAt).getTime()) {
+        latestResponseAt = row.created_at;
+      }
+
+      const duration = minutesBetween(info?.createdAt, row.created_at);
+      if (duration === null) return;
+
+      allDurations.push(duration);
+      const sourceResponseKey = info ? originalKey : fallbackKey;
+      const previousFirst = firstResponseBySource.get(sourceResponseKey);
+      if (previousFirst === undefined || duration < previousFirst) {
+        firstResponseBySource.set(sourceResponseKey, duration);
+      }
+
+      if (status === 'seen') seenDurations.push(duration);
+      if (status === 'responded') respondedDurations.push(duration);
+      if (status === 'resolved') resolvedDurations.push(duration);
+    });
+
+    return createEmptyMetrics({
+      sourceCount: sourceInfo.size,
+      responseEventCount,
+      seenCount,
+      respondedCount,
+      resolvedCount,
+      escalatedCount,
+      openAlertCount: alertRows.filter((row) => !row.acknowledged_at && !row.acknowledged_by).length,
+      averageFirstResponseMinutes: average(Array.from(firstResponseBySource.values())),
+      averageSeenMinutes: average(seenDurations),
+      averageRespondedMinutes: average(respondedDurations),
+      averageResolvedMinutes: average(resolvedDurations),
+      fastestResponseMinutes: allDurations.length ? Math.min(...allDurations) : null,
+      latestResponseAt,
+    });
+  }
+
   private static async getJournalRows(childIds: string[], limit: number): Promise<JournalEntryRow[]> {
     if (childIds.length === 0) return [];
     return safeRows<JournalEntryRow>(
@@ -502,7 +690,7 @@ export class SupportTimelineService {
     return safeRows<AssignmentSubmissionRow>(
       getSupabaseClient()
         .from('assignment_submissions')
-        .select('assignment_id, child_id, status, support_used, mood_after_task, submitted_at, updated_at, teacher_assignments(title)')
+        .select('assignment_id, child_id, status, support_used, mood_after_task, created_at, submitted_at, updated_at, teacher_assignments(title)')
         .in('child_id', childIds)
         .order('updated_at', { ascending: false })
         .limit(limit),
@@ -632,5 +820,23 @@ export class SupportTimelineService {
         createdAt: new Date(now - 5 * 60000).toISOString(),
       },
     ];
+  }
+
+  private static getGuestMetrics(): SupportResponseMetrics {
+    return createEmptyMetrics({
+      sourceCount: 4,
+      responseEventCount: 3,
+      seenCount: 1,
+      respondedCount: 1,
+      resolvedCount: 1,
+      escalatedCount: 0,
+      openAlertCount: 1,
+      averageFirstResponseMinutes: 6,
+      averageSeenMinutes: 6,
+      averageRespondedMinutes: 9,
+      averageResolvedMinutes: 18,
+      fastestResponseMinutes: 6,
+      latestResponseAt: new Date(Date.now() - 12 * 60000).toISOString(),
+    });
   }
 }

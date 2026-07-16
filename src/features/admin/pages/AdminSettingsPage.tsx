@@ -3,6 +3,7 @@ import { Link2, Settings, ShieldCheck, Sparkles, UsersRound } from 'lucide-react
 import FeedbackPulsePanel from 'components/feedback/FeedbackPulsePanel';
 import AdminLayout from 'features/admin/components/AdminLayout';
 import AdminStatCard from 'features/admin/components/AdminStatCard';
+import ProductFeedbackMonitor from 'features/admin/components/ProductFeedbackMonitor';
 import {
   fetchAdminAnalyticsSafe,
   type AdminAnalytics,
@@ -186,6 +187,8 @@ const AdminSettingsPage: React.FC = () => {
             showSummary
             variant="dark"
           />
+
+          <ProductFeedbackMonitor />
         </div>
       ) : null}
     </AdminLayout>

@@ -35,6 +35,7 @@ export interface ProductFeedbackSummary {
 
 export interface ProductFeedbackItem {
   id: string;
+  userId?: string | null;
   userRole: UserRole;
   sourceArea: string;
   feedbackType: ProductFeedbackType;
@@ -43,11 +44,13 @@ export interface ProductFeedbackItem {
   sentiment: ProductFeedbackSentiment;
   themes: string[];
   status: ProductFeedbackStatus;
+  metadata: Record<string, unknown>;
   createdAt: string;
 }
 
 interface ProductFeedbackRow {
   id: string;
+  user_id?: string | null;
   user_role?: UserRole | null;
   source_area?: string | null;
   feedback_type?: ProductFeedbackType | null;
@@ -56,6 +59,7 @@ interface ProductFeedbackRow {
   sentiment?: ProductFeedbackSentiment | null;
   themes?: unknown;
   status?: ProductFeedbackStatus | null;
+  metadata?: unknown;
   created_at?: string | null;
 }
 
@@ -115,9 +119,16 @@ function asThemeArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
 }
 
+function asMetadata(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function toItem(row: ProductFeedbackRow): ProductFeedbackItem {
   return {
     id: row.id,
+    userId: row.user_id ?? null,
     userRole: row.user_role ?? 'parent',
     sourceArea: row.source_area ?? 'general',
     feedbackType: row.feedback_type ?? 'idea',
@@ -126,6 +137,7 @@ function toItem(row: ProductFeedbackRow): ProductFeedbackItem {
     sentiment: normalizeSentiment(row.sentiment),
     themes: asThemeArray(row.themes),
     status: row.status ?? 'new',
+    metadata: asMetadata(row.metadata),
     createdAt: row.created_at ?? new Date().toISOString(),
   };
 }
@@ -188,6 +200,7 @@ function storeLocalFeedback(profile: Profile, input: ProductFeedbackInput, senti
         sentiment,
         themes,
         status: 'new',
+        metadata: input.metadata ?? {},
         createdAt: new Date().toISOString(),
       },
       ...existing,
@@ -249,19 +262,44 @@ export class ProductFeedbackService {
 
     if (!isSupabaseConfigured) return localSummary;
 
+    const items = await this.getFeedbackItems(profile, profile.role === 'admin' ? 250 : 40);
+    return buildSummary(items.length ? items : localSummary.latest);
+  }
+
+  static async getFeedbackItems(profile: Profile, limit = 250): Promise<ProductFeedbackItem[]> {
+    const localItems = readLocalFeedback();
+
+    if (!isSupabaseConfigured) return localItems;
+
     let query = getSupabaseClient()
       .from('product_feedback')
-      .select('id, user_role, source_area, feedback_type, rating, feedback_text, sentiment, themes, status, created_at')
+      .select('id, user_id, user_role, source_area, feedback_type, rating, feedback_text, sentiment, themes, status, metadata, created_at')
       .order('created_at', { ascending: false })
-      .limit(profile.role === 'admin' ? 250 : 40);
+      .limit(Math.max(1, Math.min(limit, 500)));
 
     if (profile.role !== 'admin') {
       query = query.eq('user_id', profile.id);
     }
 
     const { data, error } = await query;
-    if (error || !Array.isArray(data)) return localSummary;
+    if (error || !Array.isArray(data)) return localItems;
 
-    return buildSummary((data as ProductFeedbackRow[]).map(toItem));
+    return (data as ProductFeedbackRow[]).map(toItem);
+  }
+
+  static async updateFeedbackStatus(
+    profile: Profile,
+    feedbackId: string,
+    status: ProductFeedbackStatus,
+  ): Promise<void> {
+    if (profile.role !== 'admin') throw new Error('Only admins can update feedback status.');
+    if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+
+    const { error } = await getSupabaseClient()
+      .from('product_feedback')
+      .update({ status })
+      .eq('id', feedbackId);
+
+    if (error) throw error;
   }
 }

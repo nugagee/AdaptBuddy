@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from 'features/admin/components/AdminLayout';
 import AdminStatCard from 'features/admin/components/AdminStatCard';
+import SupportActionQueue from 'components/support/SupportActionQueue';
 import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
 import {
   fetchAdminAuditSnapshot,
@@ -340,6 +341,13 @@ const AdminAuditPage: React.FC = () => {
             </section>
 
             <SourceHealth snapshot={snapshot} />
+
+            <SupportActionQueue
+              title="Open safeguarding/support actions"
+              subtitle="Cross-role work queue for unresolved alerts, urgent support signals, assignment-help requests, messages, and escalations."
+              limit={12}
+              variant="dark"
+            />
 
             <SupportTimelinePanel
               title="Support response history"

@@ -348,6 +348,13 @@
     font-size: 11px !important;
   }
 
+  .adaptbuddy-support-plan-print,
+  .adaptbuddy-support-plan-print * {
+    background: #ffffff !important;
+    border-color: #d1d5db !important;
+    color: #111827 !important;
+  }
+
   .adaptbuddy-support-plan-print h2 {
     font-size: 22px !important;
   }

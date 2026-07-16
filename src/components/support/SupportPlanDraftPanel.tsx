@@ -4,9 +4,11 @@ import {
   Brain,
   CalendarDays,
   CheckCircle2,
+  Download,
   EyeOff,
   FileText,
   Loader2,
+  Printer,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -60,6 +62,66 @@ function labelize(value: string): string {
   return value.replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48) || 'learner';
+}
+
+function formatList(title: string, items: string[]): string {
+  const lines = items.length ? items.map((item) => `- ${item}`) : ['- No repeated evidence yet.'];
+  return [title, ...lines].join('\n');
+}
+
+function buildSupportPlanText(draft: SupportPlanDraft): string {
+  return [
+    'AdaptBuddy Support Plan Draft',
+    `Learner: ${draft.childName}`,
+    draft.buddyId ? `Buddy ID: ${draft.buddyId}` : 'Buddy ID: Hidden or pending',
+    `Neuroprofile: ${draft.neurotypes.length ? draft.neurotypes.map(labelize).join(', ') : 'Hidden or not set'}`,
+    `Priority: ${priorityLabels[draft.priority]}`,
+    `Confidence: ${labelize(draft.confidence)}`,
+    `Evidence points: ${draft.evidenceCount}`,
+    `Needs-help signals: ${draft.needsHelpCount}`,
+    `High-risk signals: ${draft.highRiskCount}`,
+    `Open meetings: ${draft.openMeetingsCount}`,
+    `Generated: ${formatDate(draft.generatedAt)}`,
+    `Review by: ${formatDate(draft.reviewDate)}`,
+    '',
+    formatList('Likely Patterns', draft.triggers),
+    '',
+    formatList('Helpful Supports', draft.helpfulSupports),
+    '',
+    formatList('Adult Actions', draft.adultActions),
+    '',
+    formatList('Try Not To', draft.avoid),
+    '',
+    'Home-School Next Step',
+    draft.homeSchoolNextStep,
+    '',
+    'Privacy Note',
+    draft.privacyNote,
+    '',
+    'This draft is a support-planning aid. It is not a diagnosis or clinical document.',
+  ].join('\n');
+}
+
+function downloadSupportPlanDraft(draft: SupportPlanDraft): void {
+  const date = new Date().toISOString().slice(0, 10);
+  const filename = `adaptbuddy-support-plan-${slugify(draft.childName)}-${date}.txt`;
+  const blob = new Blob([buildSupportPlanText(draft)], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
+
 const SupportPlanDraftPanel: React.FC<SupportPlanDraftPanelProps> = ({
   title = 'Support plan drafts',
   subtitle = 'A one-page planning draft built from repeated shared signals, alerts, task-help requests, and meetings.',
@@ -73,6 +135,7 @@ const SupportPlanDraftPanel: React.FC<SupportPlanDraftPanelProps> = ({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [printDraftId, setPrintDraftId] = useState<string | null>(null);
 
   const requestedChildIds = useMemo(
     () => childIds?.filter(Boolean) ?? undefined,
@@ -119,6 +182,14 @@ const SupportPlanDraftPanel: React.FC<SupportPlanDraftPanelProps> = ({
   const softClass = isDark
     ? 'border-white/10 bg-white/5 text-gray-200'
     : 'border-slate-100 bg-white/85 text-slate-700 dark:border-gray-800 dark:bg-gray-900/70 dark:text-gray-200';
+
+  const handlePrintDraft = (draftId: string) => {
+    setPrintDraftId(draftId);
+    window.setTimeout(() => {
+      window.addEventListener('afterprint', () => setPrintDraftId(null), { once: true });
+      window.print();
+    }, 80);
+  };
 
   if (!profile || isGuest) return null;
 
@@ -183,7 +254,10 @@ const SupportPlanDraftPanel: React.FC<SupportPlanDraftPanelProps> = ({
       ) : (
         <div className={`mt-5 grid gap-4 ${compact ? '' : 'xl:grid-cols-2'}`}>
           {drafts.map((draft) => (
-            <article key={draft.childId} className={`rounded-2xl border p-4 ${cardClass}`}>
+            <article
+              key={draft.childId}
+              className={`rounded-2xl border p-4 ${cardClass} ${printDraftId === draft.childId ? 'adaptbuddy-support-plan-print' : ''}`}
+            >
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -210,6 +284,33 @@ const SupportPlanDraftPanel: React.FC<SupportPlanDraftPanelProps> = ({
                   {draft.priority === 'urgent' ? <AlertTriangle className="h-4 w-4" aria-hidden /> : <ShieldCheck className="h-4 w-4" aria-hidden />}
                   {priorityLabels[draft.priority]}
                 </span>
+              </div>
+
+              <div className="adaptbuddy-no-print mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePrintDraft(draft.childId)}
+                  className={`inline-flex items-center justify-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${
+                    isDark
+                      ? 'border-white/10 bg-white/5 text-white hover:bg-white/10'
+                      : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:border-adapt-indigo hover:text-adapt-indigo dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100'
+                  }`}
+                >
+                  <Printer className="h-4 w-4" aria-hidden />
+                  Print one-page plan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => downloadSupportPlanDraft(draft)}
+                  className={`inline-flex items-center justify-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${
+                    isDark
+                      ? 'border-white/10 bg-white/5 text-white hover:bg-white/10'
+                      : 'border-slate-200 bg-white text-slate-700 shadow-sm hover:border-adapt-indigo hover:text-adapt-indigo dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100'
+                  }`}
+                >
+                  <Download className="h-4 w-4" aria-hidden />
+                  Download text
+                </button>
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-4">

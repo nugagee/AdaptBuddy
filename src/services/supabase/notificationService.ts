@@ -223,6 +223,60 @@ function buildChildResponseNote(notification: SupportNotification, status: Notif
   }
 }
 
+function getMeetingUrgencyForNotification(notification: SupportNotification): 'routine' | 'soon' | 'urgent' {
+  if (notification.severity === 'urgent' || notification.severity === 'high') return 'urgent';
+  if (notification.severity === 'medium' || notification.status === 'escalated') return 'soon';
+  return 'routine';
+}
+
+function getStructuredSupportSuggestion(notification: SupportNotification): string {
+  const text = `${notification.title} ${notification.body} ${notification.sourceType}`.toLowerCase();
+
+  if (notification.severity === 'urgent' || notification.severity === 'high' || /safeguard|risk|alert/.test(text)) {
+    return 'Confirm the safeguarding response, who has checked in with the child, and what follow-up is needed today.';
+  }
+  if (/noise|noisy|loud|sound/.test(text)) {
+    return 'Agree a sensory plan for noise: quieter seat, headphones, reduced verbal load, and a predictable reset option.';
+  }
+  if (/bright|light|glare|visual/.test(text)) {
+    return 'Agree visual comfort adjustments: reduce glare, simplify the visual field, and offer a low-light reset if needed.';
+  }
+  if (/confused|stuck|unclear|instruction/.test(text)) {
+    return 'Agree how adults will break work into one visible step at a time and check understanding without pressure.';
+  }
+  if (/worried|anxious|overwhelm|panic/.test(text)) {
+    return 'Agree a calm check-in plan, predictable next step, and a low-demand recovery option.';
+  }
+  if (/assignment|task|homework|needs help/.test(text)) {
+    return 'Agree task support: smaller steps, clear success criteria, and whether the child needs adult help before continuing.';
+  }
+  if (/message|meeting|family|teacher/.test(text)) {
+    return 'Clarify the family-school next step, owner, and follow-up date so the concern does not drift.';
+  }
+
+  return 'Agree one home action, one school action, and the adult responsible for follow-up.';
+}
+
+function buildMeetingAgenda(notification: SupportNotification): string[] {
+  return [
+    `Review support item: ${notification.title}.`,
+    `Current level: ${notification.severity}. Current status: ${notification.status}.`,
+    `Shared detail: ${notification.body}`,
+    getStructuredSupportSuggestion(notification),
+    'Agree what the child should see next: reassurance, calm break, task adjustment, or trusted-adult follow-up.',
+    'Confirm one owner, one next step, and when this will be reviewed.',
+    'Privacy note: use parent-approved visibility only. Private journal text stays hidden unless explicitly shared.',
+  ];
+}
+
+function buildMeetingActionItems(notification: SupportNotification): string[] {
+  return [
+    `Respond to ${notification.sourceType.replace(/_/g, ' ')} for ${notification.childName ?? 'the child'}.`,
+    'Agree the support adjustment to try first.',
+    'Record whether the support helped and close the loop with the child.',
+  ];
+}
+
 function isMissingChildResponseRpc(error: unknown): boolean {
   if (!isRecord(error)) return false;
   const code = asString(error.code);
@@ -786,5 +840,47 @@ export class NotificationService {
         throw childResponseError;
       }
     }
+  }
+
+  static async requestMeetingFromNotification(notification: SupportNotification): Promise<void> {
+    if (!isSupabaseConfigured) return;
+    if (!notification.childId) throw new Error('This support item is not linked to a child space.');
+    if (notification.sourceType === 'care_meeting') throw new Error('A meeting already exists for this item.');
+    if (notification.sourceType === 'adult_response') throw new Error('Child reassurance items do not create meetings.');
+
+    const client = getSupabaseClient();
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError) throw userError;
+    const userId = userData.user?.id;
+    if (!userId) throw new Error('You must be signed in to request a meeting.');
+
+    const agenda = buildMeetingAgenda(notification);
+    const actionItems = buildMeetingActionItems(notification);
+    const { error } = await client
+      .from('care_meetings')
+      .insert({
+        child_id: notification.childId,
+        requested_by: userId,
+        assigned_to: notification.role === 'teacher' ? userId : null,
+        meeting_type: 'support_signal_review',
+        status: 'requested',
+        urgency: getMeetingUrgencyForNotification(notification),
+        proposed_times: [],
+        agenda,
+        notes: [
+          `Created from AdaptBuddy support action queue.`,
+          `Source: ${notification.sourceType}:${notification.sourceId}.`,
+          notification.buddyId ? `Buddy ID: ${notification.buddyId}.` : null,
+        ].filter(Boolean).join(' '),
+        action_items: actionItems,
+      });
+
+    if (error) throw error;
+
+    await this.setStatus(
+      notification,
+      'escalated',
+      `Meeting requested with structured agenda. ${getStructuredSupportSuggestion(notification)}`,
+    );
   }
 }

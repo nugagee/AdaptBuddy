@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
+  CalendarPlus,
   CheckCircle2,
   Clock3,
   ExternalLink,
@@ -87,6 +88,14 @@ function getAvailableActions(notification: SupportNotification) {
   });
 }
 
+function canRequestMeeting(notification: SupportNotification, role?: string | null): boolean {
+  return Boolean(
+    notification.childId
+    && (role === 'parent' || role === 'teacher')
+    && !['adult_response', 'care_meeting', 'class_request'].includes(notification.sourceType),
+  );
+}
+
 const SupportActionQueue: React.FC<SupportActionQueueProps> = ({
   title = 'Support action queue',
   subtitle = 'Open signals, alerts, messages, and task-help requests that still need a visible adult response.',
@@ -103,6 +112,7 @@ const SupportActionQueue: React.FC<SupportActionQueueProps> = ({
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [actionStatus, setActionStatus] = useState('');
 
   const requestedChildIds = useMemo(
     () => new Set(childIds?.filter(Boolean) ?? []),
@@ -178,6 +188,27 @@ const SupportActionQueue: React.FC<SupportActionQueueProps> = ({
       );
     } catch (statusError: unknown) {
       setError(statusError instanceof Error ? statusError.message : 'Could not update support action.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleRequestMeeting = async (notification: SupportNotification) => {
+    if (busyId) return;
+    setBusyId(`${notification.id}:meeting`);
+    setError('');
+    setActionStatus('');
+
+    try {
+      await NotificationService.requestMeetingFromNotification(notification);
+      setNotifications((current) =>
+        current.map((item) => (
+          item.id === notification.id ? { ...item, status: 'escalated' } : item
+        )),
+      );
+      setActionStatus('Meeting requested with a structured support agenda.');
+    } catch (meetingError: unknown) {
+      setError(meetingError instanceof Error ? meetingError.message : 'Could not request meeting.');
     } finally {
       setBusyId(null);
     }
@@ -268,6 +299,12 @@ const SupportActionQueue: React.FC<SupportActionQueueProps> = ({
         </p>
       )}
 
+      {actionStatus && (
+        <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-100">
+          {actionStatus}
+        </p>
+      )}
+
       <div className={compact ? 'mt-4 space-y-3' : 'mt-6 space-y-3'}>
         {loading ? (
           <div className={`flex items-center justify-center gap-2 rounded-2xl border p-6 text-sm font-bold ${controlClass}`}>
@@ -287,6 +324,7 @@ const SupportActionQueue: React.FC<SupportActionQueueProps> = ({
             const busyPrefix = `${notification.id}:`;
             const isBusy = Boolean(busyId?.startsWith(busyPrefix));
             const actions = getAvailableActions(notification);
+            const showMeetingAction = canRequestMeeting(notification, profile.role);
             const PriorityIcon = notification.severity === 'urgent' || notification.severity === 'high'
               ? ShieldAlert
               : AlertTriangle;
@@ -349,6 +387,21 @@ const SupportActionQueue: React.FC<SupportActionQueueProps> = ({
                           </button>
                         );
                       })}
+                      {showMeetingAction && (
+                        <button
+                          type="button"
+                          onClick={() => void handleRequestMeeting(notification)}
+                          disabled={isBusy}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-white/70 px-3 py-2 text-xs font-black text-current transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-black/20 dark:hover:bg-black/30"
+                        >
+                          {busyId === `${notification.id}:meeting` ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                          ) : (
+                            <CalendarPlus className="h-3.5 w-3.5" aria-hidden />
+                          )}
+                          Request meeting
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

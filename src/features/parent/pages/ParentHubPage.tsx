@@ -40,6 +40,7 @@ import {
 import { ROUTES } from 'constants/routes';
 import { useAuth } from 'hooks/useAuth';
 import FeedbackPulsePanel from 'components/feedback/FeedbackPulsePanel';
+import BuddyDigestPanel from 'components/digest/BuddyDigestPanel';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import SupportActionQueue from 'components/support/SupportActionQueue';
 import SupportPlanDraftPanel from 'components/support/SupportPlanDraftPanel';
@@ -1885,6 +1886,14 @@ const ParentHubPage: React.FC = () => {
                 setActionStatus(`${activity.label} marked complete on ${currentChild.childName}'s plan.`);
                 window.setTimeout(() => setActionStatus(''), 3500);
               }}
+            />
+
+            <BuddyDigestPanel
+              title={`${currentChild.childName}'s Buddy Digest`}
+              subtitle="A weekly snapshot of shared signals, support actions, task help, and next steps."
+              childIds={[currentChild.childId]}
+              scope="child"
+              compact
             />
 
             <section className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">

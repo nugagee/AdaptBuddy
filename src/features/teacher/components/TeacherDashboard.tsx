@@ -21,6 +21,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useAuth } from 'hooks/useAuth';
+import BuddyDigestPanel from 'components/digest/BuddyDigestPanel';
 import TeacherHubNav from 'features/teacher/components/TeacherHubNav';
 import {
   TeacherDashboardService,
@@ -672,6 +673,13 @@ const TeacherDashboard: React.FC = () => {
           <StatCard label="Due" value={totals.assignmentsDue} detail="Assignments this week" icon={ClipboardList} tone="bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-200" />
           <StatCard label="Messages" value={totals.unreadMessages} detail={`${totals.meetingRequests} meeting requests`} icon={MessageSquare} tone="bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-100" />
         </section>
+
+        <BuddyDigestPanel
+          title="Class Buddy Digest"
+          subtitle="A weekly class support snapshot built from approved learner signals, assignments, meetings, and adult responses."
+          scope="class"
+          compact
+        />
 
         <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
           <form

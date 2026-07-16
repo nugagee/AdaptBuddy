@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from 'features/admin/components/AdminLayout';
 import AdminStatCard from 'features/admin/components/AdminStatCard';
+import BuddyDigestPanel from 'components/digest/BuddyDigestPanel';
 import SupportActionQueue from 'components/support/SupportActionQueue';
 import SupportPlanDraftPanel from 'components/support/SupportPlanDraftPanel';
 import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
@@ -342,6 +343,13 @@ const AdminAuditPage: React.FC = () => {
             </section>
 
             <SourceHealth snapshot={snapshot} />
+
+            <BuddyDigestPanel
+              title="Platform Buddy Digest"
+              subtitle="A weekly governance snapshot across support signals, action response, support-plan drafts, and product feedback."
+              scope="platform"
+              variant="dark"
+            />
 
             <SupportActionQueue
               title="Open safeguarding/support actions"

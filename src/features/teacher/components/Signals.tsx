@@ -23,6 +23,7 @@ import {
   type TeacherSupportSignal,
 } from 'features/teacher/services/teacherDashboardService';
 import SupportActionQueue from 'components/support/SupportActionQueue';
+import SupportPlanDraftPanel from 'components/support/SupportPlanDraftPanel';
 import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
 
 type RiskFilter = 'all' | TeacherSupportSignal['riskLevel'];
@@ -444,6 +445,14 @@ const Signals: React.FC = () => {
           title="Open class support actions"
           subtitle="Learner signals, family-school messages, assignment-help requests, and escalations still waiting for a clear adult action."
           childIds={timelineChildIds}
+          compact
+        />
+
+        <SupportPlanDraftPanel
+          title="Class support plan drafts"
+          subtitle="Draft one-page support plans based on repeated learner signals, assignment help, meetings, and adult responses."
+          childIds={timelineChildIds}
+          limit={3}
           compact
         />
 

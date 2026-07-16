@@ -40,6 +40,7 @@ import {
 import { ROUTES } from 'constants/routes';
 import { useAuth } from 'hooks/useAuth';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
+import SupportActionQueue from 'components/support/SupportActionQueue';
 import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
 import ParentHubNavbar from 'features/parent/components/layout/ParentHubNavbar';
 import {
@@ -2753,6 +2754,13 @@ const ParentHubPage: React.FC = () => {
             {activeTab === 'support' && (
               <section className="space-y-6">
                 {renderBuddyIdLinkCard('compact')}
+
+                <SupportActionQueue
+                  title={`${currentChild.childName}'s open support actions`}
+                  subtitle="Signals, alerts, messages, class requests, and task-help items that still need a visible adult response."
+                  childIds={[currentChild.childId]}
+                  compact
+                />
 
                 <SupportTimelinePanel
                   title={`${currentChild.childName}'s support response timeline`}

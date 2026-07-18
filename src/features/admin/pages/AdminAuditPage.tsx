@@ -17,6 +17,7 @@ import {
 import AdminLayout from 'features/admin/components/AdminLayout';
 import AdminStatCard from 'features/admin/components/AdminStatCard';
 import BuddyDigestPanel from 'components/digest/BuddyDigestPanel';
+import WeeklyDigestSchedulerPanel from 'components/digest/WeeklyDigestSchedulerPanel';
 import EvidencePackPanel from 'components/support/EvidencePackPanel';
 import SupportActionQueue from 'components/support/SupportActionQueue';
 import SupportPlanDraftPanel from 'components/support/SupportPlanDraftPanel';
@@ -357,6 +358,13 @@ const AdminAuditPage: React.FC = () => {
               subtitle="A print-ready governance summary for support oversight, safeguarding review, and funding evidence."
               scope="platform"
               limit={16}
+              variant="dark"
+            />
+
+            <WeeklyDigestSchedulerPanel
+              title="Platform weekly digest schedule"
+              subtitle="Generate email-ready governance snapshots for platform review, funding evidence, and safeguarding oversight."
+              scope="platform"
               variant="dark"
             />
 

@@ -42,6 +42,7 @@ import { useAuth } from 'hooks/useAuth';
 import FeedbackPulsePanel from 'components/feedback/FeedbackPulsePanel';
 import BuddyDigestPanel from 'components/digest/BuddyDigestPanel';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
+import EvidencePackPanel from 'components/support/EvidencePackPanel';
 import SupportActionQueue from 'components/support/SupportActionQueue';
 import SupportPlanDraftPanel from 'components/support/SupportPlanDraftPanel';
 import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
@@ -2706,6 +2707,14 @@ const ParentHubPage: React.FC = () => {
             {activeTab === 'support' && (
               <section className="space-y-6">
                 {renderBuddyIdLinkCard('compact')}
+
+                <EvidencePackPanel
+                  title={`${currentChild.childName}'s Evidence Pack`}
+                  subtitle="A print-ready summary for parent meetings, school conversations, support reviews, or clinician discussions."
+                  childIds={[currentChild.childId]}
+                  scope="child"
+                  compact
+                />
 
                 <SupportActionQueue
                   title={`${currentChild.childName}'s open support actions`}

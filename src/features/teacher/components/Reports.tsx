@@ -15,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import TeacherHubNav from 'features/teacher/components/TeacherHubNav';
+import EvidencePackPanel from 'components/support/EvidencePackPanel';
 import {
   TeacherDashboardService,
   type TeacherAssignment,
@@ -293,6 +294,10 @@ const Reports: React.FC = () => {
   const classStudents = useMemo(
     () => summary?.students.filter((student) => student.classId === selectedClassId) ?? [],
     [selectedClassId, summary?.students],
+  );
+  const classStudentIds = useMemo(
+    () => classStudents.map((student) => student.childId),
+    [classStudents],
   );
 
   useEffect(() => {
@@ -577,6 +582,18 @@ const Reports: React.FC = () => {
             </select>
           </label>
         </section>
+
+        {classStudentIds.length > 0 && (
+          <div className="adaptbuddy-no-print">
+            <EvidencePackPanel
+              title={selectedClass ? `${selectedClass.className} Evidence Pack` : 'Class Evidence Pack'}
+              subtitle="A print-ready class support summary using approved learners, task progress, signals, meetings, and adult responses."
+              childIds={classStudentIds}
+              scope="class"
+              compact
+            />
+          </div>
+        )}
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <ReportMetric

@@ -17,6 +17,7 @@ import {
 import AdminLayout from 'features/admin/components/AdminLayout';
 import AdminStatCard from 'features/admin/components/AdminStatCard';
 import BuddyDigestPanel from 'components/digest/BuddyDigestPanel';
+import EvidencePackPanel from 'components/support/EvidencePackPanel';
 import SupportActionQueue from 'components/support/SupportActionQueue';
 import SupportPlanDraftPanel from 'components/support/SupportPlanDraftPanel';
 import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
@@ -348,6 +349,14 @@ const AdminAuditPage: React.FC = () => {
               title="Platform Buddy Digest"
               subtitle="A weekly governance snapshot across support signals, action response, support-plan drafts, and product feedback."
               scope="platform"
+              variant="dark"
+            />
+
+            <EvidencePackPanel
+              title="Platform Evidence Pack"
+              subtitle="A print-ready governance summary for support oversight, safeguarding review, and funding evidence."
+              scope="platform"
+              limit={16}
               variant="dark"
             />
 

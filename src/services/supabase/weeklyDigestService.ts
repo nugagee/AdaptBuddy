@@ -389,7 +389,7 @@ export class WeeklyDigestService {
       email_to: emailTo,
       email_subject: emailSubject,
       generated_at: now,
-      scheduled_for: subscription?.nextRunAt ?? null,
+      scheduled_for: status === 'email_ready' ? now : subscription?.nextRunAt ?? null,
       email_ready_at: status === 'email_ready' ? now : null,
       metadata: {
         target_child_ids: childIds,

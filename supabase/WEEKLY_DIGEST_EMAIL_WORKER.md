@@ -30,7 +30,7 @@ Those are usually already present in the Supabase function runtime, but you can 
 ## Deploy
 
 ```bash
-supabase functions deploy send-weekly-digests
+supabase functions deploy send-weekly-digests --project-ref YOUR_PROJECT_REF --no-verify-jwt --use-api
 ```
 
 ## Test Safely
@@ -79,6 +79,8 @@ body: {"limit":25}
 ```
 
 The function only sends snapshots with `status = email_ready` and `scheduled_for <= now()` unless `includeFuture` is explicitly true.
+
+Deploying with `--no-verify-jwt` is intentional here: the function has its own `DIGEST_WORKER_SECRET` check so cron services can call it without exposing a Supabase user JWT.
 
 ## Safety Notes
 

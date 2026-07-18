@@ -15,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import TeacherHubNav from 'features/teacher/components/TeacherHubNav';
+import WeeklyDigestSchedulerPanel from 'components/digest/WeeklyDigestSchedulerPanel';
 import EvidencePackPanel from 'components/support/EvidencePackPanel';
 import {
   TeacherDashboardService,
@@ -584,11 +585,19 @@ const Reports: React.FC = () => {
         </section>
 
         {classStudentIds.length > 0 && (
-          <div className="adaptbuddy-no-print">
+          <div className="adaptbuddy-no-print space-y-4">
             <EvidencePackPanel
               title={selectedClass ? `${selectedClass.className} Evidence Pack` : 'Class Evidence Pack'}
               subtitle="A print-ready class support summary using approved learners, task progress, signals, meetings, and adult responses."
               childIds={classStudentIds}
+              scope="class"
+              compact
+            />
+            <WeeklyDigestSchedulerPanel
+              title={selectedClass ? `${selectedClass.className} weekly digest schedule` : 'Class weekly digest schedule'}
+              subtitle="Generate email-ready class support snapshots for families, SENCO review, and planning meetings."
+              childIds={classStudentIds}
+              classId={selectedClassId}
               scope="class"
               compact
             />

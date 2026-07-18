@@ -41,6 +41,7 @@ import { ROUTES } from 'constants/routes';
 import { useAuth } from 'hooks/useAuth';
 import FeedbackPulsePanel from 'components/feedback/FeedbackPulsePanel';
 import BuddyDigestPanel from 'components/digest/BuddyDigestPanel';
+import WeeklyDigestSchedulerPanel from 'components/digest/WeeklyDigestSchedulerPanel';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import EvidencePackPanel from 'components/support/EvidencePackPanel';
 import SupportActionQueue from 'components/support/SupportActionQueue';
@@ -2711,6 +2712,14 @@ const ParentHubPage: React.FC = () => {
                 <EvidencePackPanel
                   title={`${currentChild.childName}'s Evidence Pack`}
                   subtitle="A print-ready summary for parent meetings, school conversations, support reviews, or clinician discussions."
+                  childIds={[currentChild.childId]}
+                  scope="child"
+                  compact
+                />
+
+                <WeeklyDigestSchedulerPanel
+                  title={`${currentChild.childName}'s weekly digest schedule`}
+                  subtitle="Create a recurring, email-ready snapshot for parent updates, school meetings, and support reviews."
                   childIds={[currentChild.childId]}
                   scope="child"
                   compact

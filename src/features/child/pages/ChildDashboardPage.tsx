@@ -11,6 +11,7 @@ import AccessibilityDock from 'features/child/components/dashboard/Accessibility
 import SmartRecommendationsPanel from 'features/child/components/dashboard/SmartRecommendationsPanel';
 import FocusTimerModal from 'features/child/components/dashboard/FocusTimerModal';
 import ActivitySessionModal from 'features/child/components/dashboard/ActivitySessionModal';
+import ChildClassroomPanel from 'features/child/components/dashboard/ChildClassroomPanel';
 import TeacherAssignmentsPanel from 'features/child/components/dashboard/TeacherAssignmentsPanel';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import AuthSuccessBanner from 'components/auth/AuthSuccessBanner';
@@ -155,6 +156,8 @@ const ChildDashboardPage: React.FC = () => {
             }}
           />
         )}
+
+        <ChildClassroomPanel childId={childId} />
 
         <TeacherAssignmentsPanel
           childId={childId}

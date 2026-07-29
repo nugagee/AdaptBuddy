@@ -68,7 +68,8 @@ export interface NeuroAccessibilityTool {
     | 'sepia-theme'
     | 'reduced-motion'
     | 'music'
-    | 'writing';
+    | 'writing'
+    | 'pronunciation';
 }
 
 export interface NeuroMetricDefinition {
@@ -211,6 +212,18 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     starsReward: 2,
   },
   {
+    id: 'autism-pronunciation-buddy',
+    neuroId: 'autism',
+    title: 'Pronunciation Buddy',
+    description: 'Practise names, helpful words, and short sentences with listen-and-repeat support',
+    durationMinutes: 8,
+    category: 'social',
+    icon: Mic,
+    inspiration: 'Communication confidence with speech, AAC, and mixed communication styles',
+    route: ROUTES.PRONUNCIATION_BUDDY,
+    starsReward: 3,
+  },
+  {
     id: 'autism-pattern-calm',
     neuroId: 'autism',
     title: 'Pattern Predictor',
@@ -292,6 +305,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'literacy',
     icon: Hand,
     inspiration: 'Lexy multisensory structured literacy',
+    route: ROUTES.PRONUNCIATION_BUDDY,
     starsReward: 4,
   },
   {
@@ -475,6 +489,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'focus',
     icon: Headphones,
     inspiration: 'Auditory closure exercises',
+    route: ROUTES.PRONUNCIATION_BUDDY,
     starsReward: 3,
   },
   {
@@ -486,6 +501,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'literacy',
     icon: Timer,
     inspiration: 'Extended time / clear speech accommodations',
+    route: ROUTES.PRONUNCIATION_BUDDY,
     starsReward: 3,
   },
 
@@ -563,6 +579,19 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
   },
 ];
 
+const buildPronunciationActivity = (neuroId: string): NeuroActivity => ({
+  id: `${neuroId}-pronunciation-buddy`,
+  neuroId,
+  title: 'Pronunciation Buddy',
+  description: 'Practise names, helpful words, and short sentences with listen-and-repeat support',
+  durationMinutes: 8,
+  category: neuroId === 'dyslexia' || neuroId === 'auditory' ? 'literacy' : 'social',
+  icon: Mic,
+  inspiration: 'Speech, listening, and AAC-adjacent communication confidence',
+  route: ROUTES.PRONUNCIATION_BUDDY,
+  starsReward: 3,
+});
+
 export const ACCESSIBILITY_TOOLS: NeuroAccessibilityTool[] = [
   { id: 'tool-font-up', neuroIds: ['dyslexia', 'visual-stress', 'adhd'], label: 'Bigger Text', description: 'Increase reading size', icon: Type, action: 'font-up' },
   { id: 'tool-font-down', neuroIds: ['visual-stress'], label: 'Smaller Text', description: 'Reduce visual clutter', icon: Type, action: 'font-down' },
@@ -572,6 +601,7 @@ export const ACCESSIBILITY_TOOLS: NeuroAccessibilityTool[] = [
   { id: 'tool-motion', neuroIds: ['autism', 'spd', 'tourettes'], label: 'Calm Motion', description: 'Reduce animations', icon: Wind, action: 'reduced-motion' },
   { id: 'tool-music', neuroIds: ['spd', 'adhd', 'autism'], label: 'Calm Sounds', description: 'Lo-fi & nature mixes', icon: Music, action: 'music' },
   { id: 'tool-writing', neuroIds: ['dysgraphia', 'dyslexia', 'tourettes'], label: 'Voice Writing', description: 'Speak instead of type', icon: Mic, action: 'writing' },
+  { id: 'tool-pronunciation', neuroIds: Object.keys(NEURO_ZONE_META), label: 'Pronounce', description: 'Listen, repeat, practise words', icon: Mic, action: 'pronunciation' },
 ];
 
 export const NEURO_METRICS: NeuroMetricDefinition[] = [
@@ -589,11 +619,14 @@ export const NEURO_METRICS: NeuroMetricDefinition[] = [
 
 /** Pick 2 daily activities per neuro (rotates by day of year) */
 export function getDailyActivitiesForNeuro(neuroId: string, daySeed = new Date().getDate()): NeuroActivity[] {
-  const pool = NEURO_ACTIVITIES.filter((a) => a.neuroId === neuroId);
-  if (pool.length === 0) return [];
+  const pronunciationActivity = buildPronunciationActivity(neuroId);
+  const pool = NEURO_ACTIVITIES.filter((a) => a.neuroId === neuroId && a.id !== pronunciationActivity.id);
+  if (!NEURO_ZONE_META[neuroId]) return [];
+  if (pool.length === 0) return [pronunciationActivity];
   const start = daySeed % pool.length;
   const picked = [pool[start], pool[(start + 1) % pool.length]];
-  return picked;
+  const hasPronunciation = picked.some((activity) => activity.route === ROUTES.PRONUNCIATION_BUDDY);
+  return hasPronunciation ? picked : [...picked, pronunciationActivity];
 }
 
 export function getActivitiesForNeuros(neuroIds: string[]): NeuroActivity[] {

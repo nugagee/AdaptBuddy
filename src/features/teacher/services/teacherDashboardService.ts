@@ -13,6 +13,7 @@ export type TeacherAssignmentType =
   | 'reading'
   | 'maths'
   | 'writing'
+  | 'pronunciation'
   | 'calm_break'
   | 'visual_routine'
   | 'social_story'
@@ -476,6 +477,7 @@ const teacherAssignmentTypes = [
   'reading',
   'maths',
   'writing',
+  'pronunciation',
   'calm_break',
   'visual_routine',
   'social_story',

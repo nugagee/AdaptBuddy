@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Layers, Rocket, Sparkles } from 'lucide-react';
+import { Layers, Mic2, Rocket, Sparkles, Volume2 } from 'lucide-react';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import FeelingsJournal from 'features/child/components/journal/FeelingsJournal';
 import DashboardHero from 'features/child/components/dashboard/DashboardHero';
@@ -186,6 +186,38 @@ const ChildDashboardPage: React.FC = () => {
               className="shrink-0 rounded-2xl bg-adapt-indigo px-5 py-3 text-sm font-semibold text-white hover:bg-adapt-purple dark:bg-adapt-cyan dark:text-gray-900"
             >
               Open AdaptBuddy
+            </button>
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-3xl border border-adapt-teal/25 bg-gradient-to-br from-white via-adapt-teal/10 to-adapt-indigo/10 p-6 shadow-sm dark:border-adapt-cyan/20 dark:from-gray-900 dark:via-adapt-cyan/10 dark:to-adapt-indigo/15 sm:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-adapt-teal/15 text-adapt-teal dark:bg-adapt-cyan/15 dark:text-adapt-cyan">
+                <Mic2 className="h-6 w-6" aria-hidden />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">
+                    Pronunciation Buddy
+                  </h2>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-xs font-bold text-adapt-indigo shadow-sm dark:bg-gray-950/70 dark:text-adapt-cyan">
+                    <Volume2 className="h-3.5 w-3.5" aria-hidden />
+                    Listen & repeat
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
+                  Practise letters, names, classroom words, and helpful sentences with calm
+                  read-aloud and microphone feedback.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate(ROUTES.PRONUNCIATION_BUDDY)}
+              className="shrink-0 rounded-2xl bg-adapt-teal px-5 py-3 text-sm font-semibold text-white hover:bg-adapt-indigo dark:bg-adapt-cyan dark:text-gray-900"
+            >
+              Start speaking
             </button>
           </div>
         </section>

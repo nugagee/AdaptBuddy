@@ -1,7 +1,9 @@
 import React from 'react';
-import { Sparkles, Flame } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Sparkles, Flame, Mic2, Volume2 } from 'lucide-react';
 import { NEURO_OPTION_MAP } from 'constants/neuroOptions';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { ROUTES } from 'constants/routes';
 
 interface DashboardHeroProps {
   firstName: string;
@@ -52,6 +54,23 @@ const DashboardHero: React.FC<DashboardHeroProps> = ({ firstName, neuroTypes, to
                 </span>
               );
             })}
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link
+              to={ROUTES.PRONUNCIATION_BUDDY}
+              className="inline-flex min-h-[3rem] items-center gap-2 rounded-2xl bg-gradient-to-r from-adapt-teal to-adapt-indigo px-5 py-3 text-sm font-black text-white shadow-md transition hover:scale-[1.01] hover:shadow-lg"
+            >
+              <Mic2 className="h-4 w-4" aria-hidden />
+              Pronunciation Buddy
+            </Link>
+            <Link
+              to={ROUTES.PRONUNCIATION_BUDDY}
+              className="inline-flex min-h-[3rem] items-center gap-2 rounded-2xl border border-adapt-indigo/15 bg-white/75 px-5 py-3 text-sm font-black text-adapt-indigo shadow-sm transition hover:border-adapt-indigo/30 hover:bg-adapt-indigo/5 dark:border-adapt-cyan/20 dark:bg-gray-950/70 dark:text-adapt-cyan"
+            >
+              <Volume2 className="h-4 w-4" aria-hidden />
+              Listen & repeat
+            </Link>
           </div>
         </div>
 

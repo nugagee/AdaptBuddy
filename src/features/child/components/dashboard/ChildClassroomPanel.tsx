@@ -9,9 +9,23 @@ interface ChildClassroomPanelProps {
   childId: string;
 }
 
-const formatJoinedDate = (isoDate: string): string => {
+const statusLabels: Record<ChildClassroom['status'], string> = {
+  active: 'Connected',
+  pending: 'Pending',
+  pending_parent: 'Parent approval',
+  pending_teacher: 'Teacher approval',
+};
+
+const statusStyles: Record<ChildClassroom['status'], string> = {
+  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200',
+  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200',
+  pending_parent: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200',
+  pending_teacher: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-200',
+};
+
+const formatConnectedDate = (isoDate: string): string => {
   const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) return 'Recently joined';
+  if (Number.isNaN(date.getTime())) return 'Recently added';
   return new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
     month: 'short',
@@ -76,7 +90,7 @@ const ChildClassroomPanel: React.FC<ChildClassroomPanelProps> = ({ childId }) =>
           </span>
           <div>
             <h2 className="text-lg font-extrabold text-adapt-navy dark:text-gray-100">My classroom</h2>
-            <p className="text-sm text-slate-500 dark:text-gray-400">Classes your teacher has connected to you.</p>
+            <p className="text-sm text-slate-500 dark:text-gray-400">Classes connected to you or waiting for approval.</p>
           </div>
         </div>
         <button
@@ -110,13 +124,19 @@ const ChildClassroomPanel: React.FC<ChildClassroomPanelProps> = ({ childId }) =>
                 <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-gray-400">
                   {classroom.schoolName || 'School classroom'}
                 </p>
+                <p className="mt-1 text-xs font-bold text-slate-400 dark:text-gray-500">
+                  {classroom.teacherName}
+                </p>
               </div>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-adapt-indigo shadow-sm dark:bg-gray-900 dark:text-adapt-cyan">
-                Joined {formatJoinedDate(classroom.joinedAt)}
+              <span className={`rounded-full px-3 py-1 text-xs font-black ${statusStyles[classroom.status]}`}>
+                {statusLabels[classroom.status]}
               </span>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 shadow-sm dark:bg-gray-900 dark:text-gray-300">
+                {classroom.status === 'active' ? 'Joined' : 'Requested'} {formatConnectedDate(classroom.connectedAt)}
+              </span>
               <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 shadow-sm dark:bg-gray-900 dark:text-gray-300">
                 <BookOpenCheck className="h-3.5 w-3.5" aria-hidden />
                 {classroom.subject}
@@ -133,6 +153,12 @@ const ChildClassroomPanel: React.FC<ChildClassroomPanelProps> = ({ childId }) =>
                 </span>
               )}
             </div>
+
+            {classroom.status !== 'active' && (
+              <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                This class will unlock teacher tasks after the approval steps are complete.
+              </p>
+            )}
           </article>
         ))}
       </div>

@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   CheckCircle2,
+  ClipboardList,
+  Download,
   Ear,
+  HelpCircle,
   History,
   Loader2,
   Mic,
@@ -56,6 +59,15 @@ type SpeechWindow = Window & {
 };
 
 type FeedbackTone = 'great' | 'steady' | 'try';
+type AttemptMode = 'microphone' | 'self_checked' | 'support_needed';
+type WordSource = 'learner' | 'parent' | 'teacher' | 'trusted_adult';
+type ConfidenceRating = 'confident' | 'practised' | 'hard' | 'needs_help';
+
+interface StoredPracticeItem extends PronunciationPracticeItem {
+  source?: WordSource;
+  createdByLabel?: string;
+  createdAt?: string;
+}
 
 interface PronunciationAttempt {
   id: string;
@@ -64,6 +76,11 @@ interface PronunciationAttempt {
   heard: string;
   score: number;
   tone: FeedbackTone;
+  mode: AttemptMode;
+  confidence: ConfidenceRating;
+  supportUsed: string[];
+  source?: WordSource;
+  assignmentId?: string;
   createdAt: string;
 }
 
@@ -81,6 +98,14 @@ interface PronunciationBuddyRouteState {
     phrase: string;
     hint?: string;
   };
+}
+
+interface SaveAttemptInput {
+  heard: string;
+  mode?: AttemptMode;
+  confidence?: ConfidenceRating;
+  supportUsed?: string[];
+  force?: boolean;
 }
 
 const normalizePhrase = (value: string) =>
@@ -142,7 +167,34 @@ const scorePronunciation = (expectedRaw: string, heardRaw: string) => {
   return Math.max(charScore, wordScore);
 };
 
-const buildFeedback = (item: PronunciationPracticeItem, heard: string): FeedbackState => {
+const buildFeedback = (
+  item: PronunciationPracticeItem,
+  heard: string,
+  mode: AttemptMode = 'microphone',
+  confidence: ConfidenceRating = 'practised',
+): FeedbackState => {
+  if (mode === 'support_needed') {
+    return {
+      tone: 'try',
+      title: 'Help signal saved',
+      message: `No problem. Listen once, then practise only the first part: ${item.breakdown[0] ?? item.phrase}.`,
+      score: 30,
+    };
+  }
+
+  if (mode === 'self_checked') {
+    const selfScore = confidence === 'confident' ? 88 : confidence === 'hard' ? 52 : 72;
+    return {
+      tone: confidence === 'confident' ? 'great' : confidence === 'hard' ? 'try' : 'steady',
+      title: confidence === 'confident' ? 'Practice counted' : confidence === 'hard' ? 'Keep it gentle' : 'Good practice',
+      message:
+        confidence === 'hard'
+          ? `You practised "${item.phrase}". Try it slowly: ${item.breakdown.join(' + ')}.`
+          : `You practised "${item.phrase}" out loud. Nice steady effort.`,
+      score: selfScore,
+    };
+  }
+
   const score = scorePronunciation(item.phrase, heard);
 
   if (!heard.trim()) {
@@ -185,6 +237,16 @@ const getStorageKey = (profileId: string | undefined, name: string) =>
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
+const startOfWeek = () => {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const weekStart = new Date(now);
+  weekStart.setDate(diff);
+  weekStart.setHours(0, 0, 0, 0);
+  return weekStart;
+};
+
 const difficultyStyles: Record<PronunciationPracticeItem['difficulty'], string> = {
   gentle: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200',
   steady: 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-200',
@@ -197,6 +259,68 @@ const feedbackStyles: Record<FeedbackTone, string> = {
   try: 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100',
 };
 
+const sourceLabels: Record<WordSource, string> = {
+  learner: 'Learner word',
+  parent: 'Parent word',
+  teacher: 'Teacher word',
+  trusted_adult: 'Trusted adult word',
+};
+
+const confidenceOptions: Array<{ id: ConfidenceRating; label: string; helper: string }> = [
+  { id: 'confident', label: 'Confident', helper: 'That felt clear' },
+  { id: 'practised', label: 'Practised', helper: 'I gave it a good try' },
+  { id: 'hard', label: 'Hard', helper: 'I need it slower' },
+];
+
+const buildBreakdown = (phrase: string) => {
+  const words = phrase.split(/\s+/).filter(Boolean);
+  if (words.length > 1) return words;
+  if (phrase.length > 8) {
+    const midpoint = Math.ceil(phrase.length / 2);
+    return [phrase.slice(0, midpoint), phrase.slice(midpoint)].filter(Boolean);
+  }
+  return [phrase];
+};
+
+const getSpeechRecognition = () => {
+  if (typeof window === 'undefined') return undefined;
+  const speechWindow = window as SpeechWindow;
+  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+};
+
+const buildWeeklySummaryText = (attempts: PronunciationAttempt[], firstName: string) => {
+  const weekAttempts = attempts.filter((attempt) => new Date(attempt.createdAt) >= startOfWeek());
+  const phrases = Array.from(new Set(weekAttempts.map((attempt) => attempt.phrase)));
+  const bestScore = weekAttempts.length ? Math.max(...weekAttempts.map((attempt) => attempt.score)) : 0;
+  const needsHelp = weekAttempts.filter((attempt) => attempt.confidence === 'needs_help' || attempt.mode === 'support_needed').length;
+  const supports = Array.from(new Set(weekAttempts.flatMap((attempt) => attempt.supportUsed)));
+
+  return [
+    `AdaptBuddy Pronunciation Summary for ${firstName}`,
+    `Window: This week`,
+    `Practice tries: ${weekAttempts.length}`,
+    `Words practised: ${phrases.length ? phrases.join(', ') : 'No words practised yet'}`,
+    `Best match: ${bestScore}%`,
+    `Support needed signals: ${needsHelp}`,
+    `Support used: ${supports.length ? supports.join(', ') : 'No support recorded yet'}`,
+    '',
+    'Privacy note: This summary is generated from practice metadata only. Raw voice audio is not stored by default.',
+    'Safety note: Pronunciation Buddy supports speech confidence, phonics and word practice. It does not diagnose speech difficulties or replace professional speech and language therapy.',
+  ].join('\n');
+};
+
+const downloadText = (filename: string, text: string) => {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
+
 const PronunciationBuddyPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -207,16 +331,19 @@ const PronunciationBuddyPage: React.FC = () => {
 
   const [selectedCategory, setSelectedCategory] = useState<PronunciationCategory>('everyday');
   const [selectedItemId, setSelectedItemId] = useState('hello');
-  const [customItems, setCustomItems] = useState<PronunciationPracticeItem[]>([]);
+  const [customItems, setCustomItems] = useState<StoredPracticeItem[]>([]);
   const [attempts, setAttempts] = useState<PronunciationAttempt[]>([]);
   const [customPhrase, setCustomPhrase] = useState('');
   const [customHint, setCustomHint] = useState('');
   const [customCategory, setCustomCategory] = useState<PronunciationCategory>('names');
+  const [wordSource, setWordSource] = useState<WordSource>('learner');
+  const [confidence, setConfidence] = useState<ConfidenceRating>('practised');
   const [spokenText, setSpokenText] = useState('');
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [status, setStatus] = useState('');
+  const [micConsentGiven, setMicConsentGiven] = useState(false);
   const [linkedAssignmentSaving, setLinkedAssignmentSaving] = useState(false);
   const [linkedAssignmentDone, setLinkedAssignmentDone] = useState(false);
 
@@ -226,8 +353,9 @@ const PronunciationBuddyPage: React.FC = () => {
 
   const customStorageKey = useMemo(() => getStorageKey(profileId, 'custom-items'), [profileId]);
   const attemptsStorageKey = useMemo(() => getStorageKey(profileId, 'attempts'), [profileId]);
+  const micConsentStorageKey = useMemo(() => getStorageKey(profileId, 'mic-consent'), [profileId]);
 
-  const personalItems = useMemo<PronunciationPracticeItem[]>(() => {
+  const personalItems = useMemo<StoredPracticeItem[]>(() => {
     if (!profile?.first_name) return [];
 
     return [
@@ -237,16 +365,16 @@ const PronunciationBuddyPage: React.FC = () => {
         label: profile.first_name,
         phrase: profile.first_name,
         hint: 'This is your name. Say it proudly, one sound at a time.',
-        breakdown: profile.first_name.length > 5
-          ? [profile.first_name.slice(0, Math.ceil(profile.first_name.length / 2)), profile.first_name.slice(Math.ceil(profile.first_name.length / 2))]
-          : [profile.first_name],
+        breakdown: buildBreakdown(profile.first_name),
         example: `My name is ${profile.first_name}.`,
         difficulty: 'gentle',
+        source: 'learner',
+        createdByLabel: 'Profile',
       },
     ];
   }, [profile?.first_name]);
 
-  const assignmentItem = useMemo<PronunciationPracticeItem | null>(() => {
+  const assignmentItem = useMemo<StoredPracticeItem | null>(() => {
     if (!assignmentPractice?.assignmentId || !assignmentPractice.phrase.trim()) return null;
     const phrase = assignmentPractice.phrase.trim();
 
@@ -256,14 +384,21 @@ const PronunciationBuddyPage: React.FC = () => {
       label: phrase,
       phrase,
       hint: assignmentPractice.hint || 'Your teacher sent this pronunciation practice.',
-      breakdown: phrase.split(/\s+/).filter(Boolean),
+      breakdown: buildBreakdown(phrase),
       example: `Teacher task: ${assignmentPractice.title}`,
       difficulty: phrase.split(/\s+/).length > 3 ? 'stretch' : 'steady',
+      source: 'teacher',
+      createdByLabel: 'Teacher assignment',
     };
   }, [assignmentPractice?.assignmentId, assignmentPractice?.hint, assignmentPractice?.phrase, assignmentPractice?.title]);
 
-  const practiceItems = useMemo(
-    () => [...(assignmentItem ? [assignmentItem] : []), ...personalItems, ...DEFAULT_PRONUNCIATION_ITEMS, ...customItems],
+  const practiceItems = useMemo<StoredPracticeItem[]>(
+    () => [
+      ...(assignmentItem ? [assignmentItem] : []),
+      ...personalItems,
+      ...(DEFAULT_PRONUNCIATION_ITEMS as StoredPracticeItem[]),
+      ...customItems,
+    ],
     [assignmentItem, customItems, personalItems],
   );
 
@@ -281,8 +416,14 @@ const PronunciationBuddyPage: React.FC = () => {
     () => attempts.filter((attempt) => attempt.createdAt.startsWith(todayKey())),
     [attempts],
   );
+  const weeklyAttempts = useMemo(
+    () => attempts.filter((attempt) => new Date(attempt.createdAt) >= startOfWeek()),
+    [attempts],
+  );
   const bestScore = attempts.length ? Math.max(...attempts.map((attempt) => attempt.score)) : 0;
   const practisedPhrases = new Set(attempts.map((attempt) => attempt.phrase)).size;
+  const weeklyPhrases = new Set(weeklyAttempts.map((attempt) => attempt.phrase)).size;
+  const weeklyNeedsHelp = weeklyAttempts.filter((attempt) => attempt.mode === 'support_needed' || attempt.confidence === 'needs_help').length;
   const recognitionAvailable = typeof window !== 'undefined'
     ? Boolean((window as SpeechWindow).SpeechRecognition ?? (window as SpeechWindow).webkitSpeechRecognition)
     : false;
@@ -290,7 +431,7 @@ const PronunciationBuddyPage: React.FC = () => {
   useEffect(() => {
     try {
       const savedItems = localStorage.getItem(customStorageKey);
-      if (savedItems) setCustomItems(JSON.parse(savedItems) as PronunciationPracticeItem[]);
+      if (savedItems) setCustomItems(JSON.parse(savedItems) as StoredPracticeItem[]);
     } catch {
       setCustomItems([]);
     }
@@ -306,6 +447,14 @@ const PronunciationBuddyPage: React.FC = () => {
   }, [attemptsStorageKey]);
 
   useEffect(() => {
+    try {
+      setMicConsentGiven(localStorage.getItem(micConsentStorageKey) === 'yes');
+    } catch {
+      setMicConsentGiven(false);
+    }
+  }, [micConsentStorageKey]);
+
+  useEffect(() => {
     if (!assignmentItem) return;
     setSelectedCategory('school');
     setSelectedItemId(assignmentItem.id);
@@ -319,7 +468,7 @@ const PronunciationBuddyPage: React.FC = () => {
     setSelectedItemId(selectedItem.id);
   }, [categoryItems, selectedItem, selectedItemId]);
 
-  const persistCustomItems = useCallback((items: PronunciationPracticeItem[]) => {
+  const persistCustomItems = useCallback((items: StoredPracticeItem[]) => {
     setCustomItems(items);
     try {
       localStorage.setItem(customStorageKey, JSON.stringify(items));
@@ -329,7 +478,7 @@ const PronunciationBuddyPage: React.FC = () => {
   }, [customStorageKey]);
 
   const persistAttempts = useCallback((nextAttempts: PronunciationAttempt[]) => {
-    const trimmedAttempts = nextAttempts.slice(0, 80);
+    const trimmedAttempts = nextAttempts.slice(0, 120);
     setAttempts(trimmedAttempts);
     try {
       localStorage.setItem(attemptsStorageKey, JSON.stringify(trimmedAttempts));
@@ -337,6 +486,16 @@ const PronunciationBuddyPage: React.FC = () => {
       setStatus('Practice was checked, but history could not be saved on this device.');
     }
   }, [attemptsStorageKey]);
+
+  const acceptMicConsent = () => {
+    setMicConsentGiven(true);
+    try {
+      localStorage.setItem(micConsentStorageKey, 'yes');
+    } catch {
+      // Consent still applies in this session.
+    }
+    setStatus('Microphone practice is enabled for this session. Raw voice audio is not saved.');
+  };
 
   const speak = useCallback((text: string, rate = 0.86) => {
     if (!text.trim() || typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -359,33 +518,32 @@ const PronunciationBuddyPage: React.FC = () => {
   }, []);
 
   const saveAttempt = useCallback(
-    (heard: string) => {
-      if (!selectedItem || hasSavedAttemptRef.current) return;
+    ({ heard, mode = 'microphone', confidence: nextConfidence = confidence, supportUsed = [], force = false }: SaveAttemptInput) => {
+      if (!selectedItem || (!force && hasSavedAttemptRef.current)) return;
       hasSavedAttemptRef.current = true;
 
-      const nextFeedback = buildFeedback(selectedItem, heard);
+      const nextFeedback = buildFeedback(selectedItem, heard, mode, nextConfidence);
       const attempt: PronunciationAttempt = {
         id: `${selectedItem.id}-${Date.now()}`,
         itemId: selectedItem.id,
         phrase: selectedItem.phrase,
-        heard: heard.trim(),
+        heard: mode === 'microphone' ? heard.trim() : mode === 'self_checked' ? 'Self-checked practice' : 'Support requested',
         score: nextFeedback.score,
         tone: nextFeedback.tone,
+        mode,
+        confidence: mode === 'support_needed' ? 'needs_help' : nextConfidence,
+        supportUsed: Array.from(new Set(['pronunciation_practice', ...supportUsed])),
+        source: selectedItem.source,
+        assignmentId: assignmentPractice?.assignmentId,
         createdAt: new Date().toISOString(),
       };
 
       setFeedback(nextFeedback);
       persistAttempts([attempt, ...attempts]);
-      setStatus(heard.trim() ? 'Practice checked.' : 'Ready when you are.');
+      setStatus(mode === 'support_needed' ? 'Help noted for this practice.' : 'Practice checked and saved as metadata only.');
     },
-    [attempts, persistAttempts, selectedItem],
+    [assignmentPractice?.assignmentId, attempts, confidence, persistAttempts, selectedItem],
   );
-
-  const getSpeechRecognition = () => {
-    if (typeof window === 'undefined') return undefined;
-    const speechWindow = window as SpeechWindow;
-    return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
-  };
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop();
@@ -396,9 +554,14 @@ const PronunciationBuddyPage: React.FC = () => {
   const startListening = useCallback(() => {
     if (!selectedItem) return;
 
+    if (!micConsentGiven) {
+      setStatus('Please confirm microphone consent before using listen-and-repeat.');
+      return;
+    }
+
     const SpeechRecognition = getSpeechRecognition();
     if (!SpeechRecognition) {
-      setStatus('Microphone practice is not available in this browser. You can still listen and practise out loud.');
+      setStatus('Microphone checking is not available in this browser. Use “I said it myself” to count private practice.');
       return;
     }
 
@@ -427,11 +590,11 @@ const PronunciationBuddyPage: React.FC = () => {
     };
     recognition.onerror = () => {
       setIsListening(false);
-      setStatus('The microphone could not hear clearly. Try again, or listen first.');
+      setStatus('The microphone could not hear clearly. Try again, or use the private self-check button.');
     };
     recognition.onend = () => {
       setIsListening(false);
-      saveAttempt(lastTranscriptRef.current);
+      saveAttempt({ heard: lastTranscriptRef.current, mode: 'microphone', supportUsed: ['browser_speech_check'] });
     };
 
     recognitionRef.current = recognition;
@@ -442,7 +605,7 @@ const PronunciationBuddyPage: React.FC = () => {
     } catch {
       setStatus('The microphone is already getting ready. Try again in a moment.');
     }
-  }, [saveAttempt, selectedItem, stopListening]);
+  }, [micConsentGiven, saveAttempt, selectedItem, stopListening]);
 
   useEffect(() => () => {
     recognitionRef.current?.stop();
@@ -455,15 +618,18 @@ const PronunciationBuddyPage: React.FC = () => {
     const phrase = customPhrase.trim();
     if (!phrase) return;
 
-    const nextItem: PronunciationPracticeItem = {
-      id: `custom-${Date.now()}`,
+    const nextItem: StoredPracticeItem = {
+      id: `custom-${wordSource}-${Date.now()}`,
       category: customCategory,
       label: phrase,
       phrase,
       hint: customHint.trim() || 'Practise this slowly, one sound at a time.',
-      breakdown: phrase.split(/\s+/).filter(Boolean),
+      breakdown: buildBreakdown(phrase),
       example: phrase.includes(' ') ? phrase : `I can say ${phrase}.`,
       difficulty: phrase.split(/\s+/).length > 3 ? 'stretch' : 'steady',
+      source: wordSource,
+      createdByLabel: sourceLabels[wordSource],
+      createdAt: new Date().toISOString(),
     };
 
     persistCustomItems([nextItem, ...customItems]);
@@ -471,7 +637,7 @@ const PronunciationBuddyPage: React.FC = () => {
     setSelectedItemId(nextItem.id);
     setCustomPhrase('');
     setCustomHint('');
-    setStatus(`Added "${phrase}" to practice.`);
+    setStatus(`Added "${phrase}" to the ${sourceLabels[wordSource].toLowerCase()} bank.`);
   };
 
   const markLinkedAssignmentComplete = async () => {
@@ -485,8 +651,8 @@ const PronunciationBuddyPage: React.FC = () => {
         assignmentId: assignmentPractice.assignmentId,
         childId: profileId ?? 'guest-child',
         status: 'completed',
-        supportUsed: ['pronunciation_practice'],
-        moodAfterTask: feedback?.tone === 'great' ? 'confident' : 'practised',
+        supportUsed: ['pronunciation_practice', feedback?.tone === 'try' ? 'slow_repetition' : 'listen_repeat'],
+        moodAfterTask: feedback?.tone === 'great' ? 'confident' : feedback?.tone === 'try' ? 'needs_more_practice' : 'practised',
       });
       setLinkedAssignmentDone(true);
       setStatus('Teacher task updated.');
@@ -498,6 +664,8 @@ const PronunciationBuddyPage: React.FC = () => {
   };
 
   const latestAttempts = attempts.slice(0, 5);
+  const weeklyBest = weeklyAttempts.length ? Math.max(...weeklyAttempts.map((attempt) => attempt.score)) : 0;
+  const weeklySummaryText = buildWeeklySummaryText(attempts, firstName);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/30 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
@@ -524,7 +692,7 @@ const PronunciationBuddyPage: React.FC = () => {
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-gray-400">
                 Hi {firstName}. Choose a sound, word, name, or sentence. AdaptBuddy can say it slowly,
-                listen to your try, and give calm feedback without pressure.
+                listen to your try, or let you count private practice without the microphone.
               </p>
               {assignmentPractice && (
                 <div className="mt-5 inline-flex max-w-full flex-wrap items-center gap-2 rounded-2xl border border-adapt-indigo/15 bg-white/75 px-4 py-3 text-sm font-bold text-adapt-navy shadow-sm dark:border-adapt-cyan/20 dark:bg-gray-950/70 dark:text-gray-100">
@@ -564,6 +732,34 @@ const PronunciationBuddyPage: React.FC = () => {
               <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-gray-400">{text}</p>
             </div>
           ))}
+        </section>
+
+        <section className="rounded-[2rem] border border-adapt-indigo/15 bg-white/90 p-5 shadow-card dark:border-adapt-cyan/20 dark:bg-gray-900/90">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="mt-1 h-6 w-6 shrink-0 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+              <div>
+                <h2 className="text-lg font-black text-adapt-navy dark:text-gray-100">Safety and consent</h2>
+                <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600 dark:text-gray-400">
+                  Pronunciation Buddy supports speech confidence, phonics and word practice. It does not diagnose speech
+                  difficulties or replace professional speech and language therapy. Raw voice audio is not saved by default;
+                  practice history stores only metadata such as word, transcript or self-check, support used, confidence and time.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={acceptMicConsent}
+              className={`inline-flex min-h-[3rem] items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition ${
+                micConsentGiven
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100'
+                  : 'bg-adapt-navy text-white hover:bg-adapt-purple dark:bg-adapt-cyan dark:text-gray-950'
+              }`}
+            >
+              <CheckCircle2 className="h-4 w-4" aria-hidden />
+              {micConsentGiven ? 'Mic consent saved' : 'Allow mic for practice'}
+            </button>
+          </div>
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[0.88fr_1.12fr]">
@@ -648,6 +844,11 @@ const PronunciationBuddyPage: React.FC = () => {
                         </span>
                       </div>
                       <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">{item.hint}</p>
+                      {item.source && (
+                        <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500 dark:bg-gray-800 dark:text-gray-300">
+                          {sourceLabels[item.source]}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -715,15 +916,71 @@ const PronunciationBuddyPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={isListening ? stopListening : startListening}
-                      className={`inline-flex min-h-[4rem] items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-white shadow-md transition hover:scale-[1.01] ${
+                      disabled={!micConsentGiven}
+                      className={`inline-flex min-h-[4rem] items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-white shadow-md transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50 ${
                         isListening
                           ? 'bg-rose-500 hover:bg-rose-600'
                           : 'bg-gradient-to-r from-adapt-indigo to-adapt-teal'
                       }`}
                     >
                       {isListening ? <MicOff className="h-5 w-5" aria-hidden /> : <Mic className="h-5 w-5" aria-hidden />}
-                      {isListening ? 'Stop' : 'I will say it'}
+                      {isListening ? 'Stop' : 'Use mic'}
                     </button>
+                  </div>
+
+                  <div className="mt-4 rounded-3xl border border-slate-200 bg-white/80 p-4 dark:border-gray-800 dark:bg-gray-950/80">
+                    <p className="text-sm font-bold text-slate-500 dark:text-gray-400">Private fallback</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-gray-400">
+                      No microphone? No problem. Count the practice without saving voice audio.
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      {confidenceOptions.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setConfidence(option.id)}
+                          className={`rounded-2xl border px-3 py-2 text-left text-sm transition ${
+                            confidence === option.id
+                              ? 'border-adapt-indigo bg-adapt-indigo/10 text-adapt-indigo dark:border-adapt-cyan dark:bg-adapt-cyan/10 dark:text-adapt-cyan'
+                              : 'border-slate-200 bg-white text-slate-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                          }`}
+                        >
+                          <span className="block font-black">{option.label}</span>
+                          <span className="text-xs opacity-80">{option.helper}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      <button
+                        type="button"
+                        onClick={() => saveAttempt({ heard: selectedItem.phrase, mode: 'self_checked', confidence, supportUsed: ['self_check'], force: true })}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-adapt-indigo px-4 py-3 text-sm font-black text-white transition hover:bg-adapt-purple"
+                      >
+                        <CheckCircle2 className="h-4 w-4" aria-hidden />
+                        I said it myself
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => saveAttempt({ heard: '', mode: 'support_needed', confidence: 'needs_help', supportUsed: ['slow_repetition_needed'], force: true })}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-800 transition hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+                      >
+                        <HelpCircle className="h-4 w-4" aria-hidden />
+                        I need help
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFeedback(null);
+                          setSpokenText('');
+                          setStatus('Ready to try again.');
+                          hasSavedAttemptRef.current = false;
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:border-adapt-indigo/30 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                      >
+                        <RefreshCw className="h-4 w-4" aria-hidden />
+                        Try again
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-5 min-h-[7.5rem] rounded-3xl border border-slate-200 bg-white/80 p-4 dark:border-gray-800 dark:bg-gray-950/80">
@@ -746,7 +1003,7 @@ const PronunciationBuddyPage: React.FC = () => {
 
                     {!recognitionAvailable && (
                       <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                        Microphone checking works best in Chrome or Edge. Listening back still works here.
+                        Microphone checking works best in Chrome or Edge. Use the private self-check buttons here.
                       </p>
                     )}
                   </div>
@@ -796,14 +1053,6 @@ const PronunciationBuddyPage: React.FC = () => {
                       </div>
                     </div>
                   )}
-
-                  <div className="mt-5 flex items-start gap-3 rounded-3xl border border-adapt-indigo/10 bg-adapt-indigo/5 p-4 dark:border-adapt-cyan/15 dark:bg-adapt-cyan/5">
-                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
-                    <p className="text-sm leading-relaxed text-slate-600 dark:text-gray-400">
-                      Voice is used for this practice moment only. Raw audio is not saved. The practice history stores the
-                      word, what the browser heard, and a gentle score on this device.
-                    </p>
-                  </div>
                 </>
               ) : (
                 <div className="py-12 text-center">
@@ -821,9 +1070,9 @@ const PronunciationBuddyPage: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
-                      Personal words
+                      Family and school words
                     </p>
-                    <h2 className="text-lg font-black text-adapt-navy dark:text-gray-100">Add a word</h2>
+                    <h2 className="text-lg font-black text-adapt-navy dark:text-gray-100">Add word bank item</h2>
                   </div>
                 </div>
 
@@ -837,20 +1086,33 @@ const PronunciationBuddyPage: React.FC = () => {
                   <input
                     value={customHint}
                     onChange={(event) => setCustomHint(event.target.value)}
-                    placeholder="Optional hint"
+                    placeholder="Optional mouth/meaning hint"
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-bold text-adapt-navy outline-none transition placeholder:text-slate-400 focus:border-adapt-indigo dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                   />
-                  <select
-                    value={customCategory}
-                    onChange={(event) => setCustomCategory(event.target.value as PronunciationCategory)}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-bold text-adapt-navy outline-none transition focus:border-adapt-indigo dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                  >
-                    {PRONUNCIATION_CATEGORIES.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <select
+                      value={customCategory}
+                      onChange={(event) => setCustomCategory(event.target.value as PronunciationCategory)}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-bold text-adapt-navy outline-none transition focus:border-adapt-indigo dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                    >
+                      {PRONUNCIATION_CATEGORIES.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={wordSource}
+                      onChange={(event) => setWordSource(event.target.value as WordSource)}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-bold text-adapt-navy outline-none transition focus:border-adapt-indigo dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                    >
+                      {Object.entries(sourceLabels).map(([id, label]) => (
+                        <option key={id} value={id}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <button
                     type="button"
                     onClick={handleAddCustomPhrase}
@@ -902,7 +1164,10 @@ const PronunciationBuddyPage: React.FC = () => {
                           </span>
                         </div>
                         <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
-                          Heard: {attempt.heard || 'not clear yet'}
+                          {attempt.mode === 'microphone' ? `Browser heard: ${attempt.heard || 'not clear yet'}` : attempt.heard}
+                        </p>
+                        <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-400">
+                          {attempt.confidence.replace(/_/g, ' ')} · {attempt.supportUsed.join(', ')}
                         </p>
                       </div>
                     ))}
@@ -915,6 +1180,46 @@ const PronunciationBuddyPage: React.FC = () => {
                     </p>
                   </div>
                 )}
+              </div>
+            </section>
+
+            <section className="rounded-[2rem] border border-white/70 bg-white/90 p-5 shadow-card dark:border-gray-800 dark:bg-gray-900/90">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-adapt-indigo/10 text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
+                    <ClipboardList className="h-5 w-5" aria-hidden />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
+                      Weekly summary
+                    </p>
+                    <h2 className="text-lg font-black text-adapt-navy dark:text-gray-100">Progress snapshot</h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-gray-400">
+                      A privacy-safe snapshot for parents, teachers or review meetings. It uses practice metadata only.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => downloadText(`adaptbuddy-pronunciation-summary-${todayKey()}.txt`, weeklySummaryText)}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white transition hover:bg-adapt-purple dark:bg-adapt-cyan dark:text-gray-950"
+                >
+                  <Download className="h-4 w-4" aria-hidden />
+                  Download summary
+                </button>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                {[
+                  { label: 'Tries', value: weeklyAttempts.length },
+                  { label: 'Words', value: weeklyPhrases },
+                  { label: 'Best', value: `${weeklyBest}%` },
+                  { label: 'Help', value: weeklyNeedsHelp },
+                ].map((metric) => (
+                  <div key={metric.label} className="rounded-2xl bg-slate-50 p-4 text-center dark:bg-gray-950">
+                    <p className="text-2xl font-black text-adapt-navy dark:text-gray-100">{metric.value}</p>
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-gray-400">{metric.label}</p>
+                  </div>
+                ))}
               </div>
             </section>
           </div>

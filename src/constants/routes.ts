@@ -12,6 +12,7 @@ export const ROUTES = {
   AUTISM_SPACE: '/autism-space',
   CHILD_SETTINGS: '/settings',
   WRITING_PAD: '/writing-pad',
+  PRONUNCIATION_BUDDY: '/pronunciation-buddy',
   PARENT_HUB: '/parent-hub',
   MUSIC: '/music',
   TEACHER_LOGIN: '/teacher',

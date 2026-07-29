@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home,
   LogOut,
+  Mic2,
   Music,
   PenTool,
   Settings,
@@ -16,6 +17,7 @@ import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
 const navItems = [
   { to: ROUTES.CHILD_DASHBOARD, label: 'Home', icon: Home },
   { to: ROUTES.COMPANION_BUDDY, label: 'Buddy', icon: Sparkles },
+  { to: ROUTES.PRONUNCIATION_BUDDY, label: 'Pronounce', icon: Mic2 },
   { to: ROUTES.MUSIC, label: 'Music', icon: Music },
   { to: ROUTES.WRITING_PAD, label: 'Writing', icon: PenTool },
   { to: ROUTES.CHILD_SETTINGS, label: 'Settings', icon: Settings },

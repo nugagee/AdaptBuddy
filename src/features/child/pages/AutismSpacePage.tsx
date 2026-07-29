@@ -10,6 +10,7 @@ import {
   Heart,
   ListChecks,
   MessageSquare,
+  Mic2,
   Moon,
   Music,
   Pause,
@@ -21,6 +22,8 @@ import {
   Volume2,
   Wind,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ROUTES } from 'constants/routes';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
@@ -45,7 +48,7 @@ const tabs: { id: AutismTab; label: string; icon: React.ElementType }[] = [
   { id: 'transition', label: 'Now / Next / Later', icon: Timer },
   { id: 'calm', label: 'Calm Corner', icon: Heart },
   { id: 'story', label: 'Social Story', icon: BookOpen },
-  { id: 'communication', label: 'AAC Board', icon: MessageSquare },
+  { id: 'communication', label: 'AAC & Speech', icon: MessageSquare },
 ];
 
 const communicationOptions: { id: CommunicationStyle; label: string }[] = [
@@ -555,7 +558,32 @@ const AutismSpacePage: React.FC = () => {
     return (
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-soft dark:border-gray-800 dark:bg-gray-900">
         <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">Communication Help Board</h2>
-        <p className="mt-1 text-sm text-slate-500">Tap a card to communicate quickly.</p>
+        <p className="mt-1 text-sm text-slate-500">Tap a card, practise a word, or use your own phrase.</p>
+        <div className="mt-5 grid gap-3 lg:grid-cols-[1.05fr_0.95fr]">
+          <Link
+            to={ROUTES.PRONUNCIATION_BUDDY}
+            className="group rounded-3xl border-2 border-sky-200 bg-gradient-to-br from-sky-50 to-white p-5 transition hover:-translate-y-0.5 hover:border-sky-400 hover:shadow-card dark:border-sky-900/70 dark:from-sky-950/30 dark:to-gray-900"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500 text-white shadow-soft">
+              <Mic2 className="h-6 w-6" aria-hidden />
+            </span>
+            <h3 className="mt-4 text-xl font-black text-adapt-navy dark:text-gray-100">Pronunciation Buddy</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-400">
+              Practise names, helpful words, and short sentences with listen-and-repeat support.
+            </p>
+            <span className="mt-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-black text-sky-700 shadow-sm group-hover:bg-sky-600 group-hover:text-white dark:bg-gray-950 dark:text-sky-200">
+              Open practice
+            </span>
+          </Link>
+
+          <div className="rounded-3xl border border-teal-100 bg-teal-50/70 p-5 dark:border-teal-900/60 dark:bg-teal-950/20">
+            <Volume2 className="h-8 w-8 text-teal-600 dark:text-teal-300" aria-hidden />
+            <h3 className="mt-3 text-lg font-black text-adapt-navy dark:text-gray-100">Listen first, then say it</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-400">
+              This sits beside AAC because some children use spoken words, repeated words, typing, pictures, or a mix.
+            </p>
+          </div>
+        </div>
         <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {enabledButtons.map((button) => (
             <button

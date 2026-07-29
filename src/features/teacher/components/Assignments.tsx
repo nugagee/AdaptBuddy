@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   Archive,
@@ -23,11 +24,13 @@ import {
   type TeacherAssignmentType,
   type TeacherDashboardSummary,
 } from 'features/teacher/services/teacherDashboardService';
+import { ROUTES } from 'constants/routes';
 
 const assignmentTypes: Array<{ id: TeacherAssignmentType; label: string }> = [
   { id: 'reading', label: 'Reading' },
   { id: 'maths', label: 'Maths' },
   { id: 'writing', label: 'Writing' },
+  { id: 'pronunciation', label: 'Pronunciation' },
   { id: 'calm_break', label: 'Calm break' },
   { id: 'visual_routine', label: 'Visual routine' },
   { id: 'social_story', label: 'Social story' },
@@ -41,6 +44,7 @@ const supportOptions = [
   { id: 'task_breaker', label: 'Task breaker' },
   { id: 'calm_break', label: 'Calm break' },
   { id: 'writing_support', label: 'Writing support' },
+  { id: 'pronunciation_practice', label: 'Pronunciation practice' },
 ];
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
@@ -307,6 +311,7 @@ const Assignments: React.FC = () => {
     () => new Map((summary?.classes ?? []).map((teacherClass) => [teacherClass.id, teacherClass.className])),
     [summary?.classes],
   );
+  const hasClasses = Boolean(summary?.classes.length);
 
   const resetForm = useCallback(() => {
     setEditingAssignment(null);
@@ -327,6 +332,16 @@ const Assignments: React.FC = () => {
         ? current.supportTools.filter((item) => item !== tool)
         : [...current.supportTools, tool],
     }));
+  };
+
+  const handleAssignmentTypeChange = (assignmentType: TeacherAssignmentType) => {
+    setForm((current) => {
+      const supportTools = assignmentType === 'pronunciation' && !current.supportTools.includes('pronunciation_practice')
+        ? [...current.supportTools, 'pronunciation_practice', 'read_aloud']
+        : current.supportTools;
+
+      return { ...current, assignmentType, supportTools: Array.from(new Set(supportTools)) };
+    });
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -488,13 +503,25 @@ const Assignments: React.FC = () => {
             </div>
 
             <div className="mt-5 space-y-3">
+              {!hasClasses && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                  Create a class first, then come back here to publish assignments to learners.
+                  <Link
+                    to={ROUTES.TEACHER_CLASSES}
+                    className="ml-2 inline-flex font-black text-adapt-indigo underline underline-offset-4 dark:text-adapt-cyan"
+                  >
+                    Open Classes
+                  </Link>
+                </div>
+              )}
+
               <select
                 value={form.classId}
                 onChange={(event) => setForm((current) => ({ ...current, classId: event.target.value }))}
-                disabled={Boolean(editingAssignment)}
+                disabled={Boolean(editingAssignment) || !hasClasses}
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
               >
-                <option value="">Choose class</option>
+                <option value="">{hasClasses ? 'Choose class' : 'No classes yet'}</option>
                 {summary?.classes.map((teacherClass) => (
                   <option key={teacherClass.id} value={teacherClass.id}>{teacherClass.className}</option>
                 ))}
@@ -510,7 +537,11 @@ const Assignments: React.FC = () => {
               <textarea
                 value={form.description}
                 onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                placeholder="Short, gentle instructions for the learner"
+                placeholder={
+                  form.assignmentType === 'pronunciation'
+                    ? 'Words: Bamidele, AdaptBuddy, I need help'
+                    : 'Short, gentle instructions for the learner'
+                }
                 rows={4}
                 className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
               />
@@ -518,9 +549,7 @@ const Assignments: React.FC = () => {
               <div className="grid gap-3 sm:grid-cols-2">
                 <select
                   value={form.assignmentType}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, assignmentType: event.target.value as TeacherAssignmentType }))
-                  }
+                  onChange={(event) => handleAssignmentTypeChange(event.target.value as TeacherAssignmentType)}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                 >
                   {assignmentTypes.map((type) => (

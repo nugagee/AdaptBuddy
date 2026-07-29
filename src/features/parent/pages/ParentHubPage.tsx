@@ -114,6 +114,7 @@ const assignmentTypeLabels: Record<ParentAssignmentSummary['assignmentType'], st
   reading: 'Reading',
   maths: 'Maths',
   writing: 'Writing',
+  pronunciation: 'Pronunciation',
   calm_break: 'Calm break',
   visual_routine: 'Visual routine',
   social_story: 'Social story',
@@ -127,6 +128,7 @@ const supportToolLabels: Record<string, string> = {
   task_breaker: 'Task breaker',
   calm_break: 'Calm break',
   writing_support: 'Writing support',
+  pronunciation_practice: 'Pronunciation practice',
   teacher_help: 'Teacher help',
 };
 

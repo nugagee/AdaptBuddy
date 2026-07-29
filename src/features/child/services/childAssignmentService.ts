@@ -43,6 +43,7 @@ const assignmentTypes = [
   'reading',
   'maths',
   'writing',
+  'pronunciation',
   'calm_break',
   'visual_routine',
   'social_story',

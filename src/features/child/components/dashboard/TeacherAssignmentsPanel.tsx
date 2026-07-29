@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   BookOpenCheck,
   CheckCircle2,
   HandHeart,
   Loader2,
   MessageCircleWarning,
+  Mic2,
   Play,
   RefreshCw,
 } from 'lucide-react';
@@ -13,6 +15,7 @@ import {
   ChildAssignmentService,
   type ChildTeacherAssignment,
 } from 'features/child/services/childAssignmentService';
+import { ROUTES } from 'constants/routes';
 
 interface TeacherAssignmentsPanelProps {
   childId: string;
@@ -26,6 +29,7 @@ const supportLabels: Record<string, string> = {
   task_breaker: 'Task breaker',
   calm_break: 'Calm break',
   writing_support: 'Writing support',
+  pronunciation_practice: 'Pronunciation practice',
 };
 
 const moodOptions = [
@@ -65,6 +69,7 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 const TeacherAssignmentsPanel: React.FC<TeacherAssignmentsPanelProps> = ({ childId, onCelebrate }) => {
+  const navigate = useNavigate();
   const [assignments, setAssignments] = useState<ChildTeacherAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -93,16 +98,41 @@ const TeacherAssignmentsPanel: React.FC<TeacherAssignmentsPanelProps> = ({ child
     void loadAssignments();
   }, [loadAssignments]);
 
+  const isPronunciationAssignment = (assignment: ChildTeacherAssignment) =>
+    assignment.assignmentType === 'pronunciation' || assignment.supportTools.includes('pronunciation_practice');
+
+  const getPronunciationPhrase = (assignment: ChildTeacherAssignment) => {
+    const description = assignment.description?.trim() ?? '';
+    const labelledPhrase = description.match(/(?:word|words|phrase|sentence)\s*:\s*(.+)$/i)?.[1]?.trim();
+    if (labelledPhrase) return labelledPhrase.slice(0, 80);
+
+    return assignment.title
+      .replace(/^practi[cs]e\s+/i, '')
+      .replace(/^say\s+/i, '')
+      .trim()
+      .slice(0, 80) || assignment.title;
+  };
+
+  const getSupportUsedForStatus = (
+    assignment: ChildTeacherAssignment,
+    status: AssignmentStatus,
+  ) => {
+    const supportUsed = new Set(assignment.supportUsed);
+    if (status === 'needs_help') supportUsed.add('teacher_help');
+    if (status === 'completed' && isPronunciationAssignment(assignment)) supportUsed.add('pronunciation_practice');
+    return Array.from(supportUsed);
+  };
+
   const saveProgress = async (
     assignment: ChildTeacherAssignment,
     status: AssignmentStatus,
     moodAfterTask?: string,
-  ) => {
+  ): Promise<boolean> => {
     setSavingId(assignment.id);
     setError(null);
 
     try {
-      const supportUsed = status === 'needs_help' ? ['teacher_help'] : assignment.supportUsed;
+      const supportUsed = getSupportUsedForStatus(assignment, status);
       await ChildAssignmentService.saveProgress({
         assignmentId: assignment.id,
         childId,
@@ -125,12 +155,31 @@ const TeacherAssignmentsPanel: React.FC<TeacherAssignmentsPanelProps> = ({ child
       } else if (status === 'needs_help') {
         onCelebrate?.('Help signal saved for your teacher.');
       }
+
+      return true;
     } catch (saveError) {
       console.error('Error saving assignment progress:', saveError);
       setError(getErrorMessage(saveError));
+      return false;
     } finally {
       setSavingId(null);
     }
+  };
+
+  const handleStartAssignment = async (assignment: ChildTeacherAssignment) => {
+    const saved = await saveProgress(assignment, 'in_progress');
+    if (!saved || !isPronunciationAssignment(assignment)) return;
+
+    navigate(ROUTES.PRONUNCIATION_BUDDY, {
+      state: {
+        assignmentPractice: {
+          assignmentId: assignment.id,
+          title: assignment.title,
+          phrase: getPronunciationPhrase(assignment),
+          hint: assignment.description || 'Your teacher sent this pronunciation practice.',
+        },
+      },
+    });
   };
 
   if (loading) {
@@ -224,12 +273,16 @@ const TeacherAssignmentsPanel: React.FC<TeacherAssignmentsPanelProps> = ({ child
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
                 <button
                   type="button"
-                  onClick={() => saveProgress(assignment, 'in_progress')}
+                  onClick={() => void handleStartAssignment(assignment)}
                   disabled={savingId === assignment.id || done}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm font-black text-adapt-indigo shadow-sm disabled:opacity-50 dark:bg-gray-900 dark:text-adapt-cyan"
                 >
-                  <Play className="h-4 w-4" aria-hidden />
-                  Start
+                  {isPronunciationAssignment(assignment) ? (
+                    <Mic2 className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <Play className="h-4 w-4" aria-hidden />
+                  )}
+                  {isPronunciationAssignment(assignment) ? 'Practise' : 'Start'}
                 </button>
                 <button
                   type="button"

@@ -152,6 +152,7 @@ export type ParentAssignmentType =
   | 'reading'
   | 'maths'
   | 'writing'
+  | 'pronunciation'
   | 'calm_break'
   | 'visual_routine'
   | 'social_story'
@@ -670,6 +671,7 @@ const parentAssignmentTypes = [
   'reading',
   'maths',
   'writing',
+  'pronunciation',
   'calm_break',
   'visual_routine',
   'social_story',

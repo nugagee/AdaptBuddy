@@ -54,6 +54,9 @@ const AccessibilityDock: React.FC<AccessibilityDockProps> = ({ neuroTypes }) => 
       case 'writing':
         navigate(ROUTES.WRITING_PAD);
         break;
+      case 'pronunciation':
+        navigate(ROUTES.PRONUNCIATION_BUDDY);
+        break;
       default:
         break;
     }

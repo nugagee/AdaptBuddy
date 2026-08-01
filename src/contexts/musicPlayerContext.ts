@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
-import type { useAudioPlayer } from 'hooks/useAudioPlayer';
+import type { GlobalMusicPlayerApi } from 'hooks/useGlobalMusicPlayer';
 
-export type YouTubePlayerApi = ReturnType<typeof useAudioPlayer>;
+export type YouTubePlayerApi = GlobalMusicPlayerApi;
 
 export interface MusicPlayerContextValue extends YouTubePlayerApi {
   expanded: boolean;

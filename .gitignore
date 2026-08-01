@@ -26,3 +26,4 @@ package-lock.json
 scripts/generate-favicons.py
 .env
 supabase/.temp/
+docs/presentation

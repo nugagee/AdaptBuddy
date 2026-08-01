@@ -16,17 +16,19 @@ let playerInstance: YT.Player | null = null;
 let initPromise: Promise<YT.Player> | null = null;
 let initResolved = false;
 let currentVideoId: string | null = null;
-let subscriberCount = 0;
 
 export type YouTubeStateHandler = (player: YT.Player) => void;
 export type YouTubeStateChangeHandler = (player: YT.Player, state: number) => void;
 export type YouTubeErrorHandler = (code: number) => void;
 
-export interface YouTubePlayerInitOptions {
-  videoId: string;
+export interface YouTubePlayerHandlers {
   onReady?: YouTubeStateHandler;
   onStateChange?: YouTubeStateChangeHandler;
   onError?: YouTubeErrorHandler;
+}
+
+export interface YouTubePlayerInitOptions extends YouTubePlayerHandlers {
+  videoId: string;
 }
 
 const readyListeners = new Set<YouTubeStateHandler>();
@@ -35,7 +37,7 @@ const errorListeners = new Set<YouTubeErrorHandler>();
 
 function playerVars(): Record<string, string | number> {
   const origin =
-    typeof window !== 'undefined' ? window.location.origin : 'https://localhost';
+    typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
 
   return {
     autoplay: 0,
@@ -43,6 +45,7 @@ function playerVars(): Record<string, string | number> {
     disablekb: 1,
     enablejsapi: 1,
     fs: 0,
+    iv_load_policy: 3,
     modestbranding: 1,
     playsinline: 1,
     rel: 0,
@@ -54,33 +57,40 @@ function loadYouTubeApi(): Promise<void> {
   if (window.YT?.Player) return Promise.resolve();
 
   return new Promise((resolve) => {
-    const existing = document.getElementById(YT_SCRIPT_ID);
-    if (existing) {
-      const prev = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
-        prev?.();
-        resolve();
-      };
-      return;
-    }
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      if (!window.YT?.Player) return;
+      settled = true;
+      resolve();
+    };
 
-    const tag = document.createElement('script');
-    tag.id = YT_SCRIPT_ID;
-    tag.src = 'https://www.youtube.com/iframe_api';
-    const first = document.getElementsByTagName('script')[0];
-    first?.parentNode?.insertBefore(tag, first);
+    const pollId = window.setInterval(() => finish(), 100);
 
     const prev = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
       prev?.();
-      resolve();
+      window.clearInterval(pollId);
+      finish();
     };
+
+    const existing = document.getElementById(YT_SCRIPT_ID);
+    if (!existing) {
+      const tag = document.createElement('script');
+      tag.id = YT_SCRIPT_ID;
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const first = document.getElementsByTagName('script')[0];
+      first?.parentNode?.insertBefore(tag, first);
+    }
+
+    window.setTimeout(() => {
+      window.clearInterval(pollId);
+      finish();
+    }, 12_000);
   });
 }
 
 function ensureContainer(): HTMLDivElement {
-  if (containerEl?.isConnected) return containerEl;
-
   const existing = document.getElementById(YT_PLAYER_CONTAINER_ID);
   if (existing instanceof HTMLDivElement) {
     containerEl = existing;
@@ -114,11 +124,17 @@ function createPlayer(videoId: string): Promise<YT.Player> {
   ensureContainer();
   currentVideoId = videoId;
 
+  if (containerEl && containerEl.childElementCount > 0) {
+    containerEl.innerHTML = '';
+  }
+
   return new Promise((resolve, reject) => {
     if (!window.YT?.Player) {
       reject(new Error('YouTube API unavailable'));
       return;
     }
+
+    let settled = false;
 
     playerInstance = new window.YT.Player(YT_PLAYER_CONTAINER_ID, {
       height: PLAYER_HEIGHT,
@@ -127,6 +143,8 @@ function createPlayer(videoId: string): Promise<YT.Player> {
       playerVars: playerVars(),
       events: {
         onReady: (event) => {
+          if (settled) return;
+          settled = true;
           playerInstance = event.target;
           initResolved = true;
           notifyReady(event.target);
@@ -138,7 +156,10 @@ function createPlayer(videoId: string): Promise<YT.Player> {
         onError: (event) => {
           const code = event.data ?? 0;
           notifyError(code);
-          if (!initResolved) {
+          if (!settled) {
+            settled = true;
+            initResolved = false;
+            playerInstance = null;
             reject(new Error(`YouTube player error ${code}`));
           }
         },
@@ -148,8 +169,6 @@ function createPlayer(videoId: string): Promise<YT.Player> {
 }
 
 export function acquireYouTubePlayer(options: YouTubePlayerInitOptions): Promise<YT.Player> {
-  subscriberCount += 1;
-
   if (options.onReady) readyListeners.add(options.onReady);
   if (options.onStateChange) stateChangeListeners.add(options.onStateChange);
   if (options.onError) errorListeners.add(options.onError);
@@ -175,19 +194,14 @@ export function acquireYouTubePlayer(options: YouTubePlayerInitOptions): Promise
       });
   }
 
-  return initPromise;
+  return initPromise.catch((err) => {
+    options.onError?.(Number(String(err.message).match(/\d+/)?.[0] ?? 0));
+    throw err;
+  });
 }
 
-export interface YouTubePlayerReleaseOptions {
-  onReady?: YouTubeStateHandler;
-  onStateChange?: YouTubeStateChangeHandler;
-  onError?: YouTubeErrorHandler;
-}
-
-/** Release a React subscription — does not destroy the player (Strict Mode safe). */
-export function releaseYouTubePlayer(handlers: YouTubePlayerReleaseOptions): void {
-  subscriberCount = Math.max(0, subscriberCount - 1);
-
+/** Release the exact handler references passed to {@link acquireYouTubePlayer}. */
+export function releaseYouTubePlayer(handlers: YouTubePlayerHandlers): void {
   if (handlers.onReady) readyListeners.delete(handlers.onReady);
   if (handlers.onStateChange) stateChangeListeners.delete(handlers.onStateChange);
   if (handlers.onError) errorListeners.delete(handlers.onError);
@@ -201,7 +215,6 @@ export function getCurrentVideoId(): string | null {
   return currentVideoId;
 }
 
-/** Switch to another video without recreating the iframe */
 export function loadYouTubeVideo(videoId: string): boolean {
   const player = playerInstance;
   if (!player || !initResolved) return false;
@@ -228,9 +241,15 @@ export function resetYouTubePlayerForRetry(videoId: string): Promise<YT.Player> 
   currentVideoId = null;
 
   if (containerEl?.parentNode) {
-    containerEl.parentNode.removeChild(containerEl);
+    containerEl.innerHTML = '';
   }
-  containerEl = null;
 
-  return loadYouTubeApi().then(() => createPlayer(videoId));
+  initPromise = loadYouTubeApi()
+    .then(() => createPlayer(videoId))
+    .catch((err) => {
+      initPromise = null;
+      throw err;
+    });
+
+  return initPromise;
 }

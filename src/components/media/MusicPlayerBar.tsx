@@ -34,6 +34,7 @@ const MusicPlayerBar: React.FC = () => {
     isLive,
     autoplayBlocked,
     isMobile,
+    loading,
     retryStream,
     togglePlay,
     rewind,
@@ -102,7 +103,7 @@ const MusicPlayerBar: React.FC = () => {
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-adapt-navy dark:text-gray-100 sepia:text-amber-950">
-                {currentStream.title}
+                {loading ? 'Connecting to live stream…' : currentStream.title}
               </p>
               <a
                 href={currentStream.sourceUrl}
@@ -128,9 +129,9 @@ const MusicPlayerBar: React.FC = () => {
             <button
               type="button"
               onClick={togglePlay}
-              disabled={!ready}
+              disabled={!ready && !loading && !error}
               className="flex h-11 w-11 items-center justify-center rounded-full bg-adapt-navy text-white shadow-soft transition hover:bg-adapt-purple disabled:opacity-50 dark:bg-adapt-indigo dark:hover:bg-adapt-purple"
-              aria-label={playing ? 'Pause' : 'Play'}
+              aria-label={playing ? 'Pause' : loading ? 'Connect music' : 'Play'}
             >
               {playing ? (
                 <Pause className="h-5 w-5" aria-hidden />

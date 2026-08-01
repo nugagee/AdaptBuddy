@@ -1,4 +1,4 @@
-/** Direct audio streams — playable in HTML5 `<audio>` (no YouTube embed restrictions) */
+/** Direct audio streams — playable in HTML5 `<audio>` (fallback / legacy) */
 export interface MusicStream {
   id: string;
   title: string;
@@ -9,6 +9,29 @@ export interface MusicStream {
   sourceLabel: string;
   /** Live radio — hide seek bar / show LIVE */
   isLive?: boolean;
+}
+
+/** Global background music — YouTube live ambient stream */
+export const GLOBAL_YOUTUBE_LIVE_VIDEO_ID = 'X4VbdwhkE10';
+export const GLOBAL_YOUTUBE_LIVE_URL =
+  'https://www.youtube.com/live/X4VbdwhkE10?si=BZi5kBXB6Llh9cun';
+export const GLOBAL_MUSIC_AUTOPLAY_DELAY_MS = 3_000;
+export const GLOBAL_MUSIC_DEFAULT_VOLUME = 20;
+
+export const GLOBAL_YOUTUBE_STREAM: MusicStream = {
+  id: 'youtube-live-ambient',
+  title: 'AdaptBuddy calm live stream',
+  src: '',
+  sourceUrl: GLOBAL_YOUTUBE_LIVE_URL,
+  sourceLabel: 'YouTube Live',
+  isLive: true,
+};
+
+/** Routes where global music auto-starts after {@link GLOBAL_MUSIC_AUTOPLAY_DELAY_MS} */
+export const GLOBAL_MUSIC_AUTOPLAY_ROUTES = ['/', '/dashboard'] as const;
+
+export function isGlobalMusicAutoplayRoute(pathname: string): boolean {
+  return (GLOBAL_MUSIC_AUTOPLAY_ROUTES as readonly string[]).includes(pathname);
 }
 
 export const MUSIC_STREAMS: MusicStream[] = [

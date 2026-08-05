@@ -9,6 +9,7 @@ import NeuroSelectorPage from 'features/child/pages/NeuroSelectorPage';
 import CompanionOnboardingPage from 'features/child/pages/CompanionOnboardingPage';
 import CompanionBuddyPage from 'features/child/pages/CompanionBuddyPage';
 import ChildDashboardPage from 'features/child/pages/ChildDashboardPage';
+import ActivityLogPage from 'features/child/pages/ActivityLogPage';
 import AutismSpacePage from 'features/child/pages/AutismSpacePage';
 import SettingsPage from 'features/child/pages/SettingsPage';
 import WritingPad from 'features/child/components/writing-pad/WritingPad';
@@ -23,7 +24,10 @@ import Assignments from 'features/teacher/components/Assignments';
 import Signals from 'features/teacher/components/Signals';
 import Messages from 'features/teacher/components/Messages';
 import Reports from 'features/teacher/components/Reports';
+import ActivityLog from 'features/teacher/components/ActivityLog';
 import Settings from 'features/teacher/components/Settings';
+import TeacherLiveClassroomPage from 'features/classroom/pages/TeacherLiveClassroomPage';
+import ChildLiveClassroomPage from 'features/classroom/pages/ChildLiveClassroomPage';
 import RequireTeacherRoute from 'features/teacher/components/RequireTeacherRoute';
 import LoginPage from 'pages/LoginPage';
 import GuestEntryPage from 'pages/GuestEntryPage';
@@ -75,6 +79,8 @@ const AppRoutes: React.FC = () => (
     <Route path={ROUTES.COMPANION_ONBOARDING} element={withAuth(<CompanionOnboardingPage />)} />
     <Route path={ROUTES.COMPANION_BUDDY} element={withChildAuth(<CompanionBuddyPage />)} />
     <Route path={ROUTES.CHILD_DASHBOARD} element={withChildAuth(<ChildDashboardPage />)} />
+    <Route path={ROUTES.CHILD_ACTIVITY_LOG} element={withChildAuth(<ActivityLogPage />)} />
+    <Route path={ROUTES.CHILD_CLASSROOM_LIVE} element={withChildAuth(<ChildLiveClassroomPage />)} />
     <Route path={ROUTES.AUTISM_SPACE} element={withChildAuth(<AutismSpacePage />)} />
     <Route path={ROUTES.CHILD_SETTINGS} element={withChildAuth(<SettingsPage />)} />
     <Route path={ROUTES.WRITING_PAD} element={withChildAuth(<WritingPad />)} />
@@ -84,11 +90,13 @@ const AppRoutes: React.FC = () => (
     <Route path={ROUTES.TEACHER_LOGIN} element={<AuthenticatedLayout><TeacherLogin /></AuthenticatedLayout>} />
     <Route path={ROUTES.TEACHER_DASHBOARD} element={withTeacherAuth(<TeacherDashboard />)} />
     <Route path={ROUTES.TEACHER_CLASSES} element={withTeacherAuth(<Classes />)} />
+    <Route path={ROUTES.TEACHER_CLASSROOM_LIVE} element={withTeacherAuth(<TeacherLiveClassroomPage />)} />
     <Route path={ROUTES.TEACHER_STUDENTS} element={withTeacherAuth(<Students />)} />
     <Route path={ROUTES.TEACHER_ASSIGNMENTS} element={withTeacherAuth(<Assignments />)} />
     <Route path={ROUTES.TEACHER_SIGNALS} element={withTeacherAuth(<Signals />)} />
     <Route path={ROUTES.TEACHER_MESSAGES} element={withTeacherAuth(<Messages />)} />
     <Route path={ROUTES.TEACHER_REPORTS} element={withTeacherAuth(<Reports />)} />
+    <Route path={ROUTES.TEACHER_ACTIVITY_LOG} element={withTeacherAuth(<ActivityLog />)} />
     <Route path={ROUTES.TEACHER_SETTINGS} element={withTeacherAuth(<Settings />)} />
     <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
   </Routes>

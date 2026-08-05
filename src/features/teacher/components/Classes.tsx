@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Clipboard, Loader2, Plus, RefreshCw, School, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Clipboard, Loader2, Plus, Radio, RefreshCw, School, Users, Video, XCircle } from 'lucide-react';
 import TeacherHubNav from 'features/teacher/components/TeacherHubNav';
 import { useAuth } from 'hooks/useAuth';
 import {
@@ -7,6 +8,12 @@ import {
   type TeacherClass,
   type TeacherDashboardSummary,
 } from 'features/teacher/services/teacherDashboardService';
+import { ClassLiveSessionService } from 'features/classroom/services/classLiveSessionService';
+import LaunchClassroomModal from 'features/classroom/components/LaunchClassroomModal';
+import type { LaunchClassroomConfig, TeacherLiveSessionSummary } from 'features/classroom/types/classLiveSession.types';
+import { ROUTES } from 'constants/routes';
+
+const LIVE_POLL_MS = 5000;
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message) return error.message;
@@ -17,13 +24,36 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
-const ClassTile: React.FC<{ teacherClass: TeacherClass }> = ({ teacherClass }) => (
-  <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft dark:border-gray-800 dark:bg-gray-900">
+const ClassTile: React.FC<{
+  teacherClass: TeacherClass;
+  liveSession?: TeacherLiveSessionSummary;
+  launching: boolean;
+  onLaunch: (classId: string, className: string) => void;
+  onEnter: (sessionId: string) => void;
+  onEnd: (sessionId: string) => void;
+  endingSessionId: string | null;
+}> = ({ teacherClass, liveSession, launching, onLaunch, onEnter, onEnd, endingSessionId }) => {
+  const isLive = liveSession?.status === 'live';
+
+  return (
+  <article className={`rounded-3xl border p-5 shadow-soft transition-all duration-500 ${
+    isLive
+      ? 'border-red-200 bg-gradient-to-br from-red-50/70 via-white to-orange-50/50 dark:border-red-900/40 dark:from-red-950/20 dark:via-gray-900 dark:to-orange-950/20'
+      : 'border-slate-200 bg-white dark:border-gray-800 dark:bg-gray-900'
+  }`}>
     <div className="flex items-start justify-between gap-3">
       <div>
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-adapt-indigo dark:text-adapt-cyan">
-          {teacherClass.yearGroup || 'Class'}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-adapt-indigo dark:text-adapt-cyan">
+            {teacherClass.yearGroup || 'Class'}
+          </p>
+          {isLive && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-500 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white animate-pulse">
+              <Radio className="h-3 w-3" aria-hidden />
+              Live
+            </span>
+          )}
+        </div>
         <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">{teacherClass.className}</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
           {teacherClass.subject} {teacherClass.schoolName ? `• ${teacherClass.schoolName}` : ''}
@@ -47,18 +77,71 @@ const ClassTile: React.FC<{ teacherClass: TeacherClass }> = ({ teacherClass }) =
         <p className="text-xs text-emerald-700/70 dark:text-emerald-100/70">Due</p>
       </div>
     </div>
-    <p className="mt-4 rounded-2xl bg-slate-50 p-3 text-sm leading-6 text-slate-500 dark:bg-gray-950 dark:text-gray-400">
-      Share the class code when children join themselves. Use Buddy ID for a teacher-initiated request.
-    </p>
+
+    {isLive && liveSession && (
+      <p className="mt-4 rounded-2xl border border-red-100 bg-white/80 p-3 text-sm font-semibold text-slate-600 dark:border-red-900/30 dark:bg-gray-950/80 dark:text-gray-300">
+        {liveSession.focusTitle} · {liveSession.participantCount} learner{liveSession.participantCount === 1 ? '' : 's'} joined
+      </p>
+    )}
+
+    <div className="mt-4 flex flex-wrap gap-2">
+      {isLive && liveSession ? (
+        <>
+          <button
+            type="button"
+            onClick={() => onEnter(liveSession.sessionId)}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white transition hover:bg-adapt-purple dark:bg-adapt-cyan dark:text-gray-950"
+          >
+            <Video className="h-4 w-4" aria-hidden />
+            Enter live room
+          </button>
+          <button
+            type="button"
+            onClick={() => onEnd(liveSession.sessionId)}
+            disabled={endingSessionId === liveSession.sessionId}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-700 disabled:opacity-60 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200"
+          >
+            {endingSessionId === liveSession.sessionId ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <XCircle className="h-4 w-4" aria-hidden />
+            )}
+            End
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onLaunch(teacherClass.id, teacherClass.className)}
+          disabled={launching}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-adapt-navy px-4 py-3 text-sm font-black text-white transition hover:bg-adapt-purple disabled:opacity-60 dark:bg-adapt-cyan dark:text-gray-950"
+        >
+          {launching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Video className="h-4 w-4" aria-hidden />}
+          {launching ? 'Launching…' : 'Launch classroom'}
+        </button>
+      )}
+    </div>
+
+    {!isLive && (
+      <p className="mt-4 rounded-2xl bg-slate-50 p-3 text-sm leading-6 text-slate-500 dark:bg-gray-950 dark:text-gray-400">
+        Launch when you are ready — learners will see a Join button on their dashboard.
+      </p>
+    )}
   </article>
-);
+  );
+};
 
 const Classes: React.FC = () => {
+  const navigate = useNavigate();
   const { isGuest } = useAuth();
   const [summary, setSummary] = useState<TeacherDashboardSummary | null>(null);
+  const [liveSessions, setLiveSessions] = useState<TeacherLiveSessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [launchModal, setLaunchModal] = useState<{ classId: string; className: string } | null>(null);
+  const [launchingClassId, setLaunchingClassId] = useState<string | null>(null);
+  const [endingSessionId, setEndingSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -74,8 +157,12 @@ const Classes: React.FC = () => {
     setError(null);
 
     try {
-      const data = await TeacherDashboardService.getDashboardSummary();
+      const [data, live] = await Promise.all([
+        TeacherDashboardService.getDashboardSummary(),
+        ClassLiveSessionService.listTeacherLiveSessions(),
+      ]);
       setSummary(data);
+      setLiveSessions(live);
     } catch (loadError) {
       console.error('Error loading teacher classes:', loadError);
       setError(getErrorMessage(loadError, 'Could not load classes.'));
@@ -88,6 +175,55 @@ const Classes: React.FC = () => {
   useEffect(() => {
     void loadClasses();
   }, [loadClasses]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void loadClasses('refresh'), LIVE_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [loadClasses]);
+
+  const liveByClassId = new Map(liveSessions.map((session) => [session.classId, session]));
+
+  const handleOpenLaunchModal = (classId: string, className: string) => {
+    setLaunchModal({ classId, className });
+  };
+
+  const handleLaunchClassroom = async (config: LaunchClassroomConfig) => {
+    if (!launchModal) return;
+    setLaunchingClassId(launchModal.classId);
+    setError(null);
+    setActionStatus(null);
+    try {
+      const session = await ClassLiveSessionService.launchClassSession(launchModal.classId, config);
+      setActionStatus('Classroom is live. Learners can now join from their dashboard.');
+      setLaunchModal(null);
+      navigate(ROUTES.TEACHER_CLASSROOM_LIVE.replace(':sessionId', session.id));
+    } catch (launchError) {
+      console.error('Error launching classroom:', launchError);
+      setError(getErrorMessage(launchError, 'Could not launch classroom.'));
+    } finally {
+      setLaunchingClassId(null);
+    }
+  };
+
+  const handleEnterLiveRoom = (sessionId: string) => {
+    navigate(ROUTES.TEACHER_CLASSROOM_LIVE.replace(':sessionId', sessionId));
+  };
+
+  const handleEndSession = async (sessionId: string) => {
+    if (endingSessionId) return;
+    setEndingSessionId(sessionId);
+    setError(null);
+    try {
+      await ClassLiveSessionService.endClassSession(sessionId);
+      setActionStatus('Live classroom ended.');
+      await loadClasses('refresh');
+    } catch (endError) {
+      console.error('Error ending session:', endError);
+      setError(getErrorMessage(endError, 'Could not end session.'));
+    } finally {
+      setEndingSessionId(null);
+    }
+  };
 
   const handleCreateClass = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -225,7 +361,18 @@ const Classes: React.FC = () => {
             </div>
             {summary?.classes.length ? (
               <div className="grid gap-4 lg:grid-cols-2">
-                {summary.classes.map((teacherClass) => <ClassTile key={teacherClass.id} teacherClass={teacherClass} />)}
+                {summary.classes.map((teacherClass) => (
+                  <ClassTile
+                    key={teacherClass.id}
+                    teacherClass={teacherClass}
+                    liveSession={liveByClassId.get(teacherClass.id)}
+                    launching={launchingClassId === teacherClass.id}
+                    onLaunch={handleOpenLaunchModal}
+                    onEnter={handleEnterLiveRoom}
+                    onEnd={handleEndSession}
+                    endingSessionId={endingSessionId}
+                  />
+                ))}
               </div>
             ) : (
               <div className="rounded-3xl border border-dashed border-slate-200 bg-white/75 p-8 text-center text-slate-500 dark:border-gray-800 dark:bg-gray-900/70 dark:text-gray-400">
@@ -236,6 +383,14 @@ const Classes: React.FC = () => {
           </div>
         </section>
       </div>
+
+      <LaunchClassroomModal
+        open={Boolean(launchModal)}
+        className={launchModal?.className ?? 'Classroom'}
+        launching={Boolean(launchingClassId)}
+        onClose={() => setLaunchModal(null)}
+        onLaunch={handleLaunchClassroom}
+      />
     </div>
   );
 };

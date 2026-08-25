@@ -94,7 +94,7 @@ const ChildDashboardPage: React.FC = () => {
       activeActivity.starsReward,
       activeActivity.durationMinutes,
     );
-    if (activeActivity.id === 'adhd-focus-coach' && result?.adhdSupportSignal) {
+    if (activeActivity.neuroId === 'adhd' && result?.adhdSupportSignal) {
       addAdhdSupportSignal(activeActivity.id, result.adhdSupportSignal);
     }
     setCelebration(`+${activeActivity.starsReward} stars! Great job on "${activeActivity.title}"`);

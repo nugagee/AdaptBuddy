@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useAudioPlayer } from 'hooks/useAudioPlayer';
+import { useGlobalMusicPlayer } from 'hooks/useGlobalMusicPlayer';
 import {
   MusicPlayerContext,
   type MusicPlayerContextValue,
@@ -19,10 +19,7 @@ export const MusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({ childr
   const soundscapeOverrideRef = useRef(false);
   const wasPlayingBeforeOverrideRef = useRef(false);
 
-  const player = useAudioPlayer({
-    seekStep: 10,
-    initialVolume: 35,
-  });
+  const player = useGlobalMusicPlayer({ seekStep: 10 });
 
   const { playing, pausePlayback, resumePlayback } = player;
 

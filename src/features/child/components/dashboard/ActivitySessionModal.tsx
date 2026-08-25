@@ -26,6 +26,51 @@ const ADHD_RESCUE_OPTIONS = ['too hard', 'too boring', 'too noisy', 'too many st
 
 const ADHD_TASK_BLOCKERS = ['too big', 'too boring', 'too many steps', 'do not know where to start', 'need an example'];
 
+const ADHD_BREAK_OPTIONS = [
+  {
+    id: 'restless',
+    label: 'Restless',
+    breakType: 'Movement burst',
+    plan: 'Do 20 marching steps, 10 wall pushes, then sit with feet grounded.',
+    returnStep: 'Return to the smallest visible step.',
+  },
+  {
+    id: 'tired',
+    label: 'Tired',
+    breakType: 'Water and stretch',
+    plan: 'Sip water, stretch arms up, roll shoulders, then choose a 3-minute start.',
+    returnStep: 'Start with reading only the first instruction.',
+  },
+  {
+    id: 'overwhelmed',
+    label: 'Overwhelmed',
+    breakType: 'Quiet reset',
+    plan: 'Look away from the screen, breathe slowly, and ask for one clear instruction.',
+    returnStep: 'Return with one instruction visible.',
+  },
+  {
+    id: 'stuck',
+    label: 'Stuck',
+    breakType: 'Example first',
+    plan: 'Pause the task, look at one example, then copy the structure with new words.',
+    returnStep: 'Do the first part using the example.',
+  },
+  {
+    id: 'frustrated',
+    label: 'Frustrated',
+    breakType: 'Calm body reset',
+    plan: 'Unclench hands, press palms together, breathe out longer than in.',
+    returnStep: 'Choose either help, easier version, or one-minute try.',
+  },
+  {
+    id: 'distracted',
+    label: 'Distracted',
+    breakType: 'Environment reset',
+    plan: 'Close extra tabs, move one distracting item away, and set a short timer.',
+    returnStep: 'Return to one task with no switching.',
+  },
+];
+
 const buildAdhdTaskSteps = (task: string): string[] => {
   const cleanTask = task.trim() || 'Start the classroom task';
   const lowerTask = cleanTask.toLowerCase();
@@ -95,6 +140,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
   const [adhdRescue, setAdhdRescue] = useState('too many steps');
   const [adhdTaskText, setAdhdTaskText] = useState('Write a paragraph about plants');
   const [adhdTaskBlocker, setAdhdTaskBlocker] = useState('too many steps');
+  const [adhdBreakState, setAdhdBreakState] = useState('restless');
 
   const moveDayCard = useCallback((index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
@@ -110,6 +156,8 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
   const selectedAdhdEnergy =
     ADHD_ENERGY_OPTIONS.find((option) => option.id === adhdEnergy) ?? ADHD_ENERGY_OPTIONS[2];
   const adhdTaskSteps = useMemo(() => buildAdhdTaskSteps(adhdTaskText), [adhdTaskText]);
+  const selectedAdhdBreak =
+    ADHD_BREAK_OPTIONS.find((option) => option.id === adhdBreakState) ?? ADHD_BREAK_OPTIONS[0];
 
   const handleCompleteClick = useCallback(() => {
     if (activity.id === 'adhd-focus-coach') {
@@ -140,8 +188,23 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       return;
     }
 
+    if (activity.id === 'adhd-break-prescription') {
+      onComplete({
+        adhdSupportSignal: {
+          energyId: selectedAdhdBreak.id,
+          energyLabel: selectedAdhdBreak.label,
+          firstStep: selectedAdhdBreak.returnStep,
+          rescueReason: selectedAdhdBreak.breakType.toLowerCase(),
+          supportPlan: selectedAdhdBreak.plan,
+          taskTitle: `${selectedAdhdBreak.breakType} break`,
+          breakdownSteps: [selectedAdhdBreak.plan, selectedAdhdBreak.returnStep],
+        },
+      });
+      return;
+    }
+
     onComplete();
-  }, [activity.id, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, onComplete, selectedAdhdEnergy]);
+  }, [activity.id, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, onComplete, selectedAdhdBreak, selectedAdhdEnergy]);
 
   const activityBody = useMemo(() => {
     if (activity.id === 'autism-visual-schedule') {
@@ -518,6 +581,66 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       );
     }
 
+    if (activity.id === 'adhd-break-prescription') {
+      const teacherInsight = `State: ${selectedAdhdBreak.label}. Break: ${selectedAdhdBreak.breakType}. Return: ${selectedAdhdBreak.returnStep}`;
+
+      return (
+        <div className="space-y-4">
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/25">
+            <p className="text-xs font-black uppercase tracking-wide text-amber-700 dark:text-amber-200">
+              Current state
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {ADHD_BREAK_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setAdhdBreakState(option.id)}
+                  className={`rounded-2xl border-2 p-3 text-left transition ${
+                    adhdBreakState === option.id
+                      ? 'border-amber-400 bg-white text-amber-900 shadow-sm dark:bg-gray-950 dark:text-amber-100'
+                      : 'border-transparent bg-white/70 text-slate-600 dark:bg-gray-900 dark:text-gray-300'
+                  }`}
+                >
+                  <span className="block text-sm font-black">{option.label}</span>
+                  <span className="mt-1 block text-xs font-bold">{option.breakType}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/25">
+              <p className="text-xs font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
+                60-second break
+              </p>
+              <p className="mt-3 text-sm font-bold leading-6 text-emerald-900 dark:text-emerald-100">
+                {selectedAdhdBreak.plan}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-gray-400">
+                Return step
+              </p>
+              <p className="mt-3 text-sm font-bold leading-6 text-adapt-navy dark:text-gray-100">
+                {selectedAdhdBreak.returnStep}
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-adapt-indigo/15 bg-adapt-indigo/5 p-4 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/10">
+            <p className="text-xs font-black uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
+              Teacher insight preview
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-700 dark:text-gray-200">
+              {teacherInsight}
+            </p>
+          </section>
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-2xl bg-adapt-mist/60 p-4 dark:bg-gray-800/60">
         <p className="text-xs font-semibold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
@@ -530,7 +653,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
         </ul>
       </div>
     );
-  }, [activity.id, adhdEnergy, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, dayCards, moveDayCard, patternAnswer, selectedAdhdEnergy, selectedFeeling, storyScenario]);
+  }, [activity.id, adhdBreakState, adhdEnergy, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, dayCards, moveDayCard, patternAnswer, selectedAdhdBreak, selectedAdhdEnergy, selectedFeeling, storyScenario]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">

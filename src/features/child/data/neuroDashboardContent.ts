@@ -272,6 +272,17 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     starsReward: 5,
   },
   {
+    id: 'adhd-break-prescription',
+    neuroId: 'adhd',
+    title: 'Break Prescription',
+    description: 'Choose the current state and get the right 60-second reset before returning',
+    durationMinutes: 4,
+    category: 'regulation',
+    icon: Wind,
+    inspiration: 'Regulation-matched breaks: movement, quiet, breathing, sensory, or return support',
+    starsReward: 4,
+  },
+  {
     id: 'adhd-movement-burst',
     neuroId: 'adhd',
     title: 'Movement Burst',
@@ -648,7 +659,7 @@ export function getDailyActivitiesForNeuro(neuroId: string, daySeed = new Date()
   const start = daySeed % pool.length;
   const picked = [pool[start], pool[(start + 1) % pool.length]];
   if (neuroId === 'adhd') {
-    ['adhd-focus-coach', 'adhd-task-breakdown'].forEach((activityId) => {
+    ['adhd-focus-coach', 'adhd-task-breakdown', 'adhd-break-prescription'].forEach((activityId) => {
       if (picked.some((activity) => activity.id === activityId)) return;
       const activity = pool.find((item) => item.id === activityId);
       if (activity) picked.push(activity);

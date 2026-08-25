@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clipboard, Loader2, Plus, Radio, RefreshCw, School, Users, Video, XCircle } from 'lucide-react';
+import { Clipboard, History, Loader2, Plus, Radio, RefreshCw, School, ShieldCheck, Users, Video, XCircle } from 'lucide-react';
 import TeacherHubNav from 'features/teacher/components/TeacherHubNav';
 import { useAuth } from 'hooks/useAuth';
 import {
@@ -31,8 +31,22 @@ const ClassTile: React.FC<{
   onLaunch: (classId: string, className: string) => void;
   onEnter: (sessionId: string) => void;
   onEnd: (sessionId: string) => void;
+  onCopyCode: (classCode: string) => void;
+  onOpenActivity: () => void;
+  onOpenSignals: () => void;
   endingSessionId: string | null;
-}> = ({ teacherClass, liveSession, launching, onLaunch, onEnter, onEnd, endingSessionId }) => {
+}> = ({
+  teacherClass,
+  liveSession,
+  launching,
+  onLaunch,
+  onEnter,
+  onEnd,
+  onCopyCode,
+  onOpenActivity,
+  onOpenSignals,
+  endingSessionId,
+}) => {
   const isLive = liveSession?.status === 'live';
 
   return (
@@ -59,9 +73,14 @@ const ClassTile: React.FC<{
           {teacherClass.subject} {teacherClass.schoolName ? `• ${teacherClass.schoolName}` : ''}
         </p>
       </div>
-      <span className="rounded-2xl bg-adapt-indigo/10 px-3 py-2 font-mono text-sm font-black text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
+      <button
+        type="button"
+        onClick={() => onCopyCode(teacherClass.classCode)}
+        className="rounded-2xl bg-adapt-indigo/10 px-3 py-2 font-mono text-sm font-black text-adapt-indigo transition hover:bg-adapt-indigo/20 dark:bg-adapt-cyan/10 dark:text-adapt-cyan dark:hover:bg-adapt-cyan/20"
+        aria-label={`Copy class code ${teacherClass.classCode}`}
+      >
         {teacherClass.classCode}
-      </span>
+      </button>
     </div>
     <div className="mt-5 grid grid-cols-3 gap-2 text-center">
       <div className="rounded-2xl bg-slate-50 p-3 dark:bg-gray-950">
@@ -120,6 +139,25 @@ const ClassTile: React.FC<{
           {launching ? 'Launching…' : 'Launch classroom'}
         </button>
       )}
+    </div>
+
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <button
+        type="button"
+        onClick={onOpenActivity}
+        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-black text-slate-600 transition hover:border-adapt-indigo/30 hover:text-adapt-indigo dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300 dark:hover:text-adapt-cyan"
+      >
+        <History className="h-4 w-4" aria-hidden />
+        Activity log
+      </button>
+      <button
+        type="button"
+        onClick={onOpenSignals}
+        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-black text-slate-600 transition hover:border-adapt-indigo/30 hover:text-adapt-indigo dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300 dark:hover:text-adapt-cyan"
+      >
+        <ShieldCheck className="h-4 w-4" aria-hidden />
+        Support signals
+      </button>
     </div>
 
     {!isLive && (
@@ -222,6 +260,15 @@ const Classes: React.FC = () => {
       setError(getErrorMessage(endError, 'Could not end session.'));
     } finally {
       setEndingSessionId(null);
+    }
+  };
+
+  const handleCopyClassCode = async (classCode: string) => {
+    try {
+      await navigator.clipboard.writeText(classCode);
+      setActionStatus(`Class code ${classCode} copied.`);
+    } catch {
+      setActionStatus(`Class code: ${classCode}`);
     }
   };
 
@@ -370,6 +417,9 @@ const Classes: React.FC = () => {
                     onLaunch={handleOpenLaunchModal}
                     onEnter={handleEnterLiveRoom}
                     onEnd={handleEndSession}
+                    onCopyCode={handleCopyClassCode}
+                    onOpenActivity={() => navigate(ROUTES.TEACHER_ACTIVITY_LOG)}
+                    onOpenSignals={() => navigate(ROUTES.TEACHER_SIGNALS)}
                     endingSessionId={endingSessionId}
                   />
                 ))}

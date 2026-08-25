@@ -138,8 +138,6 @@ const ChildClassroomPanel: React.FC<ChildClassroomPanelProps> = ({ childId }) =>
     );
   }
 
-  if (!merged.length && !error) return null;
-
   return (
     <section className="rounded-3xl border border-adapt-indigo/15 bg-white/90 p-5 shadow-sm transition-all duration-500 dark:border-adapt-cyan/20 dark:bg-gray-900/80">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -170,6 +168,18 @@ const ChildClassroomPanel: React.FC<ChildClassroomPanelProps> = ({ childId }) =>
       {error && (
         <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
           {error}
+        </div>
+      )}
+
+      {!merged.length && !error && (
+        <div className="mt-5 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center dark:border-gray-800 dark:bg-gray-950">
+          <School className="mx-auto h-8 w-8 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+          <h3 className="mt-3 text-base font-extrabold text-adapt-navy dark:text-gray-100">
+            No classroom connected yet
+          </h3>
+          <p className="mx-auto mt-2 max-w-md text-sm font-semibold text-slate-500 dark:text-gray-400">
+            When a teacher connects you or opens a live lesson, it will appear here on your dashboard.
+          </p>
         </div>
       )}
 

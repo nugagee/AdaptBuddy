@@ -24,6 +24,7 @@ import {
   type NeuroActivity,
 } from 'features/child/data/neuroDashboardContent';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { syncAdhdSupportSignal } from 'features/child/services/adhdSupportSignalService';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
 import '../components/dashboard/child-dashboard.css';
@@ -96,11 +97,19 @@ const ChildDashboardPage: React.FC = () => {
     );
     if (activeActivity.neuroId === 'adhd' && result?.adhdSupportSignal) {
       addAdhdSupportSignal(activeActivity.id, result.adhdSupportSignal);
+      void syncAdhdSupportSignal({
+        childId,
+        activityId: activeActivity.id,
+        activityTitle: activeActivity.title,
+        signal: result.adhdSupportSignal,
+      }).catch((syncError) => {
+        console.warn('ADHD support signal saved locally only:', syncError);
+      });
     }
     setCelebration(`+${activeActivity.starsReward} stars! Great job on "${activeActivity.title}"`);
     setActiveActivity(null);
     window.setTimeout(() => setCelebration(null), 4000);
-  }, [activeActivity, addAdhdSupportSignal, completeActivity]);
+  }, [activeActivity, addAdhdSupportSignal, childId, completeActivity]);
 
   const handleFocusComplete = useCallback(() => {
     completeActivity('adhd-focus-sprint', 'adhd', 5, 12);

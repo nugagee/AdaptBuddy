@@ -15,9 +15,25 @@ export interface NeuroMetricSnapshot {
   date: string;
 }
 
+export interface AdhdSupportSignalInput {
+  energyId: string;
+  energyLabel: string;
+  firstStep: string;
+  rescueReason: string;
+  supportPlan: string;
+}
+
+export interface AdhdSupportSignal extends AdhdSupportSignalInput {
+  id: string;
+  activityId: string;
+  createdAt: string;
+  needsCheckIn: boolean;
+}
+
 interface ChildProgressState {
   completions: ActivityCompletion[];
   metricValues: NeuroMetricSnapshot[];
+  adhdSupportSignals: AdhdSupportSignal[];
   starsTotal: number;
   streakDays: number;
   lastActiveDate: string;
@@ -32,6 +48,8 @@ interface ChildProgressState {
   ) => void;
   isActivityCompletedToday: (activityId: string) => boolean;
   getTodayCompletions: () => ActivityCompletion[];
+  addAdhdSupportSignal: (activityId: string, signal: AdhdSupportSignalInput) => void;
+  getTodayAdhdSupportSignals: () => AdhdSupportSignal[];
   getNeuroMetricValue: (neuroId: string) => number;
   incrementNeuroMetric: (neuroId: string, amount?: number) => void;
   setTodayMood: (mood: string) => void;
@@ -40,6 +58,31 @@ interface ChildProgressState {
 }
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
+
+const createId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `adhd-signal-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const needsAdultCheckIn = (
+  signals: AdhdSupportSignal[],
+  signal: AdhdSupportSignalInput,
+): boolean => {
+  if (signal.energyId === 'overloaded') return true;
+
+  const today = todayKey();
+  const supportNeedCount = [...signals, { ...signal, createdAt: new Date().toISOString() }]
+    .filter((item) => item.createdAt.startsWith(today))
+    .filter(
+      (item) =>
+        item.energyId === 'scattered' ||
+        item.energyId === 'overloaded' ||
+        item.rescueReason === 'too many steps' ||
+        item.rescueReason === 'do not know where to start',
+    ).length;
+
+  return supportNeedCount >= 2;
+};
 
 const bumpStreak = (lastActiveDate: string, streakDays: number): { streakDays: number; lastActiveDate: string } => {
   const today = todayKey();
@@ -60,6 +103,7 @@ export const useChildProgressStore = create<ChildProgressState>()(
     (set, get) => ({
       completions: [],
       metricValues: [],
+      adhdSupportSignals: [],
       starsTotal: 0,
       streakDays: 0,
       lastActiveDate: '',
@@ -102,6 +146,26 @@ export const useChildProgressStore = create<ChildProgressState>()(
       getTodayCompletions: () => {
         const today = todayKey();
         return get().completions.filter((c) => c.completedAt.startsWith(today));
+      },
+
+      addAdhdSupportSignal: (activityId, signal) => {
+        const now = new Date().toISOString();
+        const entry: AdhdSupportSignal = {
+          ...signal,
+          id: createId(),
+          activityId,
+          createdAt: now,
+          needsCheckIn: needsAdultCheckIn(get().adhdSupportSignals, signal),
+        };
+
+        set((state) => ({
+          adhdSupportSignals: [entry, ...state.adhdSupportSignals].slice(0, 30),
+        }));
+      },
+
+      getTodayAdhdSupportSignals: () => {
+        const today = todayKey();
+        return get().adhdSupportSignals.filter((signal) => signal.createdAt.startsWith(today));
       },
 
       getNeuroMetricValue: (neuroId) => {

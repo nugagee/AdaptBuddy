@@ -1,11 +1,33 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Star, X, Zap } from 'lucide-react';
 import type { NeuroActivity } from 'features/child/data/neuroDashboardContent';
+import type { AdhdSupportSignalInput } from 'features/child/store/childProgressStore';
+
+export interface ActivitySessionResult {
+  adhdSupportSignal?: AdhdSupportSignalInput;
+}
+
+const ADHD_ENERGY_OPTIONS = [
+  { id: 'sleepy', label: 'Sleepy', plan: 'Stand up, stretch tall, then do a 3-minute start.' },
+  { id: 'buzzing', label: 'Buzzing', plan: 'Do 10 wall pushes or chair presses before starting.' },
+  { id: 'scattered', label: 'Scattered', plan: 'Hide extra tabs, choose one tiny step, then start.' },
+  { id: 'focused', label: 'Focused', plan: 'Protect the flow: one task, no switching.' },
+  { id: 'overloaded', label: 'Overloaded', plan: 'Lower the demand: breathe, ask for one clear instruction.' },
+];
+
+const ADHD_FIRST_STEPS = [
+  'Open the task and read only the first instruction.',
+  'Write your name or title first.',
+  'Do question 1 only.',
+  'Ask Buddy to make the instruction simpler.',
+];
+
+const ADHD_RESCUE_OPTIONS = ['too hard', 'too boring', 'too noisy', 'too many steps', 'do not know where to start'];
 
 interface ActivitySessionModalProps {
   activity: NeuroActivity;
   onClose: () => void;
-  onComplete: () => void;
+  onComplete: (result?: ActivitySessionResult) => void;
 }
 
 const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
@@ -32,6 +54,26 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       return next;
     });
   }, [dayCards.length]);
+
+  const selectedAdhdEnergy =
+    ADHD_ENERGY_OPTIONS.find((option) => option.id === adhdEnergy) ?? ADHD_ENERGY_OPTIONS[2];
+
+  const handleCompleteClick = useCallback(() => {
+    if (activity.id === 'adhd-focus-coach') {
+      onComplete({
+        adhdSupportSignal: {
+          energyId: selectedAdhdEnergy.id,
+          energyLabel: selectedAdhdEnergy.label,
+          firstStep: adhdStep,
+          rescueReason: adhdRescue,
+          supportPlan: selectedAdhdEnergy.plan,
+        },
+      });
+      return;
+    }
+
+    onComplete();
+  }, [activity.id, adhdRescue, adhdStep, onComplete, selectedAdhdEnergy]);
 
   const activityBody = useMemo(() => {
     if (activity.id === 'autism-visual-schedule') {
@@ -228,16 +270,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
     }
 
     if (activity.id === 'adhd-focus-coach') {
-      const energyOptions = [
-        { id: 'sleepy', label: 'Sleepy', plan: 'Stand up, stretch tall, then do a 3-minute start.' },
-        { id: 'buzzing', label: 'Buzzing', plan: 'Do 10 wall pushes or chair presses before starting.' },
-        { id: 'scattered', label: 'Scattered', plan: 'Hide extra tabs, choose one tiny step, then start.' },
-        { id: 'focused', label: 'Focused', plan: 'Protect the flow: one task, no switching.' },
-        { id: 'overloaded', label: 'Overloaded', plan: 'Lower the demand: breathe, ask for one clear instruction.' },
-      ];
-      const rescueOptions = ['too hard', 'too boring', 'too noisy', 'too many steps', 'do not know where to start'];
-      const selectedEnergy = energyOptions.find((option) => option.id === adhdEnergy) ?? energyOptions[2];
-      const teacherInsight = `Energy: ${selectedEnergy.label}. First step: ${adhdStep} Rescue reason: ${adhdRescue}. Support: ${selectedEnergy.plan}`;
+      const teacherInsight = `Energy: ${selectedAdhdEnergy.label}. First step: ${adhdStep} Rescue reason: ${adhdRescue}. Support: ${selectedAdhdEnergy.plan}`;
 
       return (
         <div className="space-y-4">
@@ -256,7 +289,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
               </div>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-5">
-              {energyOptions.map((option) => (
+              {ADHD_ENERGY_OPTIONS.map((option) => (
                 <button
                   key={option.id}
                   type="button"
@@ -281,12 +314,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
               Starting earns credit. The whole assignment does not need to be finished here.
             </p>
             <div className="mt-3 grid gap-2">
-              {[
-                'Open the task and read only the first instruction.',
-                'Write your name or title first.',
-                'Do question 1 only.',
-                'Ask Buddy to make the instruction simpler.',
-              ].map((step) => (
+              {ADHD_FIRST_STEPS.map((step) => (
                 <button
                   key={step}
                   type="button"
@@ -309,7 +337,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
                 Distraction rescue
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {rescueOptions.map((reason) => (
+                {ADHD_RESCUE_OPTIONS.map((reason) => (
                   <button
                     key={reason}
                     type="button"
@@ -331,7 +359,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
                 Movement prescription
               </p>
               <p className="mt-3 text-sm font-bold leading-6 text-emerald-900 dark:text-emerald-100">
-                {selectedEnergy.plan}
+                {selectedAdhdEnergy.plan}
               </p>
             </div>
           </section>
@@ -360,7 +388,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
         </ul>
       </div>
     );
-  }, [activity.id, adhdEnergy, adhdRescue, adhdStep, dayCards, moveDayCard, patternAnswer, selectedFeeling, storyScenario]);
+  }, [activity.id, adhdEnergy, adhdRescue, adhdStep, dayCards, moveDayCard, patternAnswer, selectedAdhdEnergy, selectedFeeling, storyScenario]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
@@ -396,7 +424,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
           <button
             type="button"
-            onClick={onComplete}
+            onClick={handleCompleteClick}
             className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-adapt-teal py-3.5 font-bold text-white shadow-md transition hover:scale-[1.02]"
           >
             <Check className="h-5 w-5" aria-hidden />

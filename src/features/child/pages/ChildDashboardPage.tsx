@@ -10,7 +10,10 @@ import MetricsConstellation from 'features/child/components/dashboard/MetricsCon
 import AccessibilityDock from 'features/child/components/dashboard/AccessibilityDock';
 import SmartRecommendationsPanel from 'features/child/components/dashboard/SmartRecommendationsPanel';
 import FocusTimerModal from 'features/child/components/dashboard/FocusTimerModal';
-import ActivitySessionModal from 'features/child/components/dashboard/ActivitySessionModal';
+import ActivitySessionModal, {
+  type ActivitySessionResult,
+} from 'features/child/components/dashboard/ActivitySessionModal';
+import AdhdSupportSignalsPanel from 'features/child/components/dashboard/AdhdSupportSignalsPanel';
 import ChildClassroomPanel from 'features/child/components/dashboard/ChildClassroomPanel';
 import TeacherAssignmentsPanel from 'features/child/components/dashboard/TeacherAssignmentsPanel';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
@@ -36,6 +39,7 @@ const ChildDashboardPage: React.FC = () => {
   const [celebration, setCelebration] = useState<string | null>(null);
 
   const completeActivity = useChildProgressStore((s) => s.completeActivity);
+  const addAdhdSupportSignal = useChildProgressStore((s) => s.addAdhdSupportSignal);
   const setTodayMood = useChildProgressStore((s) => s.setTodayMood);
   const completions = useChildProgressStore((s) => s.completions);
 
@@ -82,7 +86,7 @@ const ChildDashboardPage: React.FC = () => {
     [navigate],
   );
 
-  const handleActivityComplete = useCallback(() => {
+  const handleActivityComplete = useCallback((result?: ActivitySessionResult) => {
     if (!activeActivity) return;
     completeActivity(
       activeActivity.id,
@@ -90,10 +94,13 @@ const ChildDashboardPage: React.FC = () => {
       activeActivity.starsReward,
       activeActivity.durationMinutes,
     );
+    if (activeActivity.id === 'adhd-focus-coach' && result?.adhdSupportSignal) {
+      addAdhdSupportSignal(activeActivity.id, result.adhdSupportSignal);
+    }
     setCelebration(`+${activeActivity.starsReward} stars! Great job on "${activeActivity.title}"`);
     setActiveActivity(null);
     window.setTimeout(() => setCelebration(null), 4000);
-  }, [activeActivity, completeActivity]);
+  }, [activeActivity, addAdhdSupportSignal, completeActivity]);
 
   const handleFocusComplete = useCallback(() => {
     completeActivity('adhd-focus-sprint', 'adhd', 5, 12);
@@ -166,6 +173,8 @@ const ChildDashboardPage: React.FC = () => {
             window.setTimeout(() => setCelebration(null), 3500);
           }}
         />
+
+        {neuroTypes.includes('adhd') && <AdhdSupportSignalsPanel />}
 
         <section className="overflow-hidden rounded-3xl border border-adapt-indigo/20 bg-gradient-to-br from-adapt-indigo/10 via-white to-adapt-purple/10 p-6 shadow-sm dark:border-adapt-cyan/20 dark:from-adapt-cyan/10 dark:via-gray-900 dark:to-adapt-purple/10 sm:p-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

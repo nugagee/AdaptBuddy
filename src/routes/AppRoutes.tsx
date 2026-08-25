@@ -5,6 +5,7 @@ import ProtectedRoute from 'features/auth/components/ProtectedRoute';
 import AuthenticatedLayout from 'layouts/AuthenticatedLayout';
 import ChildOnboardedRoute from 'features/child/components/layout/ChildOnboardedRoute';
 import LandingPage from 'pages/LandingPage';
+import GamePage from 'pages/GamePage/GamePage';
 import NeuroSelectorPage from 'features/child/pages/NeuroSelectorPage';
 import CompanionOnboardingPage from 'features/child/pages/CompanionOnboardingPage';
 import CompanionBuddyPage from 'features/child/pages/CompanionBuddyPage';
@@ -66,6 +67,7 @@ const withTeacherAuth = (page: React.ReactNode) => (
 const AppRoutes: React.FC = () => (
   <Routes>
     <Route path={ROUTES.HOME} element={<LandingPage />} />
+    <Route path={ROUTES.GAME} element={<GamePage />} />
     <Route path={ROUTES.LOGIN} element={<LoginPage />} />
     <Route path={ROUTES.GUEST_ENTRY} element={<GuestEntryPage />} />
     <Route path={ROUTES.SIGNUP} element={<SignupPage />} />

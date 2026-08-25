@@ -82,10 +82,11 @@ const TeacherLiveClassroomPage: React.FC = () => {
     [sessionId, teacherId, refresh],
   );
 
+  const activeSession = snapshot?.session;
   const canTeacherShareScreen =
-    !snapshot?.session.activeScreenSharerId ||
-    snapshot.session.activeScreenSharerId === teacherId ||
-    snapshot.session.teacherScreenSharing;
+    !activeSession?.activeScreenSharerId ||
+    activeSession.activeScreenSharerId === teacherId ||
+    activeSession.teacherScreenSharing;
 
   const video = useClassroomVideo({
     sessionId,
@@ -93,24 +94,17 @@ const TeacherLiveClassroomPage: React.FC = () => {
     localUserName: teacherName,
     role: 'teacher',
     snapshot,
-    enabled: Boolean(snapshot && snapshot.session.status === 'live'),
+    enabled: Boolean(activeSession && activeSession.status === 'live'),
     onMediaSync: handleMediaSync,
     onScreenShareChange: handleScreenShareChange,
     canStartScreenShare: canTeacherShareScreen,
   });
 
   useEffect(() => {
-    if (!snapshot?.session) return;
-    const { focusTitle, focusMessage, nowStep, nextStep } = snapshot.session;
+    if (!activeSession) return;
+    const { focusTitle, focusMessage, nowStep, nextStep } = activeSession;
     setDraft({ focusTitle, focusMessage, nowStep, nextStep });
-  }, [
-    snapshot?.session?.id,
-    snapshot?.session?.updatedAt,
-    snapshot?.session?.focusTitle,
-    snapshot?.session?.focusMessage,
-    snapshot?.session?.nowStep,
-    snapshot?.session?.nextStep,
-  ]);
+  }, [activeSession]);
 
   const joinedParticipants = useMemo(
     () => snapshot?.participants.filter((p) => p.status === 'joined') ?? [],
@@ -118,7 +112,7 @@ const TeacherLiveClassroomPage: React.FC = () => {
   );
 
   const raisedHands = joinedParticipants.filter(
-    (p) => p.handRaised && snapshot?.session.allowLearnerHandRaise !== false,
+    (p) => p.handRaised && activeSession?.allowLearnerHandRaise !== false,
   );
   const pendingScreenShares = joinedParticipants.filter((p) => p.screenShareStatus === 'pending');
 

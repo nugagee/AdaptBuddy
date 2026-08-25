@@ -1,6 +1,7 @@
 /** Central route paths — align with /app/* as features mature */
 export const ROUTES = {
   HOME: '/',
+  GAME: '/game',
   NEURO_SELECTOR: '/neuro-selector',
   COMPANION_ONBOARDING: '/companion-onboarding',
   COMPANION_BUDDY: '/companion-buddy',

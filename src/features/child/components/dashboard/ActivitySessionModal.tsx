@@ -24,6 +24,56 @@ const ADHD_FIRST_STEPS = [
 
 const ADHD_RESCUE_OPTIONS = ['too hard', 'too boring', 'too noisy', 'too many steps', 'do not know where to start'];
 
+const ADHD_TASK_BLOCKERS = ['too big', 'too boring', 'too many steps', 'do not know where to start', 'need an example'];
+
+const buildAdhdTaskSteps = (task: string): string[] => {
+  const cleanTask = task.trim() || 'Start the classroom task';
+  const lowerTask = cleanTask.toLowerCase();
+
+  if (/paragraph|essay|write|story|sentence/.test(lowerTask)) {
+    return [
+      'Write the title or first sentence.',
+      'Add one idea in your own words.',
+      'Add one example or detail.',
+      'Read it once and tick done.',
+    ];
+  }
+
+  if (/math|sum|number|calculate|equation|question/.test(lowerTask)) {
+    return [
+      'Circle the numbers or key words.',
+      'Do only question 1 first.',
+      'Check the answer with one method.',
+      'Ask for help if the same step is still stuck.',
+    ];
+  }
+
+  if (/read|book|chapter|page|text/.test(lowerTask)) {
+    return [
+      'Read the heading and first two lines.',
+      'Point to one important word.',
+      'Read one small section.',
+      'Say or write one thing you remember.',
+    ];
+  }
+
+  if (/project|poster|presentation|research/.test(lowerTask)) {
+    return [
+      'Choose the title or topic.',
+      'Find one fact or idea.',
+      'Add one picture, note, or bullet point.',
+      'Stop and check the next tiny step.',
+    ];
+  }
+
+  return [
+    `Open: ${cleanTask}.`,
+    'Find the first instruction only.',
+    'Do the smallest visible part.',
+    'Stop and tick what changed from not started to started.',
+  ];
+};
+
 interface ActivitySessionModalProps {
   activity: NeuroActivity;
   onClose: () => void;
@@ -43,6 +93,8 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
   const [adhdEnergy, setAdhdEnergy] = useState('scattered');
   const [adhdStep, setAdhdStep] = useState('Open the task and read only the first instruction.');
   const [adhdRescue, setAdhdRescue] = useState('too many steps');
+  const [adhdTaskText, setAdhdTaskText] = useState('Write a paragraph about plants');
+  const [adhdTaskBlocker, setAdhdTaskBlocker] = useState('too many steps');
 
   const moveDayCard = useCallback((index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
@@ -57,6 +109,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
   const selectedAdhdEnergy =
     ADHD_ENERGY_OPTIONS.find((option) => option.id === adhdEnergy) ?? ADHD_ENERGY_OPTIONS[2];
+  const adhdTaskSteps = useMemo(() => buildAdhdTaskSteps(adhdTaskText), [adhdTaskText]);
 
   const handleCompleteClick = useCallback(() => {
     if (activity.id === 'adhd-focus-coach') {
@@ -72,8 +125,23 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       return;
     }
 
+    if (activity.id === 'adhd-task-breakdown') {
+      onComplete({
+        adhdSupportSignal: {
+          energyId: 'task-breakdown',
+          energyLabel: 'Task breakdown',
+          firstStep: adhdTaskSteps[0],
+          rescueReason: adhdTaskBlocker,
+          supportPlan: `Keep the task visible as ${adhdTaskSteps.length} tiny steps. Praise the start, then reveal one next step at a time.`,
+          taskTitle: adhdTaskText.trim() || 'Classroom task',
+          breakdownSteps: adhdTaskSteps,
+        },
+      });
+      return;
+    }
+
     onComplete();
-  }, [activity.id, adhdRescue, adhdStep, onComplete, selectedAdhdEnergy]);
+  }, [activity.id, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, onComplete, selectedAdhdEnergy]);
 
   const activityBody = useMemo(() => {
     if (activity.id === 'autism-visual-schedule') {
@@ -376,6 +444,80 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       );
     }
 
+    if (activity.id === 'adhd-task-breakdown') {
+      const supportPreview = `Task: ${adhdTaskText.trim() || 'Classroom task'}. Blocker: ${adhdTaskBlocker}. First step: ${adhdTaskSteps[0]}`;
+
+      return (
+        <div className="space-y-4">
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/25">
+            <p className="text-xs font-black uppercase tracking-wide text-amber-700 dark:text-amber-200">
+              Break this task down
+            </p>
+            <label className="mt-3 block">
+              <span className="sr-only">Task to break down</span>
+              <textarea
+                value={adhdTaskText}
+                onChange={(event) => setAdhdTaskText(event.target.value)}
+                rows={3}
+                className="w-full resize-none rounded-2xl border-2 border-amber-100 bg-white p-3 text-sm font-semibold text-adapt-navy outline-none transition focus:border-amber-400 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+                placeholder="Type the task here"
+              />
+            </label>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-gray-400">
+              What is blocking the start?
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {ADHD_TASK_BLOCKERS.map((blocker) => (
+                <button
+                  key={blocker}
+                  type="button"
+                  onClick={() => setAdhdTaskBlocker(blocker)}
+                  className={`rounded-full px-3 py-2 text-xs font-bold capitalize ${
+                    adhdTaskBlocker === blocker
+                      ? 'bg-adapt-navy text-white dark:bg-adapt-cyan dark:text-gray-950'
+                      : 'bg-slate-100 text-slate-600 dark:bg-gray-950 dark:text-gray-300'
+                  }`}
+                >
+                  {blocker}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/25">
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
+              Tiny step plan
+            </p>
+            <ol className="mt-3 space-y-2">
+              {adhdTaskSteps.map((step, index) => (
+                <li
+                  key={`${step}-${index}`}
+                  className="flex gap-3 rounded-2xl bg-white/80 p-3 text-sm font-bold text-slate-700 dark:bg-gray-950/70 dark:text-gray-200"
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-xs font-black text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100">
+                    {index + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section className="rounded-2xl border border-adapt-indigo/15 bg-adapt-indigo/5 p-4 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/10">
+            <p className="text-xs font-black uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
+              Teacher insight preview
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-700 dark:text-gray-200">
+              {supportPreview}
+            </p>
+          </section>
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-2xl bg-adapt-mist/60 p-4 dark:bg-gray-800/60">
         <p className="text-xs font-semibold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
@@ -388,7 +530,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
         </ul>
       </div>
     );
-  }, [activity.id, adhdEnergy, adhdRescue, adhdStep, dayCards, moveDayCard, patternAnswer, selectedAdhdEnergy, selectedFeeling, storyScenario]);
+  }, [activity.id, adhdEnergy, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, dayCards, moveDayCard, patternAnswer, selectedAdhdEnergy, selectedFeeling, storyScenario]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">

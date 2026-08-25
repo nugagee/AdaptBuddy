@@ -97,7 +97,7 @@ const AdhdSupportSignalsPanel: React.FC = () => {
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 <div className="rounded-2xl bg-amber-50 p-3 dark:bg-amber-950/25">
                   <p className="text-[10px] font-black uppercase tracking-wide text-amber-700 dark:text-amber-200">
-                    Energy
+                    {latestSignal.taskTitle ? 'Tool' : 'Energy'}
                   </p>
                   <p className="mt-1 text-sm font-extrabold text-adapt-navy dark:text-gray-100">
                     {latestSignal.energyLabel}
@@ -120,6 +120,22 @@ const AdhdSupportSignalsPanel: React.FC = () => {
                   </p>
                 </div>
               </div>
+
+              {latestSignal.taskTitle && latestSignal.breakdownSteps?.length ? (
+                <div className="mt-3 rounded-2xl bg-white/80 p-3 dark:bg-gray-900/80">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-gray-400">
+                    Tiny steps for {latestSignal.taskTitle}
+                  </p>
+                  <ol className="mt-2 space-y-2">
+                    {latestSignal.breakdownSteps.map((step, index) => (
+                      <li key={`${step}-${index}`} className="flex gap-2 text-sm font-semibold text-slate-700 dark:text-gray-200">
+                        <span className="text-adapt-indigo dark:text-adapt-cyan">{index + 1}.</span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ) : null}
 
               <div className="mt-3 flex items-start gap-2 rounded-2xl bg-adapt-indigo/5 p-3 dark:bg-adapt-cyan/10">
                 <Footprints className="mt-0.5 h-4 w-4 shrink-0 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />

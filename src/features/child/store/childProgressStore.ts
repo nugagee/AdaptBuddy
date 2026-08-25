@@ -21,6 +21,8 @@ export interface AdhdSupportSignalInput {
   firstStep: string;
   rescueReason: string;
   supportPlan: string;
+  taskTitle?: string;
+  breakdownSteps?: string[];
 }
 
 export interface AdhdSupportSignal extends AdhdSupportSignalInput {

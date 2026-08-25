@@ -261,6 +261,17 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     starsReward: 5,
   },
   {
+    id: 'adhd-task-breakdown',
+    neuroId: 'adhd',
+    title: 'Task Breakdown Buddy',
+    description: 'Turn one big classroom task into tiny first steps with a support signal',
+    durationMinutes: 7,
+    category: 'focus',
+    icon: BookOpen,
+    inspiration: 'Executive-function scaffold: task initiation, sequencing, and reduced overwhelm',
+    starsReward: 5,
+  },
+  {
     id: 'adhd-movement-burst',
     neuroId: 'adhd',
     title: 'Movement Burst',
@@ -636,9 +647,12 @@ export function getDailyActivitiesForNeuro(neuroId: string, daySeed = new Date()
   if (pool.length === 0) return [pronunciationActivity];
   const start = daySeed % pool.length;
   const picked = [pool[start], pool[(start + 1) % pool.length]];
-  if (neuroId === 'adhd' && !picked.some((activity) => activity.id === 'adhd-focus-coach')) {
-    const coach = pool.find((activity) => activity.id === 'adhd-focus-coach');
-    if (coach) picked[1] = coach;
+  if (neuroId === 'adhd') {
+    ['adhd-focus-coach', 'adhd-task-breakdown'].forEach((activityId) => {
+      if (picked.some((activity) => activity.id === activityId)) return;
+      const activity = pool.find((item) => item.id === activityId);
+      if (activity) picked.push(activity);
+    });
   }
   const hasPronunciation = picked.some((activity) => activity.route === ROUTES.PRONUNCIATION_BUDDY);
   return hasPronunciation ? picked : [...picked, pronunciationActivity];

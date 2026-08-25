@@ -26,7 +26,7 @@ const NeuroSelectorPage: React.FC = () => {
   const handleContinue = async (selected: string[]) => {
     const activeSelection = selected.filter((id) => ACTIVE_NEURO_IDS.has(id));
     if (activeSelection.length === 0) {
-      setError('Please select Autism to continue.');
+      setError('Please select at least one available support profile to continue.');
       return;
     }
 

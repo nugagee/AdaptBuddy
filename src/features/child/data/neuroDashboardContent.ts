@@ -250,6 +250,17 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     starsReward: 5,
   },
   {
+    id: 'adhd-focus-coach',
+    neuroId: 'adhd',
+    title: 'ADHD Focus Coach',
+    description: 'Check energy, choose one tiny first step, get a rescue plan, then send a support insight',
+    durationMinutes: 6,
+    category: 'focus',
+    icon: Brain,
+    inspiration: 'Externalized executive function: initiation, movement reset, immediate reinforcement',
+    starsReward: 5,
+  },
+  {
     id: 'adhd-movement-burst',
     neuroId: 'adhd',
     title: 'Movement Burst',
@@ -625,6 +636,10 @@ export function getDailyActivitiesForNeuro(neuroId: string, daySeed = new Date()
   if (pool.length === 0) return [pronunciationActivity];
   const start = daySeed % pool.length;
   const picked = [pool[start], pool[(start + 1) % pool.length]];
+  if (neuroId === 'adhd' && !picked.some((activity) => activity.id === 'adhd-focus-coach')) {
+    const coach = pool.find((activity) => activity.id === 'adhd-focus-coach');
+    if (coach) picked[1] = coach;
+  }
   const hasPronunciation = picked.some((activity) => activity.route === ROUTES.PRONUNCIATION_BUDDY);
   return hasPronunciation ? picked : [...picked, pronunciationActivity];
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, Star, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Star, X, Zap } from 'lucide-react';
 import type { NeuroActivity } from 'features/child/data/neuroDashboardContent';
 
 interface ActivitySessionModalProps {
@@ -18,6 +18,9 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
   const [storyScenario, setStoryScenario] = useState('A plan changes');
   const [selectedFeeling, setSelectedFeeling] = useState('unsure');
   const [patternAnswer, setPatternAnswer] = useState<string | null>(null);
+  const [adhdEnergy, setAdhdEnergy] = useState('scattered');
+  const [adhdStep, setAdhdStep] = useState('Open the task and read only the first instruction.');
+  const [adhdRescue, setAdhdRescue] = useState('too many steps');
 
   const moveDayCard = useCallback((index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
@@ -224,6 +227,127 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       );
     }
 
+    if (activity.id === 'adhd-focus-coach') {
+      const energyOptions = [
+        { id: 'sleepy', label: 'Sleepy', plan: 'Stand up, stretch tall, then do a 3-minute start.' },
+        { id: 'buzzing', label: 'Buzzing', plan: 'Do 10 wall pushes or chair presses before starting.' },
+        { id: 'scattered', label: 'Scattered', plan: 'Hide extra tabs, choose one tiny step, then start.' },
+        { id: 'focused', label: 'Focused', plan: 'Protect the flow: one task, no switching.' },
+        { id: 'overloaded', label: 'Overloaded', plan: 'Lower the demand: breathe, ask for one clear instruction.' },
+      ];
+      const rescueOptions = ['too hard', 'too boring', 'too noisy', 'too many steps', 'do not know where to start'];
+      const selectedEnergy = energyOptions.find((option) => option.id === adhdEnergy) ?? energyOptions[2];
+      const teacherInsight = `Energy: ${selectedEnergy.label}. First step: ${adhdStep} Rescue reason: ${adhdRescue}. Support: ${selectedEnergy.plan}`;
+
+      return (
+        <div className="space-y-4">
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/25">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-400 text-white">
+                <Zap className="h-5 w-5" aria-hidden />
+              </span>
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-amber-700 dark:text-amber-200">
+                  Energy check-in
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-gray-300">
+                  Pick the state closest to right now. The coach changes the start plan, not the child.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-5">
+              {energyOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setAdhdEnergy(option.id)}
+                  className={`rounded-2xl border-2 px-3 py-2 text-xs font-black transition ${
+                    adhdEnergy === option.id
+                      ? 'border-amber-400 bg-white text-amber-800 shadow-sm dark:bg-gray-950 dark:text-amber-100'
+                      : 'border-transparent bg-white/70 text-slate-600 dark:bg-gray-900 dark:text-gray-300'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <p className="text-xs font-black uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
+              Tiny first step
+            </p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
+              Starting earns credit. The whole assignment does not need to be finished here.
+            </p>
+            <div className="mt-3 grid gap-2">
+              {[
+                'Open the task and read only the first instruction.',
+                'Write your name or title first.',
+                'Do question 1 only.',
+                'Ask Buddy to make the instruction simpler.',
+              ].map((step) => (
+                <button
+                  key={step}
+                  type="button"
+                  onClick={() => setAdhdStep(step)}
+                  className={`rounded-2xl border-2 p-3 text-left text-sm font-bold transition ${
+                    adhdStep === step
+                      ? 'border-adapt-indigo bg-adapt-indigo/10 text-adapt-indigo dark:border-adapt-cyan dark:bg-adapt-cyan/10 dark:text-adapt-cyan'
+                      : 'border-slate-100 bg-slate-50 text-slate-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300'
+                  }`}
+                >
+                  {step}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-gray-400">
+                Distraction rescue
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {rescueOptions.map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() => setAdhdRescue(reason)}
+                    className={`rounded-full px-3 py-2 text-xs font-bold capitalize ${
+                      adhdRescue === reason
+                        ? 'bg-adapt-navy text-white dark:bg-adapt-cyan dark:text-gray-950'
+                        : 'bg-white text-slate-600 dark:bg-gray-900 dark:text-gray-300'
+                    }`}
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/25">
+              <p className="text-xs font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
+                Movement prescription
+              </p>
+              <p className="mt-3 text-sm font-bold leading-6 text-emerald-900 dark:text-emerald-100">
+                {selectedEnergy.plan}
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-adapt-indigo/15 bg-adapt-indigo/5 p-4 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/10">
+            <p className="text-xs font-black uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
+              Teacher insight preview
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-700 dark:text-gray-200">
+              {teacherInsight}
+            </p>
+          </section>
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-2xl bg-adapt-mist/60 p-4 dark:bg-gray-800/60">
         <p className="text-xs font-semibold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
@@ -236,7 +360,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
         </ul>
       </div>
     );
-  }, [activity.id, dayCards, moveDayCard, patternAnswer, selectedFeeling, storyScenario]);
+  }, [activity.id, adhdEnergy, adhdRescue, adhdStep, dayCards, moveDayCard, patternAnswer, selectedFeeling, storyScenario]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">

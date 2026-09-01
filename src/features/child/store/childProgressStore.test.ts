@@ -17,6 +17,7 @@ const resetProgressStore = () => {
     completions: [],
     metricValues: [],
     adhdSupportSignals: [],
+    achievementBadges: [],
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -106,5 +107,24 @@ describe('childProgressStore ADHD support signals', () => {
     expect(signals).toHaveLength(30);
     expect(signals[0].firstStep).toBe('Step 31');
     expect(signals[29].firstStep).toBe('Step 2');
+  });
+
+  it('persists each achievement badge only once', () => {
+    const badge = {
+      id: 'adhd-chain-builder',
+      title: 'Chain Builder',
+      description: 'Completed three tiny wins in a row.',
+      emoji: '🔗',
+    };
+
+    useChildProgressStore.getState().unlockAchievementBadge(badge);
+    useChildProgressStore.getState().unlockAchievementBadge(badge);
+
+    expect(useChildProgressStore.getState().achievementBadges).toEqual([
+      {
+        ...badge,
+        unlockedAt: '2026-09-01T09:30:00.000Z',
+      },
+    ]);
   });
 });

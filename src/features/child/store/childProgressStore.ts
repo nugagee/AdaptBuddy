@@ -32,10 +32,22 @@ export interface AdhdSupportSignal extends AdhdSupportSignalInput {
   needsCheckIn: boolean;
 }
 
+export interface AchievementBadgeInput {
+  id: string;
+  title: string;
+  description: string;
+  emoji: string;
+}
+
+export interface AchievementBadge extends AchievementBadgeInput {
+  unlockedAt: string;
+}
+
 interface ChildProgressState {
   completions: ActivityCompletion[];
   metricValues: NeuroMetricSnapshot[];
   adhdSupportSignals: AdhdSupportSignal[];
+  achievementBadges: AchievementBadge[];
   starsTotal: number;
   streakDays: number;
   lastActiveDate: string;
@@ -52,6 +64,7 @@ interface ChildProgressState {
   getTodayCompletions: () => ActivityCompletion[];
   addAdhdSupportSignal: (activityId: string, signal: AdhdSupportSignalInput) => void;
   getTodayAdhdSupportSignals: () => AdhdSupportSignal[];
+  unlockAchievementBadge: (badge: AchievementBadgeInput) => void;
   getNeuroMetricValue: (neuroId: string) => number;
   incrementNeuroMetric: (neuroId: string, amount?: number) => void;
   setTodayMood: (mood: string) => void;
@@ -106,6 +119,7 @@ export const useChildProgressStore = create<ChildProgressState>()(
       completions: [],
       metricValues: [],
       adhdSupportSignals: [],
+      achievementBadges: [],
       starsTotal: 0,
       streakDays: 0,
       lastActiveDate: '',
@@ -168,6 +182,17 @@ export const useChildProgressStore = create<ChildProgressState>()(
       getTodayAdhdSupportSignals: () => {
         const today = todayKey();
         return get().adhdSupportSignals.filter((signal) => signal.createdAt.startsWith(today));
+      },
+
+      unlockAchievementBadge: (badge) => {
+        if (get().achievementBadges.some((savedBadge) => savedBadge.id === badge.id)) return;
+
+        set((state) => ({
+          achievementBadges: [
+            { ...badge, unlockedAt: new Date().toISOString() },
+            ...state.achievementBadges,
+          ],
+        }));
       },
 
       getNeuroMetricValue: (neuroId) => {

@@ -1,11 +1,16 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Star, X, Zap } from 'lucide-react';
 import type { NeuroActivity } from 'features/child/data/neuroDashboardContent';
-import type { AdhdSupportSignalInput } from 'features/child/store/childProgressStore';
+import type {
+  AchievementBadgeInput,
+  AdhdSupportSignalInput,
+} from 'features/child/store/childProgressStore';
 import AdhdMovementBurstActivity from './AdhdMovementBurstActivity';
+import AdhdQuestChainActivity from './AdhdQuestChainActivity';
 
 export interface ActivitySessionResult {
   adhdSupportSignal?: AdhdSupportSignalInput;
+  achievementBadge?: AchievementBadgeInput;
 }
 
 const ADHD_ENERGY_OPTIONS = [
@@ -650,6 +655,14 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       );
     }
 
+    if (activity.id === 'adhd-quest-chain') {
+      return (
+        <AdhdQuestChainActivity
+          onComplete={(badge) => onComplete({ achievementBadge: badge })}
+        />
+      );
+    }
+
     return (
       <div className="rounded-2xl bg-adapt-mist/60 p-4 dark:bg-gray-800/60">
         <p className="text-xs font-semibold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
@@ -696,7 +709,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
           <p className="text-xs text-slate-400 italic">{activity.inspiration}</p>
 
-          {activity.id !== 'adhd-movement-burst' ? (
+          {!['adhd-movement-burst', 'adhd-quest-chain'].includes(activity.id) ? (
             <button
               type="button"
               onClick={handleCompleteClick}

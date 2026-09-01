@@ -124,9 +124,34 @@ describe('ActivitySessionModal ADHD results', () => {
     });
   });
 
+  it('hands an unlocked Quest Chain badge back to the dashboard', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('adhd-quest-chain')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Complete win 1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Complete win 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Complete win 3' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save badge and finish' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      achievementBadge: {
+        id: 'adhd-chain-builder',
+        title: 'Chain Builder',
+        description: 'Completed three tiny wins in a row.',
+        emoji: '🔗',
+      },
+    });
+  });
+
   it('does not invent a support signal for a generic activity', () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
-    completeActivity('adhd-quest-chain', onComplete);
+    completeActivity('dyslexia-read-aloud', onComplete);
     expect(onComplete).toHaveBeenCalledWith();
   });
 });

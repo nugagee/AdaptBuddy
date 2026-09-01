@@ -297,11 +297,11 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     id: 'adhd-quest-chain',
     neuroId: 'adhd',
     title: 'Quest Chain',
-    description: '3 tiny wins in a row — unlock a badge when the chain completes',
+    description: 'Turn one goal into 3 sequential tiny wins and keep the unlocked badge',
     durationMinutes: 15,
     category: 'creative',
     icon: Gamepad2,
-    inspiration: 'Gamification (Habitica-style)',
+    inspiration: 'Immediate reinforcement, visible progress, and low-pressure task sequencing',
     starsReward: 6,
   },
   {

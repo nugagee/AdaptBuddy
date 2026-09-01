@@ -28,6 +28,7 @@ jest.mock('features/child/components/dashboard/AccessibilityDock', () => () => n
 jest.mock('features/child/components/dashboard/SmartRecommendationsPanel', () => () => null);
 jest.mock('features/child/components/dashboard/FocusTimerModal', () => () => null);
 jest.mock('features/child/components/dashboard/AdhdSupportSignalsPanel', () => () => null);
+jest.mock('features/child/components/dashboard/AchievementBadgesPanel', () => () => null);
 jest.mock('features/child/components/dashboard/ChildClassroomPanel', () => () => null);
 jest.mock('features/child/components/dashboard/TeacherAssignmentsPanel', () => () => null);
 jest.mock('features/child/components/NowNextLaterBoard', () => () => null);
@@ -42,6 +43,7 @@ const resetProgressStore = () => {
     completions: [],
     metricValues: [],
     adhdSupportSignals: [],
+    achievementBadges: [],
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -111,5 +113,45 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
     ]);
 
     warnSpy.mockRestore();
+  });
+
+  it('persists the Quest Chain badge after the activity closes', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-05T09:30:00.000Z'));
+
+    try {
+      render(
+        <MemoryRouter>
+          <ChildDashboardPage />
+        </MemoryRouter>,
+      );
+
+      const questChainCard = screen
+        .getByRole('heading', { name: 'Quest Chain' })
+        .closest('li');
+      if (!questChainCard) throw new Error('Could not find the Quest Chain card');
+
+      fireEvent.click(within(questChainCard).getByRole('button', { name: 'Start' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Complete win 1' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Complete win 2' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Complete win 3' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save badge and finish' }));
+
+      expect(useChildProgressStore.getState().achievementBadges).toEqual([
+        expect.objectContaining({
+          id: 'adhd-chain-builder',
+          title: 'Chain Builder',
+          unlockedAt: '2026-09-05T09:30:00.000Z',
+        }),
+      ]);
+      expect(useChildProgressStore.getState().completions).toEqual([
+        expect.objectContaining({
+          activityId: 'adhd-quest-chain',
+          starsEarned: 6,
+        }),
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

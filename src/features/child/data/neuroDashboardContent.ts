@@ -286,11 +286,11 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     id: 'adhd-movement-burst',
     neuroId: 'adhd',
     title: 'Movement Burst',
-    description: '60-second energizer: jump, stretch, spin — then back to task',
+    description: '60-second state-matched movement reset with standing and seated choices',
     durationMinutes: 3,
     category: 'motor',
     icon: Zap,
-    inspiration: 'Exercise breaks improve ADHD focus (CDC)',
+    inspiration: 'Inclusive movement breaks for regulation, activation, and task return',
     starsReward: 2,
   },
   {

@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Star, X, Zap } from 'lucide-react';
 import type { NeuroActivity } from 'features/child/data/neuroDashboardContent';
 import type { AdhdSupportSignalInput } from 'features/child/store/childProgressStore';
+import AdhdMovementBurstActivity from './AdhdMovementBurstActivity';
 
 export interface ActivitySessionResult {
   adhdSupportSignal?: AdhdSupportSignalInput;
@@ -641,6 +642,14 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       );
     }
 
+    if (activity.id === 'adhd-movement-burst') {
+      return (
+        <AdhdMovementBurstActivity
+          onComplete={(signal) => onComplete({ adhdSupportSignal: signal })}
+        />
+      );
+    }
+
     return (
       <div className="rounded-2xl bg-adapt-mist/60 p-4 dark:bg-gray-800/60">
         <p className="text-xs font-semibold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
@@ -653,7 +662,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
         </ul>
       </div>
     );
-  }, [activity.id, adhdBreakState, adhdEnergy, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, dayCards, moveDayCard, patternAnswer, selectedAdhdBreak, selectedAdhdEnergy, selectedFeeling, storyScenario]);
+  }, [activity.id, adhdBreakState, adhdEnergy, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, dayCards, moveDayCard, onComplete, patternAnswer, selectedAdhdBreak, selectedAdhdEnergy, selectedFeeling, storyScenario]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
@@ -687,15 +696,17 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
           <p className="text-xs text-slate-400 italic">{activity.inspiration}</p>
 
-          <button
-            type="button"
-            onClick={handleCompleteClick}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-adapt-teal py-3.5 font-bold text-white shadow-md transition hover:scale-[1.02]"
-          >
-            <Check className="h-5 w-5" aria-hidden />
-            Mark Complete
-            <Star className="h-4 w-4 fill-amber-300 text-amber-300" aria-hidden />
-          </button>
+          {activity.id !== 'adhd-movement-burst' ? (
+            <button
+              type="button"
+              onClick={handleCompleteClick}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-adapt-teal py-3.5 font-bold text-white shadow-md transition hover:scale-[1.02]"
+            >
+              <Check className="h-5 w-5" aria-hidden />
+              Mark Complete
+              <Star className="h-4 w-4 fill-amber-300 text-amber-300" aria-hidden />
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

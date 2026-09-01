@@ -99,9 +99,34 @@ describe('ActivitySessionModal ADHD results', () => {
     });
   });
 
+  it('hands a completed Movement Burst signal back to the dashboard', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('adhd-movement-burst')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /^stuck/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start 60-second burst' }));
+    fireEvent.click(screen.getByRole('button', { name: "I'm ready to return" }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save reset and return' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      adhdSupportSignal: expect.objectContaining({
+        energyId: 'stuck',
+        energyLabel: 'Stuck',
+        rescueReason: 'movement reset',
+        taskTitle: 'Movement Burst break',
+      }),
+    });
+  });
+
   it('does not invent a support signal for a generic activity', () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
-    completeActivity('adhd-movement-burst', onComplete);
+    completeActivity('adhd-quest-chain', onComplete);
     expect(onComplete).toHaveBeenCalledWith();
   });
 });

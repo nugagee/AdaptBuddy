@@ -584,6 +584,9 @@ const mapSignal = (
   createdAt: row.created_at,
 });
 
+/** Public contract adapter used to verify that shared child evidence reaches the teacher experience. */
+export const mapTeacherSupportSignal = mapSignal;
+
 const withVisibleSignalText = (
   signal: TeacherSupportSignal,
   row: JournalEntryRow,

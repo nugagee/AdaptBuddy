@@ -827,6 +827,9 @@ const mapJournalEntry = (
   };
 };
 
+/** Public contract adapter used to verify that shared child evidence reaches the parent experience. */
+export const mapParentJournalEntry = mapJournalEntry;
+
 const getJoinedJournalEntry = (row: AlertRow): { text?: string | null } | null => {
   if (!row.journal_entries) return null;
   return Array.isArray(row.journal_entries) ? row.journal_entries[0] ?? null : row.journal_entries;

@@ -147,6 +147,30 @@ describe('syncAdhdSupportSignal', () => {
     );
   });
 
+  it('classifies Energy Check-In as regulation evidence and escalates overload', async () => {
+    await syncAdhdSupportSignal({
+      childId: 'child-123',
+      activityId: 'adhd-mood-check',
+      activityTitle: 'Energy Check-In',
+      signal: makeSignal({
+        energyId: 'overloaded',
+        energyLabel: 'Overloaded',
+        rescueReason: 'overloaded',
+      }),
+    });
+
+    expect(mockSaveJournalEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emotion: 'anxious',
+        analysis: expect.objectContaining({
+          signalCategory: 'regulation',
+          riskLevel: 'high',
+          supportLevel: 'urgent',
+        }),
+      }),
+    );
+  });
+
   it('lets sync failures reach the caller so the dashboard can retain the local-only state', async () => {
     const syncError = new Error('network unavailable');
     mockSaveJournalEntry.mockRejectedValue(syncError);

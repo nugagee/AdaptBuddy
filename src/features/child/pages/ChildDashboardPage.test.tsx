@@ -28,6 +28,7 @@ jest.mock('features/child/components/dashboard/AccessibilityDock', () => () => n
 jest.mock('features/child/components/dashboard/SmartRecommendationsPanel', () => () => null);
 jest.mock('features/child/components/dashboard/FocusTimerModal', () => () => null);
 jest.mock('features/child/components/dashboard/AdhdSupportSignalsPanel', () => () => null);
+jest.mock('features/child/components/dashboard/AdhdEnergyPacingPanel', () => () => null);
 jest.mock('features/child/components/dashboard/AchievementBadgesPanel', () => () => null);
 jest.mock('features/child/components/dashboard/ChildClassroomPanel', () => () => null);
 jest.mock('features/child/components/dashboard/TeacherAssignmentsPanel', () => () => null);
@@ -44,6 +45,7 @@ const resetProgressStore = () => {
     metricValues: [],
     adhdSupportSignals: [],
     achievementBadges: [],
+    adhdEnergyPacing: null,
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -153,5 +155,47 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('persists Energy Check-In pacing and shares its support signal', async () => {
+    mockSyncAdhdSupportSignal.mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter>
+        <ChildDashboardPage />
+      </MemoryRouter>,
+    );
+
+    const energyCheckCard = screen
+      .getByRole('heading', { name: 'Energy Check-In' })
+      .closest('li');
+    if (!energyCheckCard) throw new Error('Could not find the Energy Check-In card');
+
+    fireEvent.click(within(energyCheckCard).getByRole('button', { name: 'Start' }));
+    fireEvent.click(screen.getByRole('button', { name: /^low battery/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use this pacing plan' }));
+
+    expect(useChildProgressStore.getState().adhdEnergyPacing).toEqual(
+      expect.objectContaining({
+        energyId: 'low',
+        taskMinutes: 5,
+        breakMinutes: 3,
+      }),
+    );
+    expect(useChildProgressStore.getState().completions).toEqual([
+      expect.objectContaining({
+        activityId: 'adhd-mood-check',
+        starsEarned: 2,
+      }),
+    ]);
+    await waitFor(() => {
+      expect(mockSyncAdhdSupportSignal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          childId: 'child-123',
+          activityId: 'adhd-mood-check',
+          signal: expect.objectContaining({ energyId: 'low' }),
+        }),
+      );
+    });
   });
 });

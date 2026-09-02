@@ -1,7 +1,8 @@
 import React from 'react';
-import { ArrowRight, Bot, Sparkles, Star } from 'lucide-react';
+import { ArrowRight, Bot, Clock3, Sparkles, Star } from 'lucide-react';
 import { RecommendationEngine } from 'services/ai/recommendationEngine';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { adaptRecommendationsForEnergy } from 'features/child/utils/adhdEnergyPacing';
 
 interface SmartRecommendationsPanelProps {
   neuroTypes: string[];
@@ -13,15 +14,19 @@ const SmartRecommendationsPanel: React.FC<SmartRecommendationsPanelProps> = ({
   onTryRecommendation,
 }) => {
   const todayMood = useChildProgressStore((s) => s.todayMood);
+  const energyPacing = useChildProgressStore((s) => s.getTodayAdhdEnergyPacing());
   const completions = useChildProgressStore((s) => s.completions);
 
   const today = new Date().toISOString().slice(0, 10);
   const todayCompletions = completions.filter((c) => c.completedAt.startsWith(today));
   const completedIds = todayCompletions.map((c) => c.activityId);
 
-  const mood = todayMood ?? 'calm';
+  const mood = energyPacing?.recommendationMood ?? todayMood ?? 'calm';
   const performance = Math.min(1, todayCompletions.length / 6);
-  const recommendations = RecommendationEngine.recommend(neuroTypes, performance, mood, completedIds);
+  const recommendations = adaptRecommendationsForEnergy(
+    RecommendationEngine.recommend(neuroTypes, performance, mood, completedIds),
+    energyPacing,
+  );
 
   const styleProfile = RecommendationEngine.getLearningStyleProfile(neuroTypes);
   const topStyle = Object.entries(styleProfile).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'visual';
@@ -38,7 +43,7 @@ const SmartRecommendationsPanel: React.FC<SmartRecommendationsPanelProps> = ({
               AdaptAI Recommendations
             </h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
-              Mood-aware picks · Your top style:{' '}
+              {energyPacing ? `${energyPacing.energyLabel} pace` : 'Mood-aware picks'} · Your top style:{' '}
               <span className="font-semibold capitalize text-adapt-indigo dark:text-adapt-cyan">
                 {topStyle}
               </span>
@@ -62,6 +67,10 @@ const SmartRecommendationsPanel: React.FC<SmartRecommendationsPanelProps> = ({
                   <span className="inline-flex items-center gap-1 text-xs text-amber-600">
                     <Star className="h-3 w-3 fill-amber-400" aria-hidden />
                     {Math.round(rec.aiConfidence * 100)}% fit
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-gray-400">
+                    <Clock3 className="h-3 w-3" aria-hidden />
+                    {rec.estimatedTime} min
                   </span>
                 </div>
                 <h3 className="mt-1 text-base font-bold text-adapt-navy dark:text-gray-100">{rec.title}</h3>

@@ -14,6 +14,7 @@ import ActivitySessionModal, {
   type ActivitySessionResult,
 } from 'features/child/components/dashboard/ActivitySessionModal';
 import AdhdSupportSignalsPanel from 'features/child/components/dashboard/AdhdSupportSignalsPanel';
+import AdhdEnergyPacingPanel from 'features/child/components/dashboard/AdhdEnergyPacingPanel';
 import AchievementBadgesPanel from 'features/child/components/dashboard/AchievementBadgesPanel';
 import ChildClassroomPanel from 'features/child/components/dashboard/ChildClassroomPanel';
 import TeacherAssignmentsPanel from 'features/child/components/dashboard/TeacherAssignmentsPanel';
@@ -26,6 +27,7 @@ import {
 } from 'features/child/data/neuroDashboardContent';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
 import { syncAdhdSupportSignal } from 'features/child/services/adhdSupportSignalService';
+import { adaptAdhdActivitiesForEnergy } from 'features/child/utils/adhdEnergyPacing';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
 import '../components/dashboard/child-dashboard.css';
@@ -43,6 +45,8 @@ const ChildDashboardPage: React.FC = () => {
   const completeActivity = useChildProgressStore((s) => s.completeActivity);
   const addAdhdSupportSignal = useChildProgressStore((s) => s.addAdhdSupportSignal);
   const unlockAchievementBadge = useChildProgressStore((s) => s.unlockAchievementBadge);
+  const setAdhdEnergyPacing = useChildProgressStore((s) => s.setAdhdEnergyPacing);
+  const adhdEnergyPacing = useChildProgressStore((s) => s.adhdEnergyPacing);
   const setTodayMood = useChildProgressStore((s) => s.setTodayMood);
   const completions = useChildProgressStore((s) => s.completions);
 
@@ -52,7 +56,14 @@ const ChildDashboardPage: React.FC = () => {
     () => (profile?.neuro_types?.length ? profile.neuro_types : ['autism']),
     [profile?.neuro_types],
   );
-  const dailyActivities = useMemo(() => getActivitiesForNeuros(neuroTypes), [neuroTypes]);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayEnergyPacing = adhdEnergyPacing?.checkedAt.startsWith(todayKey)
+    ? adhdEnergyPacing
+    : null;
+  const dailyActivities = useMemo(
+    () => adaptAdhdActivitiesForEnergy(getActivitiesForNeuros(neuroTypes), todayEnergyPacing),
+    [neuroTypes, todayEnergyPacing],
+  );
   const welcomeMessage = (location.state as { message?: string } | null)?.message;
 
   const today = new Date().toISOString().slice(0, 10);
@@ -111,6 +122,9 @@ const ChildDashboardPage: React.FC = () => {
     if (result?.achievementBadge) {
       unlockAchievementBadge(result.achievementBadge);
     }
+    if (result?.adhdEnergyPacing) {
+      setAdhdEnergyPacing(result.adhdEnergyPacing);
+    }
     setCelebration(
       result?.achievementBadge
         ? `${result.achievementBadge.emoji} ${result.achievementBadge.title} badge unlocked! +${activeActivity.starsReward} stars`
@@ -118,14 +132,15 @@ const ChildDashboardPage: React.FC = () => {
     );
     setActiveActivity(null);
     window.setTimeout(() => setCelebration(null), 4000);
-  }, [activeActivity, addAdhdSupportSignal, childId, completeActivity, unlockAchievementBadge]);
+  }, [activeActivity, addAdhdSupportSignal, childId, completeActivity, setAdhdEnergyPacing, unlockAchievementBadge]);
 
   const handleFocusComplete = useCallback(() => {
-    completeActivity('adhd-focus-sprint', 'adhd', 5, 12);
+    const focusDuration = dailyActivities.find((activity) => activity.id === 'adhd-focus-sprint')?.durationMinutes ?? 12;
+    completeActivity('adhd-focus-sprint', 'adhd', 5, focusDuration);
     setShowFocusTimer(false);
     setCelebration('Focus sprint complete! +5 stars');
     window.setTimeout(() => setCelebration(null), 4000);
-  }, [completeActivity]);
+  }, [completeActivity, dailyActivities]);
 
   const handleJournalClose = useCallback(() => {
     setShowJournal(false);
@@ -194,6 +209,7 @@ const ChildDashboardPage: React.FC = () => {
 
         {neuroTypes.includes('adhd') && (
           <>
+            <AdhdEnergyPacingPanel />
             <AdhdSupportSignalsPanel />
             <AchievementBadgesPanel />
           </>
@@ -277,7 +293,10 @@ const ChildDashboardPage: React.FC = () => {
               <NeuroZoneCard
                 key={neuroId}
                 neuroId={neuroId}
-                activities={getDailyActivitiesForNeuro(neuroId)}
+                activities={adaptAdhdActivitiesForEnergy(
+                  getDailyActivitiesForNeuro(neuroId),
+                  todayEnergyPacing,
+                )}
                 onStartActivity={handleStartActivity}
               />
             ))}
@@ -319,7 +338,7 @@ const ChildDashboardPage: React.FC = () => {
 
       {showFocusTimer && (
         <FocusTimerModal
-          durationMinutes={12}
+          durationMinutes={dailyActivities.find((activity) => activity.id === 'adhd-focus-sprint')?.durationMinutes ?? 12}
           onClose={() => setShowFocusTimer(false)}
           onComplete={handleFocusComplete}
         />

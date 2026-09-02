@@ -3,13 +3,16 @@ import { ArrowDown, ArrowUp, Check, Star, X, Zap } from 'lucide-react';
 import type { NeuroActivity } from 'features/child/data/neuroDashboardContent';
 import type {
   AchievementBadgeInput,
+  AdhdEnergyPacingInput,
   AdhdSupportSignalInput,
 } from 'features/child/store/childProgressStore';
+import AdhdEnergyCheckInActivity from './AdhdEnergyCheckInActivity';
 import AdhdMovementBurstActivity from './AdhdMovementBurstActivity';
 import AdhdQuestChainActivity from './AdhdQuestChainActivity';
 
 export interface ActivitySessionResult {
   adhdSupportSignal?: AdhdSupportSignalInput;
+  adhdEnergyPacing?: AdhdEnergyPacingInput;
   achievementBadge?: AchievementBadgeInput;
 }
 
@@ -663,6 +666,17 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       );
     }
 
+    if (activity.id === 'adhd-mood-check') {
+      return (
+        <AdhdEnergyCheckInActivity
+          onComplete={(pacing, signal) => onComplete({
+            adhdEnergyPacing: pacing,
+            adhdSupportSignal: signal,
+          })}
+        />
+      );
+    }
+
     return (
       <div className="rounded-2xl bg-adapt-mist/60 p-4 dark:bg-gray-800/60">
         <p className="text-xs font-semibold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
@@ -709,7 +723,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
           <p className="text-xs text-slate-400 italic">{activity.inspiration}</p>
 
-          {!['adhd-movement-burst', 'adhd-quest-chain'].includes(activity.id) ? (
+          {!['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check'].includes(activity.id) ? (
             <button
               type="button"
               onClick={handleCompleteClick}

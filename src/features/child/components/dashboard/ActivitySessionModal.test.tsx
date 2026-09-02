@@ -149,6 +149,33 @@ describe('ActivitySessionModal ADHD results', () => {
     });
   });
 
+  it('hands an Energy Check-In pacing plan and support signal back to the dashboard', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('adhd-mood-check')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /^low battery/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use this pacing plan' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      adhdEnergyPacing: expect.objectContaining({
+        energyId: 'low',
+        taskMinutes: 5,
+        breakMinutes: 3,
+      }),
+      adhdSupportSignal: expect.objectContaining({
+        energyId: 'low',
+        energyLabel: 'Low battery',
+        rescueReason: 'energy check-in',
+      }),
+    });
+  });
+
   it('does not invent a support signal for a generic activity', () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
     completeActivity('dyslexia-read-aloud', onComplete);

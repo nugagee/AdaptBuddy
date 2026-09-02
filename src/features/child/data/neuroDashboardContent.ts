@@ -241,7 +241,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     id: 'adhd-focus-sprint',
     neuroId: 'adhd',
     title: 'Focus Sprint 🎯',
-    description: '12-minute hyper-focus window with one clear micro-goal',
+    description: 'A short hyper-focus window with one clear micro-goal',
     durationMinutes: 12,
     category: 'focus',
     icon: Timer,
@@ -312,8 +312,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     durationMinutes: 2,
     category: 'regulation',
     icon: Heart,
-    inspiration: 'Mood-adaptive pacing (Vedyx Leap)',
-    action: 'journal',
+    inspiration: 'Energy-aware pacing with shorter demands and predictable recovery time',
     starsReward: 2,
   },
 
@@ -659,7 +658,7 @@ export function getDailyActivitiesForNeuro(neuroId: string, daySeed = new Date()
   const start = daySeed % pool.length;
   const picked = [pool[start], pool[(start + 1) % pool.length]];
   if (neuroId === 'adhd') {
-    ['adhd-focus-coach', 'adhd-task-breakdown', 'adhd-break-prescription'].forEach((activityId) => {
+    ['adhd-focus-coach', 'adhd-task-breakdown', 'adhd-break-prescription', 'adhd-mood-check'].forEach((activityId) => {
       if (picked.some((activity) => activity.id === activityId)) return;
       const activity = pool.find((item) => item.id === activityId);
       if (activity) picked.push(activity);

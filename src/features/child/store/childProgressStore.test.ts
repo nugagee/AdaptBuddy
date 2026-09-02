@@ -18,6 +18,7 @@ const resetProgressStore = () => {
     metricValues: [],
     adhdSupportSignals: [],
     achievementBadges: [],
+    adhdEnergyPacing: null,
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -126,5 +127,28 @@ describe('childProgressStore ADHD support signals', () => {
         unlockedAt: '2026-09-01T09:30:00.000Z',
       },
     ]);
+  });
+
+  it('stores only today\'s active ADHD pacing plan', () => {
+    const pacing = {
+      energyId: 'low',
+      energyLabel: 'Low battery',
+      emoji: '🪫',
+      taskMinutes: 5,
+      breakMinutes: 3,
+      recommendationMood: 'tired',
+      plan: 'Use a short task and a proper reset.',
+      firstStep: 'Choose the easiest visible action.',
+    };
+
+    useChildProgressStore.getState().setAdhdEnergyPacing(pacing);
+
+    expect(useChildProgressStore.getState().getTodayAdhdEnergyPacing()).toEqual({
+      ...pacing,
+      checkedAt: '2026-09-01T09:30:00.000Z',
+    });
+
+    jest.setSystemTime(new Date('2026-09-02T09:30:00.000Z'));
+    expect(useChildProgressStore.getState().getTodayAdhdEnergyPacing()).toBeNull();
   });
 });

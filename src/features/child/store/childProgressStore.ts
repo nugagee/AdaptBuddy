@@ -43,11 +43,27 @@ export interface AchievementBadge extends AchievementBadgeInput {
   unlockedAt: string;
 }
 
+export interface AdhdEnergyPacingInput {
+  energyId: string;
+  energyLabel: string;
+  emoji: string;
+  taskMinutes: number;
+  breakMinutes: number;
+  recommendationMood: string;
+  plan: string;
+  firstStep: string;
+}
+
+export interface AdhdEnergyPacing extends AdhdEnergyPacingInput {
+  checkedAt: string;
+}
+
 interface ChildProgressState {
   completions: ActivityCompletion[];
   metricValues: NeuroMetricSnapshot[];
   adhdSupportSignals: AdhdSupportSignal[];
   achievementBadges: AchievementBadge[];
+  adhdEnergyPacing: AdhdEnergyPacing | null;
   starsTotal: number;
   streakDays: number;
   lastActiveDate: string;
@@ -65,6 +81,8 @@ interface ChildProgressState {
   addAdhdSupportSignal: (activityId: string, signal: AdhdSupportSignalInput) => void;
   getTodayAdhdSupportSignals: () => AdhdSupportSignal[];
   unlockAchievementBadge: (badge: AchievementBadgeInput) => void;
+  setAdhdEnergyPacing: (pacing: AdhdEnergyPacingInput) => void;
+  getTodayAdhdEnergyPacing: () => AdhdEnergyPacing | null;
   getNeuroMetricValue: (neuroId: string) => number;
   incrementNeuroMetric: (neuroId: string, amount?: number) => void;
   setTodayMood: (mood: string) => void;
@@ -120,6 +138,7 @@ export const useChildProgressStore = create<ChildProgressState>()(
       metricValues: [],
       adhdSupportSignals: [],
       achievementBadges: [],
+      adhdEnergyPacing: null,
       starsTotal: 0,
       streakDays: 0,
       lastActiveDate: '',
@@ -193,6 +212,15 @@ export const useChildProgressStore = create<ChildProgressState>()(
             ...state.achievementBadges,
           ],
         }));
+      },
+
+      setAdhdEnergyPacing: (pacing) => {
+        set({ adhdEnergyPacing: { ...pacing, checkedAt: new Date().toISOString() } });
+      },
+
+      getTodayAdhdEnergyPacing: () => {
+        const pacing = get().adhdEnergyPacing;
+        return pacing?.checkedAt.startsWith(todayKey()) ? pacing : null;
       },
 
       getNeuroMetricValue: (neuroId) => {

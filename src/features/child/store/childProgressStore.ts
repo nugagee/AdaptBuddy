@@ -59,18 +59,33 @@ export interface AdhdEnergyPacing extends AdhdEnergyPacingInput {
 }
 
 export interface DyslexiaReadingSessionInput {
+  activityId?: 'dyslexia-read-aloud' | 'dyslexia-overlay-read';
   passageId: string;
   passageTitle: string;
   sentencesCompleted: number;
   totalSentences: number;
   wordsRead: number;
-  speechRate: number;
+  speechRate?: number;
+  comfortRating?: 'comfortable' | 'okay' | 'change';
   supportsUsed: string[];
 }
 
 export interface DyslexiaReadingSession extends DyslexiaReadingSessionInput {
   id: string;
   createdAt: string;
+}
+
+export interface DyslexiaReaderPreferencesInput {
+  overlay: 'white' | 'cream' | 'blue' | 'mint' | 'rose';
+  textSize: 'medium' | 'large' | 'extra-large';
+  lineSpacing: 'comfortable' | 'wide' | 'extra-wide';
+  lineWidth: 'narrow' | 'medium' | 'wide';
+  readingRuler: boolean;
+  dyslexiaFont: boolean;
+}
+
+export interface DyslexiaReaderPreferences extends DyslexiaReaderPreferencesInput {
+  updatedAt: string;
 }
 
 interface ChildProgressState {
@@ -80,6 +95,7 @@ interface ChildProgressState {
   achievementBadges: AchievementBadge[];
   adhdEnergyPacing: AdhdEnergyPacing | null;
   dyslexiaReadingSessions: DyslexiaReadingSession[];
+  dyslexiaReaderPreferences: DyslexiaReaderPreferences | null;
   starsTotal: number;
   streakDays: number;
   lastActiveDate: string;
@@ -101,6 +117,7 @@ interface ChildProgressState {
   getTodayAdhdEnergyPacing: () => AdhdEnergyPacing | null;
   addDyslexiaReadingSession: (session: DyslexiaReadingSessionInput) => void;
   getTodayDyslexiaReadingSessions: () => DyslexiaReadingSession[];
+  setDyslexiaReaderPreferences: (preferences: DyslexiaReaderPreferencesInput) => void;
   getNeuroMetricValue: (neuroId: string) => number;
   incrementNeuroMetric: (neuroId: string, amount?: number) => void;
   setTodayMood: (mood: string) => void;
@@ -158,6 +175,7 @@ export const useChildProgressStore = create<ChildProgressState>()(
       achievementBadges: [],
       adhdEnergyPacing: null,
       dyslexiaReadingSessions: [],
+      dyslexiaReaderPreferences: null,
       starsTotal: 0,
       streakDays: 0,
       lastActiveDate: '',
@@ -258,6 +276,15 @@ export const useChildProgressStore = create<ChildProgressState>()(
       getTodayDyslexiaReadingSessions: () => {
         const today = todayKey();
         return get().dyslexiaReadingSessions.filter((session) => session.createdAt.startsWith(today));
+      },
+
+      setDyslexiaReaderPreferences: (preferences) => {
+        set({
+          dyslexiaReaderPreferences: {
+            ...preferences,
+            updatedAt: new Date().toISOString(),
+          },
+        });
       },
 
       getNeuroMetricValue: (neuroId) => {

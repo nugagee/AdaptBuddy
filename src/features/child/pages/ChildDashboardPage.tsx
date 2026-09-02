@@ -49,6 +49,7 @@ const ChildDashboardPage: React.FC = () => {
   const setAdhdEnergyPacing = useChildProgressStore((s) => s.setAdhdEnergyPacing);
   const adhdEnergyPacing = useChildProgressStore((s) => s.adhdEnergyPacing);
   const addDyslexiaReadingSession = useChildProgressStore((s) => s.addDyslexiaReadingSession);
+  const setDyslexiaReaderPreferences = useChildProgressStore((s) => s.setDyslexiaReaderPreferences);
   const setTodayMood = useChildProgressStore((s) => s.setTodayMood);
   const completions = useChildProgressStore((s) => s.completions);
 
@@ -130,6 +131,9 @@ const ChildDashboardPage: React.FC = () => {
     if (result?.dyslexiaReadingSession) {
       addDyslexiaReadingSession(result.dyslexiaReadingSession);
     }
+    if (result?.dyslexiaReaderPreferences) {
+      setDyslexiaReaderPreferences(result.dyslexiaReaderPreferences);
+    }
     setCelebration(
       result?.achievementBadge
         ? `${result.achievementBadge.emoji} ${result.achievementBadge.title} badge unlocked! +${activeActivity.starsReward} stars`
@@ -137,7 +141,7 @@ const ChildDashboardPage: React.FC = () => {
     );
     setActiveActivity(null);
     window.setTimeout(() => setCelebration(null), 4000);
-  }, [activeActivity, addAdhdSupportSignal, addDyslexiaReadingSession, childId, completeActivity, setAdhdEnergyPacing, unlockAchievementBadge]);
+  }, [activeActivity, addAdhdSupportSignal, addDyslexiaReadingSession, childId, completeActivity, setAdhdEnergyPacing, setDyslexiaReaderPreferences, unlockAchievementBadge]);
 
   const handleFocusComplete = useCallback(() => {
     const focusDuration = dailyActivities.find((activity) => activity.id === 'adhd-focus-sprint')?.durationMinutes ?? 12;

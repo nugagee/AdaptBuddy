@@ -5,11 +5,13 @@ import type {
   AchievementBadgeInput,
   AdhdEnergyPacingInput,
   AdhdSupportSignalInput,
+  DyslexiaReaderPreferencesInput,
   DyslexiaReadingSessionInput,
 } from 'features/child/store/childProgressStore';
 import AdhdEnergyCheckInActivity from './AdhdEnergyCheckInActivity';
 import AdhdMovementBurstActivity from './AdhdMovementBurstActivity';
 import AdhdQuestChainActivity from './AdhdQuestChainActivity';
+import DyslexiaOverlayReaderActivity from './DyslexiaOverlayReaderActivity';
 import DyslexiaReadAloudActivity from './DyslexiaReadAloudActivity';
 
 export interface ActivitySessionResult {
@@ -17,6 +19,7 @@ export interface ActivitySessionResult {
   adhdEnergyPacing?: AdhdEnergyPacingInput;
   achievementBadge?: AchievementBadgeInput;
   dyslexiaReadingSession?: DyslexiaReadingSessionInput;
+  dyslexiaReaderPreferences?: DyslexiaReaderPreferencesInput;
 }
 
 const ADHD_ENERGY_OPTIONS = [
@@ -688,6 +691,17 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       );
     }
 
+    if (activity.id === 'dyslexia-overlay-read') {
+      return (
+        <DyslexiaOverlayReaderActivity
+          onComplete={(session, preferences) => onComplete({
+            dyslexiaReadingSession: session,
+            dyslexiaReaderPreferences: preferences,
+          })}
+        />
+      );
+    }
+
     return (
       <div className="rounded-2xl bg-adapt-mist/60 p-4 dark:bg-gray-800/60">
         <p className="text-xs font-semibold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
@@ -734,7 +748,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
           <p className="text-xs text-slate-400 italic">{activity.inspiration}</p>
 
-          {!['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check', 'dyslexia-read-aloud'].includes(activity.id) ? (
+          {!['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check', 'dyslexia-read-aloud', 'dyslexia-overlay-read'].includes(activity.id) ? (
             <button
               type="button"
               onClick={handleCompleteClick}

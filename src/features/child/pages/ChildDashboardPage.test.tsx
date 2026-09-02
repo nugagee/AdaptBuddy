@@ -50,6 +50,7 @@ const resetProgressStore = () => {
     achievementBadges: [],
     adhdEnergyPacing: null,
     dyslexiaReadingSessions: [],
+    dyslexiaReaderPreferences: null,
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -237,6 +238,57 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
         expect.objectContaining({
           activityId: 'dyslexia-read-aloud',
           starsEarned: 4,
+        }),
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('persists Colored Overlay Reader progress and comfort preferences', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-02T10:00:00.000Z'));
+    mockNeuroTypes = ['dyslexia'];
+
+    try {
+      render(
+        <MemoryRouter>
+          <ChildDashboardPage />
+        </MemoryRouter>,
+      );
+
+      const overlayCard = screen
+        .getByRole('heading', { name: 'Colored Overlay Reader' })
+        .closest('li');
+      if (!overlayCard) throw new Error('Could not find the Colored Overlay Reader card');
+
+      fireEvent.click(within(overlayCard).getByRole('button', { name: 'Start' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Blue' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Extra large' }));
+      fireEvent.click(screen.getByRole('button', { name: 'I read this line' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save partial overlay reading' }));
+
+      const progress = useChildProgressStore.getState();
+      expect(progress.dyslexiaReadingSessions).toEqual([
+        expect.objectContaining({
+          activityId: 'dyslexia-overlay-read',
+          passageId: 'moon-garden',
+          sentencesCompleted: 1,
+          wordsRead: 7,
+        }),
+      ]);
+      expect(progress.dyslexiaReaderPreferences).toEqual(
+        expect.objectContaining({
+          overlay: 'blue',
+          textSize: 'extra-large',
+          readingRuler: true,
+          updatedAt: '2026-09-02T10:00:00.000Z',
+        }),
+      );
+      expect(progress.completions).toEqual([
+        expect.objectContaining({
+          activityId: 'dyslexia-overlay-read',
+          starsEarned: 3,
         }),
       ]);
     } finally {

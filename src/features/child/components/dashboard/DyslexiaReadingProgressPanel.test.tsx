@@ -7,7 +7,10 @@ describe('DyslexiaReadingProgressPanel', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-09-02T09:30:00.000Z'));
-    useChildProgressStore.setState({ dyslexiaReadingSessions: [] });
+    useChildProgressStore.setState({
+      dyslexiaReadingSessions: [],
+      dyslexiaReaderPreferences: null,
+    });
   });
 
   afterEach(() => {
@@ -36,5 +39,32 @@ describe('DyslexiaReadingProgressPanel', () => {
     expect(screen.getByText('4')).toBeInTheDocument();
     expect(screen.getByText('read aloud')).toBeInTheDocument();
     expect(screen.getByText('cream overlay')).toBeInTheDocument();
+  });
+
+  it('shows the saved overlay reader comfort setup', () => {
+    useChildProgressStore.getState().setDyslexiaReaderPreferences({
+      overlay: 'mint',
+      textSize: 'extra-large',
+      lineSpacing: 'extra-wide',
+      lineWidth: 'narrow',
+      readingRuler: true,
+      dyslexiaFont: true,
+    });
+    useChildProgressStore.getState().addDyslexiaReadingSession({
+      activityId: 'dyslexia-overlay-read',
+      passageId: 'brave-little-boat',
+      passageTitle: 'The Brave Little Boat',
+      sentencesCompleted: 2,
+      totalSentences: 4,
+      wordsRead: 18,
+      comfortRating: 'comfortable',
+      supportsUsed: ['mint overlay', 'reading ruler'],
+    });
+
+    render(<DyslexiaReadingProgressPanel />);
+
+    expect(screen.getByText('Latest comfort reading')).toBeInTheDocument();
+    expect(screen.getByText('Saved comfort setup')).toBeInTheDocument();
+    expect(screen.getByText(/mint page.*extra large text.*reading ruler/i)).toBeInTheDocument();
   });
 });

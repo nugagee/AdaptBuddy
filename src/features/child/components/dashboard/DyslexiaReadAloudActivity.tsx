@@ -222,6 +222,7 @@ const DyslexiaReadAloudActivity: React.FC<DyslexiaReadAloudActivityProps> = ({ o
 
     stopSpeech();
     onComplete({
+      activityId: 'dyslexia-read-aloud',
       passageId: passage.id,
       passageTitle: passage.title,
       sentencesCompleted: completedSentences.length,

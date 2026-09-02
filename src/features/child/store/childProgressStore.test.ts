@@ -20,6 +20,7 @@ const resetProgressStore = () => {
     achievementBadges: [],
     adhdEnergyPacing: null,
     dyslexiaReadingSessions: [],
+    dyslexiaReaderPreferences: null,
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -174,5 +175,26 @@ describe('childProgressStore ADHD support signals', () => {
         createdAt: '2026-09-01T09:30:00.000Z',
       }),
     ]);
+  });
+
+  it('remembers the latest Dyslexia comfort reader setup', () => {
+    useChildProgressStore.getState().setDyslexiaReaderPreferences({
+      overlay: 'blue',
+      textSize: 'extra-large',
+      lineSpacing: 'extra-wide',
+      lineWidth: 'narrow',
+      readingRuler: true,
+      dyslexiaFont: true,
+    });
+
+    expect(useChildProgressStore.getState().dyslexiaReaderPreferences).toEqual({
+      overlay: 'blue',
+      textSize: 'extra-large',
+      lineSpacing: 'extra-wide',
+      lineWidth: 'narrow',
+      readingRuler: true,
+      dyslexiaFont: true,
+      updatedAt: '2026-09-01T09:30:00.000Z',
+    });
   });
 });

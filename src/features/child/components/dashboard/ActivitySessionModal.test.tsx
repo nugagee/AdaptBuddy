@@ -199,9 +199,37 @@ describe('ActivitySessionModal ADHD results', () => {
     });
   });
 
+  it('hands Colored Overlay Reader progress and preferences back to the dashboard', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('dyslexia-overlay-read')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Blue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'I read this line' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save partial overlay reading' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      dyslexiaReadingSession: expect.objectContaining({
+        activityId: 'dyslexia-overlay-read',
+        passageId: 'moon-garden',
+        sentencesCompleted: 1,
+        wordsRead: 7,
+      }),
+      dyslexiaReaderPreferences: expect.objectContaining({
+        overlay: 'blue',
+        readingRuler: true,
+      }),
+    });
+  });
+
   it('does not invent a support signal for a generic activity', () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
-    completeActivity('dyslexia-overlay-read', onComplete);
+    completeActivity('dyscalculia-number-line', onComplete);
     expect(onComplete).toHaveBeenCalledWith();
   });
 });

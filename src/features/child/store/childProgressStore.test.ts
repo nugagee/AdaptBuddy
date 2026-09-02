@@ -19,6 +19,7 @@ const resetProgressStore = () => {
     adhdSupportSignals: [],
     achievementBadges: [],
     adhdEnergyPacing: null,
+    dyslexiaReadingSessions: [],
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -150,5 +151,28 @@ describe('childProgressStore ADHD support signals', () => {
 
     jest.setSystemTime(new Date('2026-09-02T09:30:00.000Z'));
     expect(useChildProgressStore.getState().getTodayAdhdEnergyPacing()).toBeNull();
+  });
+
+  it('records structured dyslexia reading progress for today', () => {
+    useChildProgressStore.getState().addDyslexiaReadingSession({
+      passageId: 'moon-garden',
+      passageTitle: 'The Moon Garden',
+      sentencesCompleted: 3,
+      totalSentences: 4,
+      wordsRead: 24,
+      speechRate: 0.8,
+      supportsUsed: ['read aloud', 'cream overlay'],
+    });
+
+    expect(useChildProgressStore.getState().getTodayDyslexiaReadingSessions()).toEqual([
+      expect.objectContaining({
+        passageId: 'moon-garden',
+        sentencesCompleted: 3,
+        totalSentences: 4,
+        wordsRead: 24,
+        supportsUsed: ['read aloud', 'cream overlay'],
+        createdAt: '2026-09-01T09:30:00.000Z',
+      }),
+    ]);
   });
 });

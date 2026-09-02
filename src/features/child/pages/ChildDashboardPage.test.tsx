@@ -5,12 +5,14 @@ import { syncAdhdSupportSignal } from 'features/child/services/adhdSupportSignal
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
 import ChildDashboardPage from './ChildDashboardPage';
 
+let mockNeuroTypes = ['adhd'];
+
 jest.mock('hooks/useAuth', () => ({
   useAuth: () => ({
     profile: {
       id: 'child-123',
       first_name: 'Ari',
-      neuro_types: ['adhd'],
+      neuro_types: mockNeuroTypes,
     },
   }),
 }));
@@ -30,6 +32,7 @@ jest.mock('features/child/components/dashboard/FocusTimerModal', () => () => nul
 jest.mock('features/child/components/dashboard/AdhdSupportSignalsPanel', () => () => null);
 jest.mock('features/child/components/dashboard/AdhdEnergyPacingPanel', () => () => null);
 jest.mock('features/child/components/dashboard/AchievementBadgesPanel', () => () => null);
+jest.mock('features/child/components/dashboard/DyslexiaReadingProgressPanel', () => () => null);
 jest.mock('features/child/components/dashboard/ChildClassroomPanel', () => () => null);
 jest.mock('features/child/components/dashboard/TeacherAssignmentsPanel', () => () => null);
 jest.mock('features/child/components/NowNextLaterBoard', () => () => null);
@@ -46,6 +49,7 @@ const resetProgressStore = () => {
     adhdSupportSignals: [],
     achievementBadges: [],
     adhdEnergyPacing: null,
+    dyslexiaReadingSessions: [],
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -56,6 +60,7 @@ const resetProgressStore = () => {
 
 describe('ChildDashboardPage ADHD signal handoff', () => {
   beforeEach(() => {
+    mockNeuroTypes = ['adhd'];
     window.localStorage.clear();
     resetProgressStore();
     mockSyncAdhdSupportSignal.mockReset();
@@ -197,5 +202,45 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
         }),
       );
     });
+  });
+
+  it('persists Read-Aloud Adventure progress after the reader closes', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-02T09:30:00.000Z'));
+    mockNeuroTypes = ['dyslexia'];
+
+    try {
+      render(
+        <MemoryRouter>
+          <ChildDashboardPage />
+        </MemoryRouter>,
+      );
+
+      const readAloudCard = screen
+        .getByRole('heading', { name: 'Read-Aloud Adventure' })
+        .closest('li');
+      if (!readAloudCard) throw new Error('Could not find the Read-Aloud Adventure card');
+
+      fireEvent.click(within(readAloudCard).getByRole('button', { name: 'Start' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Mark sentence complete' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save partial reading' }));
+
+      expect(useChildProgressStore.getState().dyslexiaReadingSessions).toEqual([
+        expect.objectContaining({
+          passageId: 'moon-garden',
+          sentencesCompleted: 1,
+          totalSentences: 4,
+          wordsRead: 7,
+        }),
+      ]);
+      expect(useChildProgressStore.getState().completions).toEqual([
+        expect.objectContaining({
+          activityId: 'dyslexia-read-aloud',
+          starsEarned: 4,
+        }),
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

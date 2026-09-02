@@ -16,6 +16,7 @@ import ActivitySessionModal, {
 import AdhdSupportSignalsPanel from 'features/child/components/dashboard/AdhdSupportSignalsPanel';
 import AdhdEnergyPacingPanel from 'features/child/components/dashboard/AdhdEnergyPacingPanel';
 import AchievementBadgesPanel from 'features/child/components/dashboard/AchievementBadgesPanel';
+import DyslexiaReadingProgressPanel from 'features/child/components/dashboard/DyslexiaReadingProgressPanel';
 import ChildClassroomPanel from 'features/child/components/dashboard/ChildClassroomPanel';
 import TeacherAssignmentsPanel from 'features/child/components/dashboard/TeacherAssignmentsPanel';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
@@ -47,6 +48,7 @@ const ChildDashboardPage: React.FC = () => {
   const unlockAchievementBadge = useChildProgressStore((s) => s.unlockAchievementBadge);
   const setAdhdEnergyPacing = useChildProgressStore((s) => s.setAdhdEnergyPacing);
   const adhdEnergyPacing = useChildProgressStore((s) => s.adhdEnergyPacing);
+  const addDyslexiaReadingSession = useChildProgressStore((s) => s.addDyslexiaReadingSession);
   const setTodayMood = useChildProgressStore((s) => s.setTodayMood);
   const completions = useChildProgressStore((s) => s.completions);
 
@@ -125,6 +127,9 @@ const ChildDashboardPage: React.FC = () => {
     if (result?.adhdEnergyPacing) {
       setAdhdEnergyPacing(result.adhdEnergyPacing);
     }
+    if (result?.dyslexiaReadingSession) {
+      addDyslexiaReadingSession(result.dyslexiaReadingSession);
+    }
     setCelebration(
       result?.achievementBadge
         ? `${result.achievementBadge.emoji} ${result.achievementBadge.title} badge unlocked! +${activeActivity.starsReward} stars`
@@ -132,7 +137,7 @@ const ChildDashboardPage: React.FC = () => {
     );
     setActiveActivity(null);
     window.setTimeout(() => setCelebration(null), 4000);
-  }, [activeActivity, addAdhdSupportSignal, childId, completeActivity, setAdhdEnergyPacing, unlockAchievementBadge]);
+  }, [activeActivity, addAdhdSupportSignal, addDyslexiaReadingSession, childId, completeActivity, setAdhdEnergyPacing, unlockAchievementBadge]);
 
   const handleFocusComplete = useCallback(() => {
     const focusDuration = dailyActivities.find((activity) => activity.id === 'adhd-focus-sprint')?.durationMinutes ?? 12;
@@ -214,6 +219,8 @@ const ChildDashboardPage: React.FC = () => {
             <AchievementBadgesPanel />
           </>
         )}
+
+        {neuroTypes.includes('dyslexia') && <DyslexiaReadingProgressPanel />}
 
         <section className="overflow-hidden rounded-3xl border border-adapt-indigo/20 bg-gradient-to-br from-adapt-indigo/10 via-white to-adapt-purple/10 p-6 shadow-sm dark:border-adapt-cyan/20 dark:from-adapt-cyan/10 dark:via-gray-900 dark:to-adapt-purple/10 sm:p-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -176,9 +176,32 @@ describe('ActivitySessionModal ADHD results', () => {
     });
   });
 
+  it('hands partial Read-Aloud Adventure progress back to the dashboard', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('dyslexia-read-aloud')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark sentence complete' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save partial reading' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      dyslexiaReadingSession: expect.objectContaining({
+        passageId: 'moon-garden',
+        sentencesCompleted: 1,
+        totalSentences: 4,
+        wordsRead: 7,
+      }),
+    });
+  });
+
   it('does not invent a support signal for a generic activity', () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
-    completeActivity('dyslexia-read-aloud', onComplete);
+    completeActivity('dyslexia-overlay-read', onComplete);
     expect(onComplete).toHaveBeenCalledWith();
   });
 });

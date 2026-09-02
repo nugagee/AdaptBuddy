@@ -58,12 +58,28 @@ export interface AdhdEnergyPacing extends AdhdEnergyPacingInput {
   checkedAt: string;
 }
 
+export interface DyslexiaReadingSessionInput {
+  passageId: string;
+  passageTitle: string;
+  sentencesCompleted: number;
+  totalSentences: number;
+  wordsRead: number;
+  speechRate: number;
+  supportsUsed: string[];
+}
+
+export interface DyslexiaReadingSession extends DyslexiaReadingSessionInput {
+  id: string;
+  createdAt: string;
+}
+
 interface ChildProgressState {
   completions: ActivityCompletion[];
   metricValues: NeuroMetricSnapshot[];
   adhdSupportSignals: AdhdSupportSignal[];
   achievementBadges: AchievementBadge[];
   adhdEnergyPacing: AdhdEnergyPacing | null;
+  dyslexiaReadingSessions: DyslexiaReadingSession[];
   starsTotal: number;
   streakDays: number;
   lastActiveDate: string;
@@ -83,6 +99,8 @@ interface ChildProgressState {
   unlockAchievementBadge: (badge: AchievementBadgeInput) => void;
   setAdhdEnergyPacing: (pacing: AdhdEnergyPacingInput) => void;
   getTodayAdhdEnergyPacing: () => AdhdEnergyPacing | null;
+  addDyslexiaReadingSession: (session: DyslexiaReadingSessionInput) => void;
+  getTodayDyslexiaReadingSessions: () => DyslexiaReadingSession[];
   getNeuroMetricValue: (neuroId: string) => number;
   incrementNeuroMetric: (neuroId: string, amount?: number) => void;
   setTodayMood: (mood: string) => void;
@@ -139,6 +157,7 @@ export const useChildProgressStore = create<ChildProgressState>()(
       adhdSupportSignals: [],
       achievementBadges: [],
       adhdEnergyPacing: null,
+      dyslexiaReadingSessions: [],
       starsTotal: 0,
       streakDays: 0,
       lastActiveDate: '',
@@ -221,6 +240,24 @@ export const useChildProgressStore = create<ChildProgressState>()(
       getTodayAdhdEnergyPacing: () => {
         const pacing = get().adhdEnergyPacing;
         return pacing?.checkedAt.startsWith(todayKey()) ? pacing : null;
+      },
+
+      addDyslexiaReadingSession: (session) => {
+        set((state) => ({
+          dyslexiaReadingSessions: [
+            {
+              ...session,
+              id: createId(),
+              createdAt: new Date().toISOString(),
+            },
+            ...state.dyslexiaReadingSessions,
+          ].slice(0, 30),
+        }));
+      },
+
+      getTodayDyslexiaReadingSessions: () => {
+        const today = todayKey();
+        return get().dyslexiaReadingSessions.filter((session) => session.createdAt.startsWith(today));
       },
 
       getNeuroMetricValue: (neuroId) => {

@@ -51,6 +51,7 @@ const resetProgressStore = () => {
     adhdEnergyPacing: null,
     dyslexiaReadingSessions: [],
     dyslexiaReaderPreferences: null,
+    dyslexiaPhonicsSessions: [],
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -289,6 +290,50 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
         expect.objectContaining({
           activityId: 'dyslexia-overlay-read',
           starsEarned: 3,
+        }),
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('persists Phonics Trace & Say practice from the dashboard activity', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-01T10:30:00.000Z'));
+    mockNeuroTypes = ['dyslexia'];
+
+    try {
+      render(
+        <MemoryRouter>
+          <ChildDashboardPage />
+        </MemoryRouter>,
+      );
+
+      const phonicsCard = screen
+        .getByRole('heading', { name: 'Phonics Trace & Say' })
+        .closest('li');
+      if (!phonicsCard) throw new Error('Could not find the Phonics Trace & Say card');
+
+      fireEvent.click(within(phonicsCard).getByRole('button', { name: 'Start' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Hear mmm' }));
+      fireEvent.click(screen.getByRole('button', { name: 'My trace is ready' }));
+      fireEvent.click(screen.getByRole('button', { name: 'I said mmm' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Complete m mission' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save phonics practice' }));
+
+      const progress = useChildProgressStore.getState();
+      expect(progress.dyslexiaPhonicsSessions).toEqual([
+        expect.objectContaining({
+          completedSoundIds: ['m-moon'],
+          completedSounds: ['mmm'],
+          wordsPractised: ['moon'],
+          totalSounds: 4,
+        }),
+      ]);
+      expect(progress.completions).toEqual([
+        expect.objectContaining({
+          activityId: 'dyslexia-phonics-trace',
+          starsEarned: 4,
         }),
       ]);
     } finally {

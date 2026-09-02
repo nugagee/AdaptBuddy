@@ -10,6 +10,7 @@ describe('DyslexiaReadingProgressPanel', () => {
     useChildProgressStore.setState({
       dyslexiaReadingSessions: [],
       dyslexiaReaderPreferences: null,
+      dyslexiaPhonicsSessions: [],
     });
   });
 
@@ -66,5 +67,54 @@ describe('DyslexiaReadingProgressPanel', () => {
     expect(screen.getByText('Latest comfort reading')).toBeInTheDocument();
     expect(screen.getByText('Saved comfort setup')).toBeInTheDocument();
     expect(screen.getByText(/mint page.*extra large text.*reading ruler/i)).toBeInTheDocument();
+  });
+
+  it('shows phonics progress even before a reading session', () => {
+    useChildProgressStore.getState().addDyslexiaPhonicsSession({
+      completedSoundIds: ['m-moon'],
+      completedSounds: ['mmm'],
+      wordsPractised: ['moon'],
+      totalSounds: 4,
+      listenCount: 1,
+      confidence: 'practised',
+      supportsUsed: ['sound playback', 'letter tracing'],
+    });
+
+    render(<DyslexiaReadingProgressPanel />);
+
+    expect(screen.getByText('Latest phonics practice')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'mmm sounds' })).toBeInTheDocument();
+    const soundsCard = screen.getByText('sounds today').closest('div');
+    expect(soundsCard).toHaveTextContent('1');
+    expect(screen.getByText('letter tracing')).toBeInTheDocument();
+  });
+
+  it('uses timestamps to show the most recent Dyslexia activity type', () => {
+    useChildProgressStore.getState().addDyslexiaReadingSession({
+      activityId: 'dyslexia-read-aloud',
+      passageId: 'moon-garden',
+      passageTitle: 'The Moon Garden',
+      sentencesCompleted: 1,
+      totalSentences: 4,
+      wordsRead: 7,
+      speechRate: 0.9,
+      supportsUsed: ['read aloud'],
+    });
+    jest.setSystemTime(new Date('2026-09-02T10:00:00.000Z'));
+    useChildProgressStore.getState().addDyslexiaPhonicsSession({
+      completedSoundIds: ['s-sun'],
+      completedSounds: ['sss'],
+      wordsPractised: ['sun'],
+      totalSounds: 4,
+      listenCount: 1,
+      confidence: 'confident',
+      supportsUsed: ['word chunks'],
+    });
+
+    render(<DyslexiaReadingProgressPanel />);
+
+    expect(screen.getByText('Latest phonics practice')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'sss sounds' })).toBeInTheDocument();
+    expect(screen.getByText('word chunks')).toBeInTheDocument();
   });
 });

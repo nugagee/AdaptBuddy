@@ -227,6 +227,32 @@ describe('ActivitySessionModal ADHD results', () => {
     });
   });
 
+  it('hands Phonics Trace & Say practice back to the dashboard', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('dyslexia-phonics-trace')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hear mmm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'My trace is ready' }));
+    fireEvent.click(screen.getByRole('button', { name: 'I said mmm' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Complete m mission' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save phonics practice' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      dyslexiaPhonicsSession: expect.objectContaining({
+        completedSoundIds: ['m-moon'],
+        completedSounds: ['mmm'],
+        wordsPractised: ['moon'],
+        totalSounds: 4,
+      }),
+    });
+  });
+
   it('does not invent a support signal for a generic activity', () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
     completeActivity('dyscalculia-number-line', onComplete);

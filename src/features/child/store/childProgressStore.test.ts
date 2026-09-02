@@ -21,6 +21,7 @@ const resetProgressStore = () => {
     adhdEnergyPacing: null,
     dyslexiaReadingSessions: [],
     dyslexiaReaderPreferences: null,
+    dyslexiaPhonicsSessions: [],
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -196,5 +197,27 @@ describe('childProgressStore ADHD support signals', () => {
       dyslexiaFont: true,
       updatedAt: '2026-09-01T09:30:00.000Z',
     });
+  });
+
+  it('records a structured Dyslexia phonics practice session', () => {
+    useChildProgressStore.getState().addDyslexiaPhonicsSession({
+      completedSoundIds: ['m-moon', 's-sun'],
+      completedSounds: ['mmm', 'sss'],
+      wordsPractised: ['moon', 'sun'],
+      totalSounds: 4,
+      listenCount: 3,
+      confidence: 'practised',
+      supportsUsed: ['sound playback', 'letter tracing', 'word chunks'],
+    });
+
+    expect(useChildProgressStore.getState().getTodayDyslexiaPhonicsSessions()).toEqual([
+      expect.objectContaining({
+        completedSoundIds: ['m-moon', 's-sun'],
+        wordsPractised: ['moon', 'sun'],
+        listenCount: 3,
+        confidence: 'practised',
+        createdAt: '2026-09-01T09:30:00.000Z',
+      }),
+    ]);
   });
 });

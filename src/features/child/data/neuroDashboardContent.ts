@@ -337,7 +337,6 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'literacy',
     icon: Hand,
     inspiration: 'Lexy multisensory structured literacy',
-    route: ROUTES.PRONUNCIATION_BUDDY,
     starsReward: 4,
   },
   {

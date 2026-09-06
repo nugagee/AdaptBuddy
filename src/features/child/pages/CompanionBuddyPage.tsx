@@ -1,26 +1,34 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { BookOpen, Heart, MessageCircle, Sparkles } from 'lucide-react';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import LanguageSimplifierPanel from 'features/child/components/companion/LanguageSimplifierPanel';
 import MoodCheckInPanel from 'features/child/components/companion/MoodCheckInPanel';
 import SocialStoryGeneratorPanel from 'features/child/components/companion/SocialStoryGeneratorPanel';
+import BuddyConversationPanel from 'features/child/components/companion/BuddyConversationPanel';
 import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
 import { useAuth } from 'hooks/useAuth';
 
-type BuddyTab = 'simplify' | 'mood' | 'story';
+type BuddyTab = 'talk' | 'simplify' | 'mood' | 'story';
 
 const tabs: { id: BuddyTab; label: string; icon: React.ElementType; description: string }[] = [
   {
+    id: 'talk',
+    label: 'Talk to Buddy',
+    icon: MessageCircle,
+    description: 'Ask for help in your own words',
+  },
+  {
     id: 'simplify',
     label: 'Language Buddy',
-    icon: MessageCircle,
+    icon: Sparkles,
     description: 'Turn confusing words into clear steps',
   },
   {
     id: 'mood',
     label: 'Mood Check-In',
     icon: Heart,
-    description: 'Share how you feel in your safe space',
+    description: 'A private check-in with clear support choices',
   },
   {
     id: 'story',
@@ -31,9 +39,10 @@ const tabs: { id: BuddyTab; label: string; icon: React.ElementType; description:
 ];
 
 const CompanionBuddyPage: React.FC = () => {
+  const location = useLocation();
   const { profile } = useAuth();
   const autismProfile = useAutismProfileStore((s) => s.profile);
-  const [tab, setTab] = useState<BuddyTab>('mood');
+  const [tab, setTab] = useState<BuddyTab>('talk');
   const name = autismProfile.aboutMe?.preferredName || profile?.first_name || 'friend';
 
   const active = tabs.find((t) => t.id === tab)!;
@@ -51,11 +60,11 @@ const CompanionBuddyPage: React.FC = () => {
             Hi {name}, I&apos;m here with you
           </h1>
           <p className="mt-2 text-sm text-slate-600 dark:text-gray-400">
-            Your AI companion — not just tools, but someone who understands you.
+            A calm AI helper for words, feelings, next steps and asking an adult.
           </p>
         </div>
 
-        <div className="mb-6 grid gap-2 sm:grid-cols-3">
+        <div className="mb-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {tabs.map(({ id, label, icon: Icon, description }) => {
             const selected = tab === id;
             return (
@@ -84,6 +93,11 @@ const CompanionBuddyPage: React.FC = () => {
           <h2 className="mb-1 text-lg font-bold text-adapt-navy dark:text-gray-100">{active.label}</h2>
           <p className="mb-6 text-sm text-slate-500 dark:text-gray-400">{active.description}</p>
 
+          {tab === 'talk' && (
+            <BuddyConversationPanel
+              initialMessage={(location.state as { quickMessage?: string } | null)?.quickMessage}
+            />
+          )}
           {tab === 'simplify' && <LanguageSimplifierPanel />}
           {tab === 'mood' && <MoodCheckInPanel />}
           {tab === 'story' && <SocialStoryGeneratorPanel />}

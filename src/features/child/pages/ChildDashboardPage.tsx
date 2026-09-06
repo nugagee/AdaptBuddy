@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Layers, Mic2, Rocket, Sparkles, Volume2 } from 'lucide-react';
+import { BookOpen, Hand, Heart, Mic2, Settings2, Sparkles } from 'lucide-react';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import FeelingsJournal from 'features/child/components/journal/FeelingsJournal';
 import DashboardHero from 'features/child/components/dashboard/DashboardHero';
@@ -149,143 +149,80 @@ const ChildDashboardPage: React.FC = () => {
         </div>
       )}
 
-      <main className="mx-auto max-w-6xl space-y-6 p-4 pb-16 sm:p-6 sm:pb-20">
+      <main className="mx-auto max-w-5xl space-y-6 p-4 pb-16 sm:p-6 sm:pb-20">
         <DashboardHero
           firstName={firstName}
           neuroTypes={neuroTypes}
           todayProgress={todayProgress}
         />
 
-        <DailyOrbitProgress
-          totalActivities={dailyActivities.length}
-          onMoodCheck={() => navigate(ROUTES.COMPANION_BUDDY)}
-        />
+        <section aria-labelledby="start-here-title">
+          <div className="mb-3">
+            <p className="text-sm font-bold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">Start here</p>
+            <h2 id="start-here-title" className="text-2xl font-extrabold text-adapt-navy dark:text-gray-100">What do you need right now?</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => navigate(ROUTES.COMPANION_BUDDY)} className="child-launch-action child-launch-action--buddy">
+              <Sparkles className="h-7 w-7" aria-hidden />
+              <span><strong>Talk to Buddy</strong><small>Ask for help with words or a next step</small></span>
+            </button>
+            <button type="button" onClick={() => setShowJournal(true)} className="child-launch-action child-launch-action--mood">
+              <Heart className="h-7 w-7" aria-hidden />
+              <span><strong>How I feel</strong><small>Choose a feeling or share in your own way</small></span>
+            </button>
+            <button type="button" onClick={() => navigate(ROUTES.PRONUNCIATION_BUDDY)} className="child-launch-action child-launch-action--learn">
+              <Mic2 className="h-7 w-7" aria-hidden />
+              <span><strong>My learning tools</strong><small>Speak, read, write or practise</small></span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(ROUTES.COMPANION_BUDDY, { state: { quickMessage: 'I need help from an adult' } })}
+              className="child-launch-action child-launch-action--help"
+            >
+              <Hand className="h-7 w-7" aria-hidden />
+              <span><strong>I need help</strong><small>Ask a trusted adult to check in</small></span>
+            </button>
+          </div>
+        </section>
 
-        {neuroTypes.includes('autism') && (
-          <NowNextLaterBoard
-            childId={childId}
-            mode="child"
-            compact
-            onActivityComplete={(activity) => {
-              setCelebration(`${activity.emoji} ${activity.label} complete! Great transition.`);
-              window.setTimeout(() => setCelebration(null), 3500);
-            }}
-          />
-        )}
-
-        <ChildClassroomPanel childId={childId} />
-
-        <TeacherAssignmentsPanel
+        <NowNextLaterBoard
           childId={childId}
-          onCelebrate={(message) => {
-            setCelebration(message);
+          mode="child"
+          compact
+          onActivityComplete={(activity) => {
+            setCelebration(`${activity.emoji} ${activity.label} complete! Great transition.`);
             window.setTimeout(() => setCelebration(null), 3500);
           }}
         />
 
-        {neuroTypes.includes('adhd') && <AdhdSupportSignalsPanel />}
+        <DailyOrbitProgress totalActivities={dailyActivities.length} onMoodCheck={() => setShowJournal(true)} />
 
-        <section className="overflow-hidden rounded-3xl border border-adapt-indigo/20 bg-gradient-to-br from-adapt-indigo/10 via-white to-adapt-purple/10 p-6 shadow-sm dark:border-adapt-cyan/20 dark:from-adapt-cyan/10 dark:via-gray-900 dark:to-adapt-purple/10 sm:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-adapt-indigo/15 text-adapt-indigo dark:bg-adapt-cyan/15 dark:text-adapt-cyan">
-                <Sparkles className="h-6 w-6" aria-hidden />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">
-                  Your AI companion
-                </h2>
-                <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
-                  Simplify confusing words, check in on your mood, or create a social story —
-                  AdaptBuddy understands you.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate(ROUTES.COMPANION_BUDDY)}
-              className="shrink-0 rounded-2xl bg-adapt-indigo px-5 py-3 text-sm font-semibold text-white hover:bg-adapt-purple dark:bg-adapt-cyan dark:text-gray-900"
-            >
-              Open AdaptBuddy
-            </button>
+        <details className="child-dashboard-drawer">
+          <summary><BookOpen className="h-5 w-5" aria-hidden /> Classroom and assignments</summary>
+          <div className="space-y-5 pt-5">
+            <ChildClassroomPanel childId={childId} />
+            <TeacherAssignmentsPanel
+              childId={childId}
+              onCelebrate={(message) => {
+                setCelebration(message);
+                window.setTimeout(() => setCelebration(null), 3500);
+              }}
+            />
+            {neuroTypes.includes('adhd') && <AdhdSupportSignalsPanel />}
           </div>
-        </section>
+        </details>
 
-        <section className="overflow-hidden rounded-3xl border border-adapt-teal/25 bg-gradient-to-br from-white via-adapt-teal/10 to-adapt-indigo/10 p-6 shadow-sm dark:border-adapt-cyan/20 dark:from-gray-900 dark:via-adapt-cyan/10 dark:to-adapt-indigo/15 sm:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-adapt-teal/15 text-adapt-teal dark:bg-adapt-cyan/15 dark:text-adapt-cyan">
-                <Mic2 className="h-6 w-6" aria-hidden />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">
-                    Pronunciation Buddy
-                  </h2>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-xs font-bold text-adapt-indigo shadow-sm dark:bg-gray-950/70 dark:text-adapt-cyan">
-                    <Volume2 className="h-3.5 w-3.5" aria-hidden />
-                    Listen & repeat
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
-                  Practise letters, names, classroom words, and helpful sentences with calm
-                  read-aloud and microphone feedback.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate(ROUTES.PRONUNCIATION_BUDDY)}
-              className="shrink-0 rounded-2xl bg-adapt-teal px-5 py-3 text-sm font-semibold text-white hover:bg-adapt-indigo dark:bg-adapt-cyan dark:text-gray-900"
-            >
-              Start speaking
-            </button>
-          </div>
-        </section>
-
-        <section>
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-adapt-indigo/10">
-              <Rocket className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-adapt-navy dark:text-gray-100">
-                Your Neuro Zones
-              </h2>
-              <p className="text-sm text-slate-500 dark:text-gray-400">
-                Daily missions tailored to each profile you selected
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-6">
+        <details className="child-dashboard-drawer">
+          <summary><Settings2 className="h-5 w-5" aria-hidden /> More tools and progress</summary>
+          <div className="space-y-6 pt-5">
             {neuroTypes.map((neuroId) => (
-              <NeuroZoneCard
-                key={neuroId}
-                neuroId={neuroId}
-                activities={getDailyActivitiesForNeuro(neuroId)}
-                onStartActivity={handleStartActivity}
-              />
+              <NeuroZoneCard key={neuroId} neuroId={neuroId} activities={getDailyActivitiesForNeuro(neuroId)} onStartActivity={handleStartActivity} />
             ))}
+            <MetricsConstellation neuroTypes={neuroTypes} />
+            <AccessibilityDock neuroTypes={neuroTypes} />
+            <SmartRecommendationsPanel neuroTypes={neuroTypes} onTryRecommendation={handleRecommendation} />
           </div>
-        </section>
-
-        <MetricsConstellation neuroTypes={neuroTypes} />
-
-        <AccessibilityDock neuroTypes={neuroTypes} />
-
-        <SmartRecommendationsPanel
-          neuroTypes={neuroTypes}
-          onTryRecommendation={handleRecommendation}
-        />
-
-        <section className="rounded-3xl border border-dashed border-adapt-indigo/25 bg-adapt-indigo/5 p-6 text-center dark:border-adapt-cyan/25 dark:bg-adapt-cyan/5">
-          <Layers className="mx-auto mb-2 h-8 w-8 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
-          <p className="text-sm font-medium text-slate-600 dark:text-gray-400">
-            Your dashboard reshapes every day based on mood, progress, and neuro profile —
-            inspired by UDL, Lexy, Vedyx, and AAC best practices.
-          </p>
-        </section>
+        </details>
       </main>
 
       {showJournal && (

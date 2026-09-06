@@ -1,55 +1,42 @@
-const OPENAI_API_KEY = process.env.REACT_APP_OPENAI_API_KEY?.trim();
-const OPENAI_MODEL = process.env.REACT_APP_OPENAI_MODEL?.trim() || 'gpt-4o-mini';
+import type {
+  BuddyChatMessage,
+  BuddyResponse,
+  CompanionContext,
+} from 'features/child/types/companionOnboarding';
 
-export const isOpenAiConfigured = Boolean(OPENAI_API_KEY);
+export type BuddyMode = 'conversation' | 'simplify' | 'story' | 'mood';
 
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
+export const isOpenAiConfigured = process.env.REACT_APP_BUDDY_API_DISABLED !== 'true';
 
-export async function chatCompletion(
-  systemPrompt: string,
-  userPrompt: string,
-  options?: { temperature?: number; maxTokens?: number },
-): Promise<string> {
-  if (!OPENAI_API_KEY) {
-    throw new Error(
-      'OpenAI is not configured. Add REACT_APP_OPENAI_API_KEY to your .env file.',
-    );
-  }
-
-  const messages: ChatMessage[] = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userPrompt },
-  ];
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+export async function buddyRequest(
+  mode: BuddyMode,
+  message: string,
+  context: CompanionContext,
+  history: BuddyChatMessage[] = [],
+): Promise<BuddyResponse> {
+  const response = await fetch('/api/buddy', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
-      messages,
-      temperature: options?.temperature ?? 0.6,
-      max_tokens: options?.maxTokens ?? 900,
+      mode,
+      message,
+      context,
+      history: history.slice(-6).map(({ role, content }) => ({ role, content })),
     }),
   });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`OpenAI request failed (${response.status}): ${body.slice(0, 200)}`);
-  }
-
-  const data = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
+  const data = (await response.json().catch(() => ({}))) as Partial<BuddyResponse> & {
+    error?: string;
   };
 
-  const content = data.choices?.[0]?.message?.content?.trim();
-  if (!content) throw new Error('OpenAI returned an empty response.');
-  return content;
+  if (!response.ok) throw new Error(data.error || 'Buddy could not answer just now.');
+  if (!data.content) throw new Error('Buddy returned an empty answer.');
+
+  return {
+    content: data.content,
+    riskLevel: data.riskLevel ?? 'ordinary',
+    adultActionRequired: data.adultActionRequired === true,
+  };
 }
 
 export function parseJsonBlock<T>(text: string): T {

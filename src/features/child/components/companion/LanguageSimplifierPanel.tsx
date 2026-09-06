@@ -44,8 +44,7 @@ const LanguageSimplifierPanel: React.FC = () => {
 
       {!isOpenAiConfigured && (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          Add <code className="font-mono">REACT_APP_OPENAI_API_KEY</code> to enable full AI
-          simplification. A basic fallback is used until then.
+          AI Buddy is not connected right now. A basic fallback is available.
         </p>
       )}
 

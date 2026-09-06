@@ -56,4 +56,22 @@ export interface GeneratedSocialStory {
 export interface MoodCheckInResult {
   response: string;
   suggestion?: string;
+  riskLevel?: BuddyRiskLevel;
+  adultActionRequired?: boolean;
+}
+
+export type BuddyRiskLevel = 'ordinary' | 'concern' | 'urgent';
+
+export interface BuddyChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  riskLevel?: BuddyRiskLevel;
+  adultActionRequired?: boolean;
+}
+
+export interface BuddyResponse {
+  content: string;
+  riskLevel: BuddyRiskLevel;
+  adultActionRequired: boolean;
 }

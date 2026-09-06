@@ -48,3 +48,64 @@
     animation: none !important;
   }
 }
+
+.child-launch-action {
+  display: flex;
+  min-height: 7.5rem;
+  align-items: flex-start;
+  gap: 1rem;
+  border: 2px solid transparent;
+  border-radius: 1.5rem;
+  padding: 1.25rem;
+  text-align: left;
+  color: #172554;
+  box-shadow: 0 8px 24px rgba(30, 41, 59, 0.08);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.child-launch-action:hover,
+.child-launch-action:focus-visible {
+  transform: translateY(-2px);
+  border-color: #6366f1;
+  box-shadow: 0 12px 30px rgba(79, 70, 229, 0.14);
+  outline: none;
+}
+
+.child-launch-action strong,
+.child-launch-action small { display: block; }
+.child-launch-action strong { font-size: 1.05rem; }
+.child-launch-action small { margin-top: 0.35rem; font-size: 0.9rem; line-height: 1.4; font-weight: 500; }
+.child-launch-action--buddy { background: linear-gradient(135deg, #eef2ff, #ecfeff); }
+.child-launch-action--mood { background: linear-gradient(135deg, #fff1f2, #fdf2f8); }
+.child-launch-action--learn { background: linear-gradient(135deg, #ecfdf5, #f0fdfa); }
+.child-launch-action--help { background: linear-gradient(135deg, #fff7ed, #fef2f2); color: #7f1d1d; }
+
+.child-dashboard-drawer {
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 1.1rem 1.25rem;
+}
+
+.child-dashboard-drawer > summary {
+  display: flex;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 800;
+  color: #172554;
+}
+
+.child-dashboard-drawer > summary::-webkit-details-marker { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .child-launch-action { transition: none; }
+  .child-launch-action:hover, .child-launch-action:focus-visible { transform: none; }
+}
+
+.dark .child-launch-action { color: #f3f4f6; box-shadow: none; }
+.dark .child-launch-action--buddy, .dark .child-launch-action--mood, .dark .child-launch-action--learn { background: #111827; }
+.dark .child-launch-action--help { background: rgba(127, 29, 29, 0.35); color: #fecaca; }
+.dark .child-dashboard-drawer { border-color: #374151; background: rgba(17, 24, 39, 0.8); }
+.dark .child-dashboard-drawer > summary { color: #f3f4f6; }

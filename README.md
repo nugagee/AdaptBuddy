@@ -1,6 +1,6 @@
 # 🧠 AdaptBuddy - Neuro-Inclusive Learning Platform
 
-> AI-powered personalized education with real-time emotional wellbeing support for neurodiverse learners.
+> Child-first learning, communication and trusted-adult support for neurodivergent learners.
 
 [![React](https://img.shields.io/badge/React-18.2-blue)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
@@ -17,6 +17,16 @@ To empower neurodivergent children (Autism, ADHD, Dyslexia, Dyspraxia, etc.) thr
 - **Parent Hub** - Real-time progress tracking & wellbeing monitoring
 - **Accessibility First** - Dyslexia fonts, color overlays, text-to-speech, focus tools
 - **Mobile-Optimized** - Responsive design for tablets & phones
+- **AI Buddy** - Server-mediated, age-aware support with explicit AI identity and trusted-adult routing
+
+## Launch safety requirements
+
+- Keep the repository private and never commit `.env` or `.env.local`.
+- Configure `OPENAI_API_KEY` and optional `OPENAI_MODEL` as server-only Vercel environment variables. Never use a `REACT_APP_` prefix for an OpenAI key.
+- Apply Supabase migrations in numeric order through `040_child_privacy_boundaries.sql`.
+- Verify Row Level Security with separate child, parent and teacher pilot accounts before using real personal data.
+- Treat AI as a support interface only. Adults remain responsible for safeguarding decisions and follow-up.
+- Run `npm run test:buddy-safety`, `npm test -- --watchAll=false`, and `npm run build` before deployment.
 
 ## Supabase setup (auth + profiles)
 
@@ -24,7 +34,8 @@ To empower neurodivergent children (Autism, ADHD, Dyslexia, Dyspraxia, etc.) thr
 
 2. Run the migration in **SQL Editor** (or Supabase CLI):
 
-   `supabase/migrations/001_create_profiles.sql`
+   Apply all migrations in `supabase/migrations/` in numeric order, finishing with
+   `040_child_privacy_boundaries.sql`.
 
    This creates the `profiles` table with role, first/last name, child name (parents), and RLS policies.
 
@@ -45,7 +56,8 @@ To empower neurodivergent children (Autism, ADHD, Dyslexia, Dyspraxia, etc.) thr
 ## Tech Stack
 - **Frontend**: React 18 + TypeScript + Tailwind CSS (Create React App)
 - **Auth**: Supabase (user management)
-- **Data**: Firebase Firestore (planned — see `src/services/firebase`)
+- **Data**: Supabase with Row Level Security
+- **AI**: OpenAI through the server-only `/api/buddy` endpoint
 - **UI**: Lucide React Icons
 - **State**: Zustand (auth, theme, accessibility preferences)
 

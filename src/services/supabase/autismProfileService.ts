@@ -88,6 +88,7 @@ export async function saveMoodCheckIn(
   mood: string,
   note: string,
   aiResponse?: string,
+  isShared = false,
 ): Promise<void> {
   if (!isSupabaseConfigured) return;
 
@@ -96,6 +97,7 @@ export async function saveMoodCheckIn(
     mood,
     note: note.trim() || null,
     ai_response: aiResponse ?? null,
+    is_shared: isShared,
   });
 
   if (error) throw error;
@@ -247,7 +249,7 @@ export async function saveJournalEntry({
   text,
   analysis,
   audioUrl = null,
-  isShared = true,
+  isShared = false,
 }: JournalEntryInput): Promise<void> {
   if (!isSupabaseConfigured) return;
 
@@ -275,8 +277,7 @@ export async function saveJournalEntry({
     emotion: analysis?.signalLabel ?? analysis?.emotion ?? emotion,
     color: signalColorForAnalysis(analysis, analysis?.emotion ?? emotion),
     note: analysis?.parentInsight
-      ? `${analysis.parentInsight}${text.trim() ? ` ${text.trim()}` : ''}`
-      : text.trim() || null,
+      ?? (isShared && text.trim() ? 'The child chose to share a journal update.' : null),
   });
 
   if (signalError) throw signalError;
@@ -290,6 +291,36 @@ export async function saveJournalEntry({
 
     if (alertError) throw alertError;
   }
+}
+
+export async function requestTrustedAdultSupport(
+  childId: string,
+  source: 'buddy-conversation' | 'mood-check-in' | 'child-dashboard',
+  urgent = false,
+): Promise<void> {
+  const analysis: EmotionAnalysis = {
+    emotion: 'anxious',
+    confidence: 1,
+    keywords: ['child-requested-support'],
+    riskLevel: urgent ? 'high' : 'medium',
+    sentimentScore: -0.5,
+    timestamp: new Date(),
+    signalId: 'need-help',
+    signalLabel: 'Child asked for trusted-adult support',
+    signalCategory: 'support',
+    supportLevel: urgent ? 'urgent' : 'concern',
+    source,
+    parentInsight: 'The child used AdaptBuddy to request trusted-adult support.',
+    suggestedAction: 'A trusted adult should check in promptly and acknowledge the request.',
+  };
+
+  await saveJournalEntry({
+    childId,
+    emotion: 'anxious',
+    text: 'The child asked AdaptBuddy to contact a trusted adult.',
+    analysis,
+    isShared: true,
+  });
 }
 
 export async function fetchRecentMoodCheckIns(

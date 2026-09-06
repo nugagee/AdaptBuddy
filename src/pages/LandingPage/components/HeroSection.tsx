@@ -49,11 +49,11 @@ const HeroSection: React.FC = () => {
           <span className="mt-8 flex flex-wrap gap-6 text-sm text-slate-500 block">
             <span className="inline-flex items-center gap-2">
               <Accessibility className="h-4 w-4 text-adapt-teal" aria-hidden />
-              WCAG-friendly
+              Designed for accessibility
             </span>
             <span className="inline-flex items-center gap-2">
               <Shield className="h-4 w-4 text-adapt-indigo" aria-hidden />
-              Co-designed with families
+              Ready for family-led testing
             </span>
           </span>
         </span>

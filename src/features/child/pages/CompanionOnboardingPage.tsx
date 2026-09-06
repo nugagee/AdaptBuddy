@@ -121,7 +121,7 @@ const CompanionOnboardingPage: React.FC = () => {
       });
       navigate(ROUTES.CHILD_DASHBOARD, {
         replace: true,
-        state: { message: 'AdaptBuddy understands you now. Welcome!' },
+        state: { message: 'AdaptBuddy saved your support choices. Welcome!' },
       });
       setSaving(false);
       return;
@@ -139,7 +139,7 @@ const CompanionOnboardingPage: React.FC = () => {
       setProfile(updated);
       navigate(ROUTES.CHILD_DASHBOARD, {
         replace: true,
-        state: { message: 'AdaptBuddy understands you now. Welcome!' },
+        state: { message: 'AdaptBuddy saved your support choices. Welcome!' },
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not save your profile. Please try again.');

@@ -203,6 +203,14 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
 
   const lineHeight = getLineHeight(lineSpacing);
   const wordCount = countWords(content);
+  const saveStatusText = lastSaved
+    ? `Saved on this device at ${lastSaved.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`
+    : content.trim()
+      ? 'Not saved yet'
+      : 'Your writing space is ready';
 
   const toolbarBtn =
     'inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-adapt-indigo/50 disabled:cursor-not-allowed disabled:opacity-40';
@@ -356,14 +364,7 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
             role="status"
             aria-live="polite"
           >
-            {lastSaved
-              ? `Saved on this device at ${lastSaved.toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}`
-              : content.trim()
-                ? 'Not saved yet'
-                : 'Your writing space is ready'}
+            {saveStatusText}
           </span>
         </section>
 

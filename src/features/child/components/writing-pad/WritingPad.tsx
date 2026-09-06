@@ -177,9 +177,18 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
   const clearContent = () => {
     setContent('');
     persistWriting('');
+    setLastSaved(null);
     setShowClearConfirm(false);
     setRecordingStatus('');
     textareaRef.current?.focus();
+  };
+
+  const useWritingStarter = (starter: string) => {
+    setContent(starter);
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(starter.length, starter.length);
+    });
   };
 
   const downloadContent = () => {
@@ -342,11 +351,20 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
             </div>
           )}
 
-          {lastSaved && (
-            <span className="ml-auto hidden text-xs text-slate-500 sm:inline dark:text-gray-400">
-              Saved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          )}
+          <span
+            className="w-full text-xs font-medium text-slate-500 dark:text-gray-400 sm:ml-auto sm:w-auto"
+            role="status"
+            aria-live="polite"
+          >
+            {lastSaved
+              ? `Saved on this device at ${lastSaved.toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}`
+              : content.trim()
+                ? 'Not saved yet'
+                : 'Your writing space is ready'}
+          </span>
         </section>
 
         {recordingStatus && (
@@ -385,6 +403,7 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
                     key={value}
                     type="button"
                     onClick={() => setLineSpacing(value)}
+                    aria-pressed={lineSpacing === value}
                     className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                       lineSpacing === value
                         ? 'bg-adapt-navy text-white shadow-soft dark:bg-adapt-indigo'
@@ -407,6 +426,7 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
                     key={value}
                     type="button"
                     onClick={() => setOverlayColor(value)}
+                    aria-pressed={overlayColor === value}
                     className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
                       overlayColor === value
                         ? 'bg-adapt-indigo/15 text-adapt-indigo ring-2 ring-adapt-indigo/30 dark:bg-adapt-cyan/15 dark:text-adapt-cyan dark:ring-adapt-cyan/30'
@@ -433,6 +453,37 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
             </label>
           </div>
         </section>
+
+        {!content.trim() && (
+          <section
+            className="rounded-[1.75rem] border border-adapt-indigo/15 bg-adapt-indigo/5 p-5 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/5"
+            aria-labelledby="writing-starters-title"
+          >
+            <div className="flex items-start gap-3">
+              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
+              <div className="min-w-0">
+                <h2 id="writing-starters-title" className="font-bold text-adapt-navy dark:text-gray-100">
+                  Need help getting started?
+                </h2>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-gray-400">
+                  Choose one beginning. You can change every word.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {['Today I… ', 'I feel… ', 'I need help with… '].map((starter) => (
+                    <button
+                      key={starter}
+                      type="button"
+                      onClick={() => useWritingStarter(starter)}
+                      className="min-h-11 rounded-full border border-adapt-indigo/20 bg-white px-4 py-2 text-left text-sm font-semibold text-adapt-navy shadow-sm transition hover:border-adapt-indigo/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-adapt-indigo/50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                    >
+                      {starter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Canvas */}
         <section
@@ -470,12 +521,10 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
           />
         </section>
 
-        <footer className="flex flex-col gap-2 rounded-2xl border border-dashed border-adapt-indigo/20 bg-adapt-indigo/5 px-5 py-4 text-center text-sm text-slate-600 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/5 dark:text-gray-400 sm:flex-row sm:items-center sm:justify-between sm:text-left">
-          <p>
-            {content.length} characters · auto-saves when you press Save
-          </p>
+        <footer className="flex flex-col gap-2 rounded-2xl border border-dashed border-adapt-indigo/20 bg-adapt-indigo/5 px-5 py-4 text-center text-sm leading-relaxed text-slate-600 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/5 dark:text-gray-400 sm:text-left">
+          <p>{content.length} characters · Press Save to keep this writing on this device.</p>
           <p className="text-xs">
-            Tip: voice typing works best in a quiet room with the mic button
+            Your words are yours. Ask a trusted adult before downloading or sharing them.
           </p>
         </footer>
       </main>

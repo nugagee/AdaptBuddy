@@ -21,8 +21,6 @@ import {
   upsertUserProfile,
   verifySignupOtp,
   setSignupPassword,
-  buildFallbackProfile,
-  buildFallbackProfileFromUser,
   requestPasswordResetOtp,
   verifyPasswordResetOtp,
   resendPasswordResetOtp,
@@ -172,19 +170,16 @@ const saveGuestProfile = (profile: Profile) => {
 export const hasStoredGuestMode = () =>
   typeof window !== 'undefined' && localStorage.getItem(GUEST_MODE_KEY) === 'true';
 
-const applyAuthSession = async (session: Session) => {
-  const profile =
-    (await loadProfile(session.user.id)) ?? buildFallbackProfileFromUser(session.user);
-
+const prepareAuthenticatedTransition = () => {
+  useChildSessionStore.getState().resetSession();
+  useTrustedAdultStore.getState().clearTrustedAdults();
   localStorage.removeItem(GUEST_MODE_KEY);
   localStorage.removeItem(GUEST_PROFILE_KEY);
-  useTrustedAdultStore.getState().clearTrustedAdults();
-
   useAuthStore.setState({
-    user: session.user,
-    profile,
-    session: toAuthSessionState(session),
-    loading: false,
+    user: null,
+    profile: null,
+    session: null,
+    loading: true,
     isGuest: false,
   });
 };
@@ -203,7 +198,38 @@ const applySignedOutState = () => {
   });
 };
 
+const rejectUnverifiedProfile = async (): Promise<never> => {
+  try {
+    const { error } = await getSupabaseClient().auth.signOut({ scope: 'local' });
+    if (error) console.error('Could not clear an unverified local session:', error);
+  } catch (error) {
+    console.error('Could not clear an unverified local session:', error);
+  }
+
+  applySignedOutState();
+  throw new Error('Your account profile could not be verified. Please sign in again.');
+};
+
+const loadRequiredProfile = async (userId: string): Promise<Profile> => {
+  const profile = await loadProfile(userId);
+  return profile ?? rejectUnverifiedProfile();
+};
+
+const applyAuthSession = async (session: Session) => {
+  prepareAuthenticatedTransition();
+  const profile = await loadRequiredProfile(session.user.id);
+
+  useAuthStore.setState({
+    user: session.user,
+    profile,
+    session: toAuthSessionState(session),
+    loading: false,
+    isGuest: false,
+  });
+};
+
 const applyNoSessionState = () => {
+  useChildSessionStore.getState().resetSession();
   useTrustedAdultStore.getState().clearTrustedAdults();
   const isGuest = hasStoredGuestMode();
   const guestProfile = isGuest ? loadGuestProfile() ?? createGuestProfile('child') : null;
@@ -265,11 +291,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Sign in succeeded but no user was returned.');
       }
 
-      const profile =
-        (await loadProfile(user.id)) ?? buildFallbackProfileFromUser(user);
-
-      localStorage.removeItem(GUEST_MODE_KEY);
-      localStorage.removeItem(GUEST_PROFILE_KEY);
+      prepareAuthenticatedTransition();
+      const profile = await loadRequiredProfile(user.id);
 
       set({
         user,
@@ -320,22 +343,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Verification succeeded but no user was returned.');
       }
 
-      localStorage.removeItem(GUEST_MODE_KEY);
-      localStorage.removeItem(GUEST_PROFILE_KEY);
-
-      const nextState: Pick<AuthState, 'user' | 'isGuest' | 'loading'> & {
-        session?: AuthSessionState;
-      } = {
-        user: authUser,
-        isGuest: false,
-        loading: false,
-      };
-
-      if (session) {
-        nextState.session = toAuthSessionState(session);
-      }
-
-      set(nextState);
+      prepareAuthenticatedTransition();
 
       try {
         const profile = await upsertUserProfile({
@@ -350,10 +358,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           age: details.age,
           emailVerified: true,
         });
-        set({ profile });
+        set({
+          user: authUser,
+          profile,
+          session: session ? toAuthSessionState(session) : null,
+          isGuest: false,
+          loading: false,
+        });
       } catch (profileError) {
-        console.error('Profile save failed (using local fallback):', profileError);
-        set({ profile: buildFallbackProfile(details, userId) });
+        console.error('Profile save failed; closing the unverified session:', profileError);
+        await rejectUnverifiedProfile();
       }
 
       // Password must not block routing - set after auth state is saved.
@@ -377,26 +391,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('Authentication is not configured on this deployment.');
     }
 
-    const profile = await upsertUserProfile({
-      id: userId,
-      email: details.email,
-      role: details.role,
-      firstName: details.firstName,
-      lastName: details.lastName,
-      childName: details.childName,
-      sex: details.sex,
-      gender: details.gender,
-      age: details.age,
-      emailVerified: true,
-    });
+    prepareAuthenticatedTransition();
+    let profile: Profile;
+    try {
+      profile = await upsertUserProfile({
+        id: userId,
+        email: details.email,
+        role: details.role,
+        firstName: details.firstName,
+        lastName: details.lastName,
+        childName: details.childName,
+        sex: details.sex,
+        gender: details.gender,
+        age: details.age,
+        emailVerified: true,
+      });
+    } catch (profileError) {
+      console.error('Profile save failed; closing the unverified session:', profileError);
+      await rejectUnverifiedProfile();
+    }
 
     const { data: { session } } = await getSupabaseClient().auth.getSession();
-    localStorage.removeItem(GUEST_MODE_KEY);
-    localStorage.removeItem(GUEST_PROFILE_KEY);
+    if (!session?.user || session.user.id !== userId) {
+      await rejectUnverifiedProfile();
+    }
     set({
-      user: session?.user ?? null,
+      user: session.user,
       profile,
-      session: session ? toAuthSessionState(session) : null,
+      session: toAuthSessionState(session),
       isGuest: false,
       loading: false,
     });
@@ -435,11 +457,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Verification succeeded but no user was returned.');
       }
 
-      localStorage.removeItem(GUEST_MODE_KEY);
-      localStorage.removeItem(GUEST_PROFILE_KEY);
+      prepareAuthenticatedTransition();
+      const profile = await loadRequiredProfile(authUser.id);
 
       set({
         user: authUser,
+        profile,
         session: session ? toAuthSessionState(session) : null,
         isGuest: false,
         loading: false,
@@ -474,11 +497,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Password updated but no session was found. Please sign in.');
       }
 
-      const profile =
-        (await loadProfile(user.id)) ?? buildFallbackProfileFromUser(user);
-
-      localStorage.removeItem(GUEST_MODE_KEY);
-      localStorage.removeItem(GUEST_PROFILE_KEY);
+      prepareAuthenticatedTransition();
+      const profile = await loadRequiredProfile(user.id);
 
       set({
         user,
@@ -565,6 +585,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const guestProfile = loadGuestProfile() ?? createGuestProfile('child');
+    useChildSessionStore.getState().resetSession();
     useTrustedAdultStore.getState().clearTrustedAdults();
     saveGuestProfile(guestProfile);
     set({
@@ -625,7 +646,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (session?.user && hasStoredGuestMode()) {
         await get().restoreGuestMode();
       } else if (session?.user) {
-        void applyAuthSession(session);
+        void applyAuthSession(session).catch((error) => {
+          console.error('Could not apply the authenticated session safely:', error);
+        });
       } else {
         applyNoSessionState();
       }
@@ -634,7 +657,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!authSubscription) {
       const { data: { subscription } } = getSupabaseClient().auth.onAuthStateChange(
         (event, session) => {
-          void handleAuthStateChange(event, session);
+          void handleAuthStateChange(event, session).catch((error) => {
+            console.error('Could not process the authentication change safely:', error);
+          });
         },
       );
 

@@ -172,6 +172,10 @@ mustNotMatch(authStore, /guest-admin@adaptbuddy\.local/, 'Guest mode must not mo
 mustMatch(authStore, /profile\?\.role === 'admin'[\s\S]*removeItem\(GUEST_PROFILE_KEY\)/, 'Legacy guest-admin cache must be rejected.');
 mustMatch(authStore, /setGuestMode:\s*async[\s\S]*auth\.signOut\(\{ scope: 'local' \}\)/, 'Guest mode must clear the local Supabase session first.');
 mustNotMatch(authStore, /const applyAuthSession[\s\S]{0,200}hasStoredGuestMode\(\)[\s\S]{0,100}applyNoSessionState/, 'A real Supabase session must never be represented as guest state.');
+mustMatch(authStore, /const prepareAuthenticatedTransition[\s\S]*user:\s*null,[\s\S]*profile:\s*null,[\s\S]*session:\s*null/, 'Account transitions must clear the previous account UI before loading the next profile.');
+mustMatch(authStore, /prepareAuthenticatedTransition\(\);\s*const profile = await loadRequiredProfile\(session\.user\.id\)/, 'Auth events must clear account-scoped state before profile loading.');
+mustMatch(authStore, /rejectUnverifiedProfile[\s\S]*signOut\(\{ scope: 'local' \}\)[\s\S]*applySignedOutState\(\)/, 'An unverifiable authenticated profile must fail closed and clear its local session.');
+mustNotMatch(authStore, /buildFallbackProfile(?:FromUser)?/, 'Authenticated sessions must not authorise roles from a local fallback profile.');
 mustNotMatch(guestEntry, /admin:\s*ROUTES\.ADMIN_DASHBOARD|value === 'admin'/, 'The guest URL must not route to admin.');
 mustMatch(guestEntry, /await setGuestMode\(role\)/, 'The guest entry route must wait for safe session clearing.');
 mustNotMatch(loginPage, /setGuestMode/, 'Login links must let the guest entry route own the session transition.');

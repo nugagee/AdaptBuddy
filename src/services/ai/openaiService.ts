@@ -3,6 +3,7 @@ import type {
   BuddyResponse,
   CompanionContext,
 } from 'features/child/types/companionOnboarding';
+import { getSupabaseClient, isSupabaseConfigured } from 'services/supabase/client';
 
 export type BuddyMode = 'conversation' | 'simplify' | 'story' | 'mood';
 
@@ -14,14 +15,26 @@ export async function buddyRequest(
   context: CompanionContext,
   history: BuddyChatMessage[] = [],
 ): Promise<BuddyResponse> {
+  if (!isSupabaseConfigured) {
+    throw new Error('Please sign in to use AI Buddy.');
+  }
+
+  const { data: { session } } = await getSupabaseClient().auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('Please sign in to use AI Buddy.');
+  }
+
   const response = await fetch('/api/buddy', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    },
     body: JSON.stringify({
       mode,
       message,
       context,
-      history: history.slice(-6).map(({ role, content }) => ({ role, content })),
+      history: history.slice(-4).map(({ role, content }) => ({ role, content })),
     }),
   });
 

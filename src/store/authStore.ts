@@ -392,24 +392,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     prepareAuthenticatedTransition();
-    let profile: Profile;
-    try {
-      profile = await upsertUserProfile({
-        id: userId,
-        email: details.email,
-        role: details.role,
-        firstName: details.firstName,
-        lastName: details.lastName,
-        childName: details.childName,
-        sex: details.sex,
-        gender: details.gender,
-        age: details.age,
-        emailVerified: true,
+    const profile = await upsertUserProfile({
+      id: userId,
+      email: details.email,
+      role: details.role,
+      firstName: details.firstName,
+      lastName: details.lastName,
+      childName: details.childName,
+      sex: details.sex,
+      gender: details.gender,
+      age: details.age,
+      emailVerified: true,
+    })
+      .catch((profileError) => {
+        console.error('Profile save failed; closing the unverified session:', profileError);
+        return rejectUnverifiedProfile();
       });
-    } catch (profileError) {
-      console.error('Profile save failed; closing the unverified session:', profileError);
-      await rejectUnverifiedProfile();
-    }
 
     const { data: { session } } = await getSupabaseClient().auth.getSession();
     if (!session?.user || session.user.id !== userId) {

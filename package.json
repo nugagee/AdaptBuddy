@@ -28,7 +28,8 @@
     "test:buddy-safety": "node scripts/test-buddy-safety.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "prebuild": "npm run test:buddy-safety"
+    "prebuild": "npm run test:buddy-safety && npm run test:trusted-adult-safety",
+    "test:trusted-adult-safety": "node scripts/test-trusted-adult-safety.js"
   },
   "eslintConfig": {
     "extends": [

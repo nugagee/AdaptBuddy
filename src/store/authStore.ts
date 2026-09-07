@@ -14,6 +14,7 @@ import {
   type UserRole,
 } from 'services/supabase/client';
 import { useChildSessionStore } from 'features/child/store/childSessionStore';
+import { useTrustedAdultStore } from 'features/child/store/trustedAdultStore';
 import {
   requestSignupOtp,
   resendSignupOtp,
@@ -62,8 +63,8 @@ interface AuthState {
   /** @deprecated Use requestPasswordReset — kept for legacy modal */
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
-  setGuestMode: (role?: UserRole) => void;
-  restoreGuestMode: () => boolean;
+  setGuestMode: (role?: UserRole) => Promise<boolean>;
+  restoreGuestMode: () => Promise<boolean>;
   setProfile: (profile: Profile) => void;
   refreshProfile: () => Promise<Profile | null>;
   initialize: () => () => void;
@@ -96,9 +97,13 @@ const getInitialSession = () => {
   return initialSessionRequest;
 };
 
+type GuestRole = Exclude<UserRole, 'admin'>;
+
 const createGuestProfile = (role: UserRole = 'child'): Profile => {
+  const guestRole: GuestRole =
+    role === 'parent' || role === 'teacher' ? role : 'child';
   const now = new Date().toISOString();
-  const names: Record<UserRole, { first: string; last: string; full: string; email: string }> = {
+  const names: Record<GuestRole, { first: string; last: string; full: string; email: string }> = {
     child: {
       first: 'Alex',
       last: 'Guest',
@@ -117,27 +122,21 @@ const createGuestProfile = (role: UserRole = 'child'): Profile => {
       full: 'Teacher Guest',
       email: 'guest-teacher@adaptbuddy.local',
     },
-    admin: {
-      first: 'Admin',
-      last: 'Guest',
-      full: 'Admin Guest',
-      email: 'guest-admin@adaptbuddy.local',
-    },
   };
-  const name = names[role];
+  const name = names[guestRole];
 
   return {
-    id: `guest-${role}`,
+    id: `guest-${guestRole}`,
     email: name.email,
-    role,
+    role: guestRole,
     first_name: name.first,
     last_name: name.last,
     full_name: name.full,
-    child_name: role === 'parent' ? 'Alex' : null,
-    buddy_id: role === 'child' ? 'AB-GEST-01' : null,
+    child_name: guestRole === 'parent' ? 'Alex' : null,
+    buddy_id: guestRole === 'child' ? 'AB-GEST-01' : null,
     avatar_url: null,
     bio: null,
-    age: role === 'child' ? 10 : null,
+    age: guestRole === 'child' ? 10 : null,
     sex: null,
     gender: null,
     neuro_types: [],
@@ -153,6 +152,11 @@ const loadGuestProfile = (role?: UserRole): Profile | null => {
   try {
     const raw = localStorage.getItem(GUEST_PROFILE_KEY);
     const profile = raw ? (JSON.parse(raw) as Profile) : null;
+    if (profile?.role === 'admin') {
+      localStorage.removeItem(GUEST_PROFILE_KEY);
+      localStorage.removeItem(GUEST_MODE_KEY);
+      return null;
+    }
     if (role && profile?.role !== role) return null;
     return profile;
   } catch {
@@ -169,16 +173,12 @@ export const hasStoredGuestMode = () =>
   typeof window !== 'undefined' && localStorage.getItem(GUEST_MODE_KEY) === 'true';
 
 const applyAuthSession = async (session: Session) => {
-  if (hasStoredGuestMode()) {
-    applyNoSessionState();
-    return;
-  }
-
   const profile =
     (await loadProfile(session.user.id)) ?? buildFallbackProfileFromUser(session.user);
 
   localStorage.removeItem(GUEST_MODE_KEY);
   localStorage.removeItem(GUEST_PROFILE_KEY);
+  useTrustedAdultStore.getState().clearTrustedAdults();
 
   useAuthStore.setState({
     user: session.user,
@@ -191,6 +191,7 @@ const applyAuthSession = async (session: Session) => {
 
 const applySignedOutState = () => {
   useChildSessionStore.getState().resetSession();
+  useTrustedAdultStore.getState().clearTrustedAdults();
   localStorage.removeItem(GUEST_MODE_KEY);
   localStorage.removeItem(GUEST_PROFILE_KEY);
   useAuthStore.setState({
@@ -203,6 +204,7 @@ const applySignedOutState = () => {
 };
 
 const applyNoSessionState = () => {
+  useTrustedAdultStore.getState().clearTrustedAdults();
   const isGuest = hasStoredGuestMode();
   const guestProfile = isGuest ? loadGuestProfile() ?? createGuestProfile('child') : null;
   if (guestProfile) saveGuestProfile(guestProfile);
@@ -510,7 +512,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     applySignedOutState();
   },
 
-  setGuestMode: (role = 'child') => {
+  setGuestMode: async (role = 'child') => {
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await getSupabaseClient().auth.signOut({ scope: 'local' });
+        if (error) {
+          console.error('Could not isolate guest mode from the signed-in session:', error);
+          return false;
+        }
+      } catch (error) {
+        console.error('Could not isolate guest mode from the signed-in session:', error);
+        return false;
+      }
+    }
+
+    useChildSessionStore.getState().resetSession();
+    useTrustedAdultStore.getState().clearTrustedAdults();
     const guestProfile = createGuestProfile(role);
     localStorage.setItem(GUEST_MODE_KEY, 'true');
     saveGuestProfile(guestProfile);
@@ -522,12 +539,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       loading: false,
       initialized: true,
     });
+    return true;
   },
 
-  restoreGuestMode: () => {
+  restoreGuestMode: async () => {
     if (!hasStoredGuestMode()) return false;
 
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await getSupabaseClient().auth.signOut({ scope: 'local' });
+        if (error) {
+          console.error('Could not restore guest mode without an authenticated session:', error);
+          localStorage.removeItem(GUEST_MODE_KEY);
+          localStorage.removeItem(GUEST_PROFILE_KEY);
+          applySignedOutState();
+          return false;
+        }
+      } catch (error) {
+        console.error('Could not restore guest mode without an authenticated session:', error);
+        localStorage.removeItem(GUEST_MODE_KEY);
+        localStorage.removeItem(GUEST_PROFILE_KEY);
+        applySignedOutState();
+        return false;
+      }
+    }
+
     const guestProfile = loadGuestProfile() ?? createGuestProfile('child');
+    useTrustedAdultStore.getState().clearTrustedAdults();
     saveGuestProfile(guestProfile);
     set({
       isGuest: true,
@@ -581,10 +619,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     set({ initialized: true, loading: true });
 
-    getInitialSession().then((session) => {
+    getInitialSession().then(async (session) => {
       if (authInitializeVersion !== version) return;
 
-      if (session?.user && !hasStoredGuestMode()) {
+      if (session?.user && hasStoredGuestMode()) {
+        await get().restoreGuestMode();
+      } else if (session?.user) {
         void applyAuthSession(session);
       } else {
         applyNoSessionState();

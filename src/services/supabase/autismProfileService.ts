@@ -18,11 +18,15 @@ export interface TrustedAdultRecord extends TrustedAdultInput {
 
 interface TrustedAdultRow {
   id: string;
+  adult_id?: string | null;
   name: string;
   role: string;
   email: string;
   phone: string;
   status: string;
+  accepted_at?: string | null;
+  accepted_by?: string | null;
+  acceptance_method?: string | null;
 }
 
 const normalizeTrustedAdultStatus = (status: string): TrustedAdultStatus => {
@@ -36,7 +40,13 @@ const mapTrustedAdultRow = (row: TrustedAdultRow): TrustedAdultRecord => ({
   role: row.role,
   email: row.email,
   phone: row.phone,
-  status: normalizeTrustedAdultStatus(row.status),
+  status:
+    row.accepted_at
+      && row.adult_id
+      && row.accepted_by === row.adult_id
+      && row.acceptance_method === 'account_email'
+    ? normalizeTrustedAdultStatus(row.status)
+    : 'pending',
 });
 
 export interface AutismProfileRow {
@@ -108,7 +118,7 @@ export async function fetchTrustedAdultsForChild(childId: string): Promise<Trust
 
   const { data, error } = await getSupabaseClient()
     .from('trusted_adults')
-    .select('id, name, role, email, phone, status')
+    .select('id, adult_id, name, role, email, phone, status, accepted_at, accepted_by, acceptance_method')
     .eq('child_id', childId)
     .order('created_at', { ascending: true });
 
@@ -121,11 +131,7 @@ export async function saveTrustedAdultForChild(
   adult: TrustedAdultInput,
 ): Promise<TrustedAdultRecord> {
   if (!isSupabaseConfigured) {
-    return {
-      ...adult,
-      id: `trusted-${Date.now()}`,
-      status: 'pending',
-    };
+    throw new Error('Trusted-adult invitations are unavailable because secure storage is not configured.');
   }
 
   const client = getSupabaseClient();
@@ -251,7 +257,9 @@ export async function saveJournalEntry({
   audioUrl = null,
   isShared = false,
 }: JournalEntryInput): Promise<void> {
-  if (!isSupabaseConfigured) return;
+  if (!isSupabaseConfigured) {
+    throw new Error('This support entry was not saved because secure storage is not configured.');
+  }
 
   const client = getSupabaseClient();
   const riskLevel = deriveSupportRiskLevel(analysis, emotion, text);
@@ -317,7 +325,7 @@ export async function requestTrustedAdultSupport(
   await saveJournalEntry({
     childId,
     emotion: 'anxious',
-    text: 'The child asked AdaptBuddy to contact a trusted adult.',
+    text: 'The child recorded a request for trusted-adult support in AdaptBuddy. External delivery has not been confirmed.',
     analysis,
     isShared: true,
   });

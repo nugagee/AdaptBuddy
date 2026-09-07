@@ -4,10 +4,8 @@ import { Sparkles, Shield, Accessibility } from 'lucide-react';
 import { ROUTES } from 'constants/routes';
 import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
 import TypingBuddyMessage from 'components/animations/TypingBuddyMessage';
-import { useAuthStore } from 'store/authStore';
 
 const HeroSection: React.FC = () => {
-  const setGuestMode = useAuthStore((s) => s.setGuestMode);
 
   return (
     <section className="relative overflow-hidden pt-8 pb-16 sm:pt-12 sm:pb-24">
@@ -39,7 +37,6 @@ const HeroSection: React.FC = () => {
             </Link>
             <Link
               to={`${ROUTES.GUEST_ENTRY}?role=child`}
-              onClick={() => setGuestMode('child')}
               className="rounded-full border-2 border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-adapt-navy transition hover:border-adapt-indigo/30 hover:bg-adapt-mist"
             >
               Enter as guest
@@ -99,3 +96,4 @@ const HeroSection: React.FC = () => {
 };
 
 export default HeroSection;
+

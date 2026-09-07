@@ -67,9 +67,9 @@ const MoodCheckInPanel: React.FC = () => {
     }
     try {
       await requestTrustedAdultSupport(user.id, 'mood-check-in', urgent);
-      setAdultRequestStatus('Your support request was sent. Please also go to a safe adult nearby.');
+      setAdultRequestStatus('Your support request was recorded in AdaptBuddy. Delivery to an adult is not confirmed, so please also go to a safe adult nearby.');
     } catch {
-      setAdultRequestStatus('The message could not send. Please show this screen to a trusted adult nearby.');
+      setAdultRequestStatus('The support request could not be recorded. No adult was contacted. Please show this screen to a trusted adult nearby now.');
     }
   };
 
@@ -142,7 +142,7 @@ const MoodCheckInPanel: React.FC = () => {
               className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
             >
               <Hand className="h-4 w-4" aria-hidden />
-              Tell a trusted adult now
+              Record support request
             </button>
           )}
           {adultRequestStatus && (

@@ -252,11 +252,11 @@ const EmptyState: React.FC<{ title: string; detail: string }> = ({ title, detail
 
 const defaultTeacherVisibility: TeacherClassVisibilitySettings = {
   childName: false,
-  neuroProfile: true,
-  dailyMood: 'summary',
+  neuroProfile: false,
+  dailyMood: 'hidden',
   worryDiaryText: false,
-  safeguardingAlerts: true,
-  academicTasks: true,
+  safeguardingAlerts: false,
+  academicTasks: false,
   personalNotes: false,
 };
 
@@ -2971,3 +2971,4 @@ const ParentHubPage: React.FC = () => {
 };
 
 export default ParentHubPage;
+

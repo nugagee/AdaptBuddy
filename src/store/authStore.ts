@@ -413,7 +413,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const { data: { session } } = await getSupabaseClient().auth.getSession();
     if (!session?.user || session.user.id !== userId) {
-      await rejectUnverifiedProfile();
+      return rejectUnverifiedProfile();
     }
     set({
       user: session.user,

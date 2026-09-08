@@ -19,7 +19,9 @@ create or replace function public.is_admin()
 returns boolean language sql stable security definer set search_path = public
 as $$
   select exists (
-    select 1 from public.profiles where id = auth.uid()
+    select 1 from public.profiles p
+    join auth.sessions s on s.user_id=p.id and s.id::text=auth.jwt()->>'session_id'
+    where p.id = auth.uid() and (s.not_after is null or s.not_after>now())
       and role::text = 'admin' and is_authorized is true and status = 'active'
       and admin_verified_at is not null and admin_verified_by is not null
       and admin_verification_method = 'service_role_bootstrap'
@@ -35,15 +37,20 @@ declare
   v_is_service_role boolean := coalesce(auth.jwt()->>'role', '') = 'service_role'
     or (auth.uid() is null and current_user not in ('anon', 'authenticated')
       and coalesce(auth.jwt()->>'role', '') not in ('anon', 'authenticated'));
+  v_verified_admin boolean := auth.uid() <> new.id and public.is_admin();
+  v_admin_rpc boolean := current_user = 'postgres' and v_verified_admin;
 begin
   if v_is_service_role then return new; end if;
   if tg_op = 'INSERT' then
+    -- admin_create_user creates Auth first; only its nested, sanitised Auth
+    -- trigger may insert the profile on behalf of a verified administrator.
+    if v_admin_rpc and pg_trigger_depth() > 1 then return new; end if;
     raise exception using errcode = '42501', message = 'Profiles are created by the authentication service.';
   end if;
   if new.id is distinct from old.id
      or new.email is distinct from old.email
      or new.email_verified_at is distinct from old.email_verified_at
-     or new.role is distinct from old.role
+     or (new.role is distinct from old.role and not v_verified_admin)
      or new.admin_verified_at is distinct from old.admin_verified_at
      or new.admin_verified_by is distinct from old.admin_verified_by
      or new.admin_verification_method is distinct from old.admin_verification_method then
@@ -107,4 +114,120 @@ update public.profiles p set email = lower(coalesce(u.email, '')),
 from auth.users u where p.id = u.id
   and (p.email is distinct from lower(coalesce(u.email, ''))
     or p.email_verified_at is distinct from u.email_confirmed_at);
+-- Preserve the deployed eight-argument admin creation contract. New admin-role
+-- accounts still require a separate service-role verification.
+CREATE OR REPLACE FUNCTION "public"."admin_create_user"("p_email" "text", "p_password" "text", "p_role" "public"."user_role", "p_first_name" "text" DEFAULT ''::"text", "p_last_name" "text" DEFAULT ''::"text", "p_gender" "text" DEFAULT NULL::"text", "p_age" integer DEFAULT NULL::integer, "p_child_name" "text" DEFAULT NULL::"text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public', 'auth', 'extensions'
+    AS $$
+DECLARE
+  v_user_id uuid := gen_random_uuid();
+  v_email text := lower(trim(p_email));
+  v_encrypted_pw text;
+  v_full_name text := trim(coalesce(p_first_name, '') || ' ' || coalesce(p_last_name, ''));
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Forbidden: admin only';
+  END IF;
+
+  IF v_email = '' OR p_password IS NULL OR length(p_password) < 8 THEN
+    RAISE EXCEPTION 'Valid email and password (min 8 chars) required';
+  END IF;
+
+  v_encrypted_pw := extensions.crypt(p_password, extensions.gen_salt('bf'));
+
+  INSERT INTO auth.users (
+    instance_id,
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at,
+    confirmation_token,
+    recovery_token,
+    email_change_token_new,
+    email_change
+  ) VALUES (
+    '00000000-0000-0000-0000-000000000000',
+    v_user_id,
+    'authenticated',
+    'authenticated',
+    v_email,
+    v_encrypted_pw,
+    now(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    jsonb_build_object(
+      'role', p_role::text,
+      'first_name', coalesce(p_first_name, ''),
+      'last_name', coalesce(p_last_name, ''),
+      'full_name', v_full_name,
+      'child_name', p_child_name
+    ),
+    now(),
+    now(),
+    '',
+    '',
+    '',
+    ''
+  );
+
+  INSERT INTO auth.identities (
+    id,
+    user_id,
+    provider_id,
+    identity_data,
+    provider,
+    last_sign_in_at,
+    created_at,
+    updated_at
+  ) VALUES (
+    gen_random_uuid(),
+    v_user_id,
+    v_email,
+    jsonb_build_object('sub', v_user_id::text, 'email', v_email),
+    'email',
+    now(),
+    now(),
+    now()
+  );
+
+  -- Auth's sanitised trigger has already created the canonical identity.
+  -- Update editable fields without firing a second profile INSERT trigger.
+  UPDATE public.profiles SET
+    role = p_role,
+    first_name = coalesce(p_first_name, ''),
+    last_name = coalesce(p_last_name, ''),
+    full_name = v_full_name,
+    child_name = p_child_name,
+    gender = p_gender,
+    age = p_age,
+    is_authorized = true,
+    status = 'active'
+  WHERE id = v_user_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Authentication did not create a profile'; END IF;
+
+  RETURN jsonb_build_object('id', v_user_id, 'email', v_email, 'role', p_role::text);
+END;
+$$;
+revoke all on function public.admin_create_user(text,text,public.user_role,text,text,text,integer,text) from public,anon;
+grant execute on function public.admin_create_user(text,text,public.user_role,text,text,text,integer,text) to authenticated;
+-- The current browser sends all nine named fields, including p_sex. No defaults
+-- here: eight-argument clients keep resolving to the preserved older contract.
+create or replace function public.admin_create_user(
+  p_email text,p_password text,p_role public.user_role,p_first_name text,p_last_name text,
+  p_sex text,p_gender text,p_age integer,p_child_name text
+) returns jsonb language plpgsql security definer set search_path=public
+as $$declare v_result jsonb; begin
+  if not public.is_admin() then raise exception using errcode='42501',message='Forbidden: admin only'; end if;
+  v_result := public.admin_create_user(p_email,p_password,p_role,p_first_name,p_last_name,p_gender,p_age,p_child_name);
+  update public.profiles set sex=p_sex where id=(v_result->>'id')::uuid;
+  return v_result;
+end$$;
+revoke all on function public.admin_create_user(text,text,public.user_role,text,text,text,text,integer,text) from public,anon;
+grant execute on function public.admin_create_user(text,text,public.user_role,text,text,text,text,integer,text) to authenticated;
 commit;

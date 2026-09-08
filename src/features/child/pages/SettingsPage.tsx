@@ -1,6 +1,6 @@
-import { TRUSTED_ADULT_INVITATIONS_ENABLED, DIRECT_ADULT_GUIDANCE } from 'constants/releaseCapabilities';
+import SupportConnectionsPanel from 'components/support/SupportConnectionsPanel';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Camera, Check, Copy, KeyRound, Loader2, Plus, Save, ShieldCheck, UserRound } from 'lucide-react';
+import { Camera, Check, Copy, KeyRound, Loader2, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import FeedbackPulsePanel from 'components/feedback/FeedbackPulsePanel';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
@@ -11,15 +11,7 @@ import {
   updateUserProfile,
   uploadProfileAvatar,
 } from 'services/supabase/profileService';
-import {
-  fetchTrustedAdultsForChild,
-  saveTrustedAdultForChild,
-} from 'services/supabase/autismProfileService';
 import type { Profile } from 'services/supabase/client';
-import {
-  isConnectedTrustedAdult,
-  useTrustedAdultStore,
-} from 'features/child/store/trustedAdultStore';
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -35,21 +27,6 @@ const SettingsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
-  const [adultName, setAdultName] = useState('');
-  const [adultRole, setAdultRole] = useState('');
-  const [adultEmail, setAdultEmail] = useState('');
-  const [adultPhone, setAdultPhone] = useState('');
-  const [trustedAdultsUnavailable, setTrustedAdultsUnavailable] = useState(false);
-  const [trustedAdultsLoading, setTrustedAdultsLoading] = useState(false);
-  const [savingTrustedAdult, setSavingTrustedAdult] = useState(false);
-
-  const trustedAdults = useTrustedAdultStore((s) => s.trustedAdults);
-  const trustedAdultOwnerId = useTrustedAdultStore((s) => s.ownerChildId);
-  const selectedTrustedAdultId = useTrustedAdultStore((s) => s.selectedTrustedAdultId);
-  const selectTrustedAdult = useTrustedAdultStore((s) => s.selectTrustedAdult);
-  const setTrustedAdults = useTrustedAdultStore((s) => s.setTrustedAdults);
-  const clearTrustedAdults = useTrustedAdultStore((s) => s.clearTrustedAdults);
-
   const guestProfile = useMemo<Profile | null>(() => {
     if (!isGuest) return null;
     const now = new Date().toISOString();
@@ -85,42 +62,6 @@ const SettingsPage: React.FC = () => {
     setAvatarPreview(activeProfile.avatar_url ?? null);
   }, [activeProfile]);
 
-  useEffect(() => {
-    if (!TRUSTED_ADULT_INVITATIONS_ENABLED || !activeProfile || isGuest || activeProfile.role !== 'child') {
-      clearTrustedAdults();
-      return;
-    }
-
-    let cancelled = false;
-    clearTrustedAdults();
-    setTrustedAdultsLoading(true);
-    setTrustedAdultsUnavailable(false);
-
-    fetchTrustedAdultsForChild(activeProfile.id)
-      .then((adults) => {
-        if (!cancelled) setTrustedAdults(activeProfile.id, adults);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          clearTrustedAdults();
-          setTrustedAdultsUnavailable(true);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setTrustedAdultsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProfile, isGuest, clearTrustedAdults, setTrustedAdults]);
-
-  const visibleTrustedAdults =
-    !isGuest && activeProfile?.role === 'child' && trustedAdultOwnerId === activeProfile.id
-      ? trustedAdults
-      : [];
-  const connectedTrustedAdults = visibleTrustedAdults.filter(isConnectedTrustedAdult);
-
   const email = activeProfile?.email ?? user?.email ?? '';
   const chosenNeuroOptions = selectedNeuro
     .map((id) => NEURO_OPTION_MAP[id])
@@ -143,61 +84,6 @@ const SettingsPage: React.FC = () => {
     } catch {
       setError(`Your Buddy ID is ${activeProfile.buddy_id}. Copy it manually.`);
       setSuccess('');
-    }
-  };
-
-  const handleAddTrustedAdult = async () => {
-    const name = adultName.trim();
-    const role = adultRole.trim();
-    const email = adultEmail.trim();
-    const phone = adultPhone.trim();
-
-    if (!name || !role) {
-      setError('Add a trusted adult name and role first.');
-      setSuccess('');
-      return;
-    }
-
-    if (!email || !phone) {
-      setError('Add both email and phone number for the trusted adult.');
-      setSuccess('');
-      return;
-    }
-
-    setSavingTrustedAdult(true);
-
-    try {
-      if (isGuest || !activeProfile?.id) {
-        throw new Error('Sign in as the child before recording a trusted-adult request.');
-      }
-
-      const savedAdult = await saveTrustedAdultForChild(
-        activeProfile.id,
-        { name, role, email, phone },
-      );
-
-      setTrustedAdults(activeProfile.id, [
-        ...visibleTrustedAdults.filter((adult) => adult.id !== savedAdult.id),
-        savedAdult,
-      ]);
-
-      setAdultName('');
-      setAdultRole('');
-      setAdultEmail('');
-      setAdultPhone('');
-      setError('');
-      setSuccess(
-        `${savedAdult.name}'s trusted-adult request was recorded. No email or message was sent. They are not connected and cannot see updates.`,
-      );
-    } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message?: string }).message)
-          : 'Could not add this trusted adult.';
-      setError(message);
-      setSuccess('');
-    } finally {
-      setSavingTrustedAdult(false);
     }
   };
 
@@ -472,177 +358,7 @@ const SettingsPage: React.FC = () => {
             </div>
           </section>
 
-          <section className="rounded-3xl border border-white/70 bg-white/80 p-6 shadow-soft backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/70">
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-adapt-indigo/10 text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
-                <ShieldCheck className="h-5 w-5" aria-hidden />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">
-                  Trusted adult
-                </h2>
-                <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
-                  Trusted-adult connections are temporarily unavailable. {DIRECT_ADULT_GUIDANCE}
-                </p>
-              </div>
-            </div>
-
-            {trustedAdultsLoading ? (
-              <div className="mt-5 flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm text-slate-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                Loading trusted adults...
-              </div>
-            ) : (
-              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {visibleTrustedAdults.map((adult) => {
-                  const connected = isConnectedTrustedAdult(adult);
-                  const active = connected && selectedTrustedAdultId === adult.id;
-                  return (
-                    <button
-                      key={adult.id}
-                      type="button"
-                      disabled={!connected}
-                      onClick={() => {
-                        if (!connected) return;
-                        selectTrustedAdult(adult.id);
-                        setSuccess(`${adult.name} is selected in your settings. This does not send a message.`);
-                        setError('');
-                      }}
-                      className={`rounded-2xl border-2 p-4 text-left transition ${
-                        active
-                          ? 'border-adapt-indigo bg-adapt-indigo/5 ring-2 ring-adapt-indigo/20 dark:border-adapt-cyan dark:bg-adapt-cyan/10'
-                          : connected
-                            ? 'border-slate-100 bg-white hover:border-adapt-indigo/30 dark:border-gray-700 dark:bg-gray-800'
-                            : 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-75 dark:border-gray-700 dark:bg-gray-800/70'
-                      }`}
-                      aria-pressed={active}
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-adapt-indigo to-adapt-teal text-sm font-bold text-white">
-                          {adult.name.charAt(0).toUpperCase()}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-bold text-adapt-navy dark:text-gray-100">
-                            {adult.name}
-                          </span>
-                          <span className="mt-0.5 block text-sm text-slate-500 dark:text-gray-400">
-                            {adult.role}
-                          </span>
-                          <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
-                            connected
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
-                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
-                          }`}>
-                            {connected ? 'Connected' : 'Recorded — not connected'}
-                          </span>
-                          {adult.contact && (
-                            <span className="mt-1 block text-xs text-slate-400">{adult.contact}</span>
-                          )}
-                          {adult.email && (
-                            <span className="mt-1 block text-xs text-slate-400">{adult.email}</span>
-                          )}
-                          {adult.phone && (
-                            <span className="mt-1 block text-xs text-slate-400">{adult.phone}</span>
-                          )}
-                        </span>
-                        {active && <Check className="h-5 w-5 text-adapt-teal" aria-hidden />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {trustedAdultsUnavailable && (
-              <p role="status" className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                We cannot check your trusted-adult connections right now. Speak to an adult you trust directly if you need help.
-              </p>
-            )}
-            {TRUSTED_ADULT_INVITATIONS_ENABLED && !trustedAdultsLoading && !trustedAdultsUnavailable && connectedTrustedAdults.length === 0 && (
-              <p className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-                No trusted adult is connected yet. Please speak to an adult you trust directly when you need help.
-              </p>
-            )}
-
-            {TRUSTED_ADULT_INVITATIONS_ENABLED && (<div className="mt-6 rounded-2xl border border-dashed border-adapt-indigo/25 bg-adapt-indigo/5 p-4 dark:border-adapt-cyan/25 dark:bg-adapt-cyan/5">
-              <div className="mb-4 flex items-center gap-2">
-                <UserRound className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
-                <h3 className="font-bold text-adapt-navy dark:text-gray-100">
-                  Record a trusted-adult request
-                </h3>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="trusted-adult-name" className="mb-2 block text-sm font-medium text-slate-600 dark:text-gray-300">
-                    Name
-                  </label>
-                  <input
-                    id="trusted-adult-name"
-                    value={adultName}
-                    onChange={(e) => setAdultName(e.target.value)}
-                    placeholder="e.g. Mum, Dad, Aunty Sarah"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-800"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="trusted-adult-role" className="mb-2 block text-sm font-medium text-slate-600 dark:text-gray-300">
-                    Role
-                  </label>
-                  <input
-                    id="trusted-adult-role"
-                    value={adultRole}
-                    onChange={(e) => setAdultRole(e.target.value)}
-                    placeholder="Parent, guardian, grandparent, or carer"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-800"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="trusted-adult-email" className="mb-2 block text-sm font-medium text-slate-600 dark:text-gray-300">
-                    Email
-                  </label>
-                  <input
-                    id="trusted-adult-email"
-                    type="email"
-                    value={adultEmail}
-                    onChange={(e) => setAdultEmail(e.target.value)}
-                    placeholder="adult@example.com"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-800"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="trusted-adult-phone" className="mb-2 block text-sm font-medium text-slate-600 dark:text-gray-300">
-                    Phone number
-                  </label>
-                  <input
-                    id="trusted-adult-phone"
-                    type="tel"
-                    value={adultPhone}
-                    onChange={(e) => setAdultPhone(e.target.value)}
-                    placeholder="+44 7000 000000"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-800"
-                  />
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleAddTrustedAdult}
-                disabled={savingTrustedAdult || isGuest || trustedAdultsUnavailable || trustedAdultsLoading}
-                className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-bold text-adapt-indigo shadow-sm transition hover:bg-adapt-mist disabled:opacity-60 dark:bg-gray-800 dark:text-adapt-cyan"
-              >
-                {savingTrustedAdult ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <Plus className="h-4 w-4" aria-hidden />
-                )}
-                {savingTrustedAdult ? 'Recording...' : 'Record request'}
-              </button>
-              {isGuest && (
-                <p className="mt-3 text-sm font-medium text-slate-600 dark:text-gray-300">
-                  Sign in as the child to record a request. This build does not send an email or contact an adult.
-                </p>
-              )}
-            </div>)}
-          </section>
+          <SupportConnectionsPanel />
 
           <FeedbackPulsePanel
             title="Tell us about your space"

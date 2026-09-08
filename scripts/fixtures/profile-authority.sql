@@ -13,6 +13,13 @@ grant usage on schema auth, public to anon, authenticated, service_role;
 grant execute on all functions in schema auth to anon, authenticated, service_role;
 create type public.user_role as enum ('child', 'parent', 'teacher', 'admin');
 create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz, raw_user_meta_data jsonb);
+create table auth.sessions (id uuid primary key, user_id uuid references auth.users(id), not_after timestamptz);
+-- Each synthetic Auth fixture account gets a session; its ID is reused only in
+-- this fixture to make claim setup deterministic. Real Auth tests use real IDs.
+create function auth.fixture_session() returns trigger language plpgsql security definer as $$
+begin insert into auth.sessions(id,user_id) values(new.id,new.id); return new; end;
+$$;
+create trigger fixture_session after insert on auth.users for each row execute function auth.fixture_session();
 create table public.profiles (
   id uuid primary key references auth.users(id), email text not null,
   role public.user_role not null default 'parent', first_name text default '', last_name text default '',

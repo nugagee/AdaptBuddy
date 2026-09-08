@@ -18,6 +18,9 @@ function mustNotMatch(source, pattern, message) {
 
 const store = read('src/features/child/store/trustedAdultStore.ts');
 const settings = read('src/features/child/pages/SettingsPage.tsx');
+const connections = read('src/components/support/SupportConnectionsPanel.tsx');
+const requestAction = read('src/components/support/SupportRequestAction.tsx');
+const scopedSql = read('supabase/migration-drafts/044_scoped_support_connections.sql');
 const trustedAdultService = read('src/services/supabase/autismProfileService.ts');
 const parentService = read('src/features/parent/services/parentDashboardService.ts');
 const parentHub = read('src/features/parent/pages/ParentHubPage.tsx');
@@ -53,22 +56,19 @@ mustMatch(
   'Pending adults must not be selectable.',
 );
 
-mustMatch(settings, /disabled=\{!connected\}/, 'Pending trusted-adult cards must be disabled.');
-mustMatch(settings, /Recorded — not connected/, 'The UI must describe recorded requests without implying verification or delivery.');
-mustMatch(settings, /No email or message was sent/, 'Recorded-request copy must disclose that no message was sent.');
-mustMatch(settings, /No trusted adult is connected yet/, 'The zero-recipient state must be explicit.');
-mustMatch(settings, /TRUSTED_ADULT_INVITATIONS_ENABLED &&/, 'The unfinished request form must respect the release gate.');
-mustMatch(settings, /Record a trusted-adult request/, 'The form title must describe the implemented record action.');
-mustMatch(settings, /Record request/, 'The form button must describe the implemented record action.');
-mustMatch(settings, /disabled=\{savingTrustedAdult \|\| isGuest \|\| trustedAdultsUnavailable \|\| trustedAdultsLoading\}/, 'Guest mode must disable real invitations.');
-mustNotMatch(settings, /is now your trusted adult\./, 'The UI must not claim an unqualified adult is connected.');
-mustNotMatch(settings, /is now your connected trusted adult\./, 'Selecting an adult must not imply that selection created the connection.');
-mustNotMatch(settings, /They will connect when they create an AdaptBuddy account/, 'Account creation alone must not authorise an adult.');
-mustNotMatch(settings, /:\s*addTrustedAdult\(/, 'Guest mode must not create an operational trusted adult.');
-mustNotMatch(settings, /Invite a trusted adult|Save invitation|invitation is pending|Pending verification/, 'The UI must not describe an undelivered request as an invitation lifecycle.');
+mustMatch(settings, /SupportConnectionsPanel/, 'Settings must expose the scoped connection manager.');
+mustMatch(connections, /TRUSTED_ADULT_INVITATIONS_ENABLED/, 'Connection UI must respect release readiness.');
+mustMatch(connections, /Accept invitation/, 'An authenticated adult needs an acceptance action.');
+mustMatch(connections, /Decline invitation/, 'An authenticated adult needs a decline action.');
+mustMatch(connections, /End support connection/, 'Each participant must be able to end access.');
+mustMatch(connections, /No email or text alert is sent/, 'In-app invitations must not imply external delivery.');
+mustMatch(connections, /if \(!user\?\.id \|\| isGuest\)/, 'Guests must not manage real connections.');
+mustNotMatch(scopedSql, /insert into public\.(?:trusted_adults|child_relationships|journal_entries|alerts|parent_child_signals)\b/i, 'Scoped acceptance/requests must not grant or populate legacy access.');
+mustMatch(scopedSql, /r\.contact_id is distinct from p_contact_id/, 'Idempotency must bind the explicit recipient.');
+mustMatch(scopedSql, /c\.adult_id=v_uid/, 'Inbox reads must be restricted to the actual recipient.');
 
 mustMatch(trustedAdultService, /row\.accepted_at[\s\S]*row\.accepted_by === row\.adult_id[\s\S]*row\.acceptance_method === 'account_email'[\s\S]*:\s*'pending'/, 'Client status must require complete acceptance evidence.');
-mustMatch(trustedAdultService, /status, accepted_at, accepted_by, acceptance_method/, 'Trusted-adult reads must request complete acceptance evidence.');
+mustMatch(trustedAdultService, /list_trusted_support_contacts_v1/, 'Trusted-adult reads must use the scoped authenticated contract.');
 mustMatch(parentService, /Direct Buddy ID linking is temporarily disabled/, 'The client must not call the unsafe generic Buddy ID link flow.');
 mustNotMatch(parentService, /rpc\('link_child_by_buddy_id'/, 'The client must not invoke generic Buddy ID self-linking.');
 mustMatch(parentService, /adultUserId:\s*row\.adult_id/, 'Invitation IDs and accepted adult account IDs must remain distinct.');
@@ -89,14 +89,15 @@ mustMatch(teacherService, /\.filter\(\(membership\) => membership\.status === 'a
 mustMatch(teacherService, /buddyId:\s*null,[\s\S]*age:\s*undefined/, 'Teacher rosters must not expose Buddy IDs or age without an explicit visibility grant.');
 
 for (const source of [moodPanel, conversationPanel]) {
-  mustMatch(source, /delivery[^.]*is not confirmed/i, 'Child-facing support copy must disclose that delivery is unconfirmed.');
-  mustNotMatch(source, /(?:message|request|alert) (?:has been |was )?sent/i, 'Child-facing support copy must not falsely claim external delivery.');
-  mustMatch(source, /Record support request/, 'The support action must describe an in-app record, not adult contact.');
-  mustMatch(source, /No adult was contacted/, 'A failed support record must say that no adult was contacted.');
-  mustNotMatch(source, /Tell a trusted adult now/, 'An in-app record button must not claim to contact an adult.');
+  mustMatch(source, /SupportRequestAction/, 'Support surfaces must use the recipient-aware action.');
 }
+mustMatch(requestAction, /Record support request/, 'The action must describe recording.');
+mustMatch(requestAction, /Only me — private record/, 'Private recording must be an explicit option.');
+mustMatch(requestAction, /recipient \|\| null/, 'The chosen recipient must reach the shared service boundary.');
+mustMatch(requestAction, /does not confirm they have seen it/, 'Recorded requests must not imply adult acknowledgement.');
+mustMatch(requestAction, /no guaranteed response time/, 'Unstaffed recording must not promise a response.');
 
-mustMatch(buddyApi, /AdaptBuddy cannot contact an adult for you/g, 'Buddy safety copy must give honest direct-contact guidance.');
+mustMatch(buddyApi, /No email or text alert has been sent by AdaptBuddy/g, 'Buddy safety copy must give honest direct-contact guidance.');
 mustNotMatch(buddyApi, /support button records/, 'Buddy must not advertise unavailable recording.');
 mustNotMatch(buddyApi, /use the button below|use a quick support button/i, 'Buddy API safety copy must not imply external contact through the support button.');
 mustNotMatch(parentService, /send a trusted-adult invitation/i, 'The parent flow must not claim an invitation was sent.');

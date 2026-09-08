@@ -1,6 +1,8 @@
 # PR #15 — what is complete and what remains
 
-**Current release scope (8 September):** the owner has now requested a live update while deferring the remaining safeguarding work. [SCOPED_LIVE_RELEASE.md](SCOPED_LIVE_RELEASE.md) defines the reduced scope: private learning/journal/mood and profile compatibility, with new adult requests and support recording disabled. The two scoped database updates are now applied and verified; the production Git hold is removed in the scoped release change. R1–R7 remain open wherever their full acceptance criteria are unmet.
+**Previous scoped production release (8 September):** the owner has now requested a live update while deferring the remaining safeguarding work. [SCOPED_LIVE_RELEASE.md](SCOPED_LIVE_RELEASE.md) defines the reduced scope: private learning/journal/mood and profile compatibility, with new adult requests and support recording disabled. The two scoped database updates are now applied and verified; the production Git hold is removed in the scoped release change. R1–R7 remain open wherever their full acceptance criteria are unmet.
+
+**Current enablement request:** the owner now requests adult invitations and support recording. The isolated candidate and its authority repair are implemented and verified locally; see [SCOPED_SUPPORT_ENABLEMENT.md](SCOPED_SUPPORT_ENABLEMENT.md). No hosted SQL or production deployment for that candidate has occurred. Release awaits the legitimate administrator email and password-rotation confirmation. Historical school/guardian authority and safeguarding operations are not marked complete.
 
 Integration checkpoint before this scoped release: PR #15 was merged at `a40cf2c2f61abc919af65f953cc28dd459d85c44`; the local main checkout is updated. Automatic production deployment is held, and the live release was verified unchanged. This checklist does not claim that the new safeguarding workflow is live or ready for a pilot. Supabase Free remains the chosen plan.
 
@@ -18,11 +20,11 @@ Integration checkpoint before this scoped release: PR #15 was merged at `a40cf2c
 - [x] Fix the reproduced invitation/account-change race; all eight new local lifecycle checks pass.
 - [x] Restore a synthetic backup into a separate local database and verify 53 table fingerprints, policies and ownership.
 
-## Decision: combine source before live release
+## Historical decision: combine source before live release
 
 PR #15 targets `upload/adaptbuddy-web`, which is used for Vercel production deployments. A normal merge could therefore release source before its database contracts exist. The owner chose to hold automatic deployment for that exact branch in `vercel.json`, merge the reviewed source, and retain this checklist in the repository. This approval supersedes the earlier instruction to keep the PR draft; the live-release restrictions remain in force.
 
-The hold is recorded in the root `vercel.json`. It preserves the existing rewrite and adds `git.deploymentEnabled["upload/adaptbuddy-web"] = false`. Other branches keep their default preview behavior. This is a Git-triggered deployment hold, not a security barrier against manual deployment, promotion, CLI deployment or deploy hooks; those must also wait until release readiness. It adds no paid service.
+The original hold was recorded in the root `vercel.json` and was removed for the later scoped release. It preserves the existing rewrite and adds `git.deploymentEnabled["upload/adaptbuddy-web"] = false`. Other branches keep their default preview behavior. This is a Git-triggered deployment hold, not a security barrier against manual deployment, promotion, CLI deployment or deploy hooks; those must also wait until release readiness. It adds no paid service.
 
 Reference: https://vercel.com/docs/project-configuration/git-configuration
 
@@ -30,7 +32,7 @@ Reference: https://vercel.com/docs/project-configuration/git-configuration
 
 | ID | Work | Complete when |
 | --- | --- | --- |
-| R1 | Reconcile and release database contracts | Reviewed profile, mood privacy, pending invitation and atomic support changes are applied in a tested order; ordinary profile saves and both new request calls succeed on the intended environment. The live readiness check currently reports all five required fields/functions/trigger absent. |
+| R1 | Reconcile and release database contracts | Reviewed profile, mood privacy, pending invitation and atomic support changes are applied in a tested order; ordinary profile saves and both new request calls succeed on the intended environment. Scoped mood/profile fields are now live. The new 041/044 authority/support contracts are prepared locally and still require hosted application. |
 | R2 | Establish administrator authority | The legitimate administrator is verified; the historical credential is rotated and old sessions are revoked. Evidence is recorded without storing credentials in the repository or chat. |
 | R3 | Complete adult and school access rules | Accepted email contact and guardian authority have explicit, separate permissions. Historical classroom, session, assignment and report paths respect them. |
 | R4 | Verify concurrency and revocation | Separate sessions prove that suspension, email changes, guardian withdrawal, classroom ownership changes and concurrent acceptance cannot recreate revoked access. Eight acceptance/account-lifecycle checks now pass, in addition to basic sequential revocation and eight simultaneous support retries. Historical class-approval concurrency remains open; see ACCESS_LIFECYCLE_AND_RECOVERY.md. |

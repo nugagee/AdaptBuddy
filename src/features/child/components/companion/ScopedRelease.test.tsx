@@ -8,6 +8,10 @@ import BuddyConversationPanel from './BuddyConversationPanel';
 import { useTrustedAdultStore } from 'features/child/store/trustedAdultStore';
 import SettingsPage from 'features/child/pages/SettingsPage';
 
+jest.mock('constants/releaseCapabilities', () => ({
+  TRUSTED_ADULT_INVITATIONS_ENABLED: false, SUPPORT_RECORDING_ENABLED: false,
+  DIRECT_ADULT_GUIDANCE: 'Please speak to a safe adult nearby. No email or text alert is sent by AdaptBuddy.',
+}));
 jest.mock('hooks/useAuth', () => {
   const auth = {
     user: { id: 'child' }, isGuest: false, setProfile: jest.fn(),
@@ -37,7 +41,7 @@ test('mood check-ins still save while urgent guidance cannot record a support re
   fireEvent.click(screen.getByRole('button', { name: 'Share with AdaptBuddy' }));
   expect(await screen.findByText(/Check-in saved/)).toBeInTheDocument();
   expect(saveMoodCheckIn).toHaveBeenCalledWith('child', 'worried', '', 'Please find a safe adult.');
-  expect(screen.getByText(/AdaptBuddy cannot contact an adult for you/)).toBeInTheDocument();
+  expect(screen.getByText(/No email or text alert is sent by AdaptBuddy/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Record support request' })).not.toBeInTheDocument();
   expect(requestTrustedAdultSupport).not.toHaveBeenCalled();
 });
@@ -46,7 +50,7 @@ test('Buddy conversation provides direct help guidance without unavailable recor
   (sendBuddyMessage as jest.Mock).mockResolvedValue({ content: 'Please find a safe adult.', adultActionRequired: true, riskLevel: 'urgent' });
   render(<BuddyConversationPanel />);
   fireEvent.click(screen.getByRole('button', { name: 'I need help from an adult' }));
-  expect(await screen.findByText(/AdaptBuddy cannot contact an adult for you/)).toBeInTheDocument();
+  expect(await screen.findByText(/No email or text alert is sent by AdaptBuddy/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Record support request' })).not.toBeInTheDocument();
   expect(requestTrustedAdultSupport).not.toHaveBeenCalled();
 });

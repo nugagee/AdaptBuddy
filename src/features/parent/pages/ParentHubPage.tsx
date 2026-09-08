@@ -1,3 +1,4 @@
+import SupportConnectionsPanel from 'components/support/SupportConnectionsPanel';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -1792,6 +1793,7 @@ const ParentHubPage: React.FC = () => {
       </section>
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        <SupportConnectionsPanel />
         {error && (
           <div
             role="alert"
@@ -1812,7 +1814,7 @@ const ParentHubPage: React.FC = () => {
 
         {dashboardData?.trustedAdultsUnavailable && (
           <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-            Trusted-adult connections are unavailable. Their connection status could not be checked. Please contact your care team directly if support is needed.
+            Older family links have not been verified. Manage new support connections in the inbox above.
           </p>
         )}
         {dashboardData && dashboardData.children.length > 0 && renderChildSwitcher(dashboardData.children)}
@@ -1825,8 +1827,7 @@ const ParentHubPage: React.FC = () => {
                 No child space connected yet
               </h2>
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500 dark:text-gray-400">
-                Connect with the child&apos;s Buddy ID to see profile progress, wellbeing trends, journal entries,
-                alerts, and the trusted support circle.
+                New support invitations and requests are available in the inbox above. A support connection does not grant access to the full child dashboard.
               </p>
             </div>
             {renderBuddyIdLinkCard()}

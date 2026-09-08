@@ -3,7 +3,7 @@ import { getSupabaseClient, isSupabaseConfigured } from './client';
 import type { AutismProfile } from 'features/child/types/autismProfile';
 import type { EmotionAnalysis, RiskLevel } from 'types/ai.types';
 
-export type TrustedAdultStatus = 'active' | 'connected' | 'pending';
+export type TrustedAdultStatus = 'active' | 'connected' | 'pending' | 'declined' | 'revoked' | 'expired';
 
 export interface TrustedAdultInput {
   name: string;
@@ -15,6 +15,8 @@ export interface TrustedAdultInput {
 export interface TrustedAdultRecord extends TrustedAdultInput {
   id: string;
   status: TrustedAdultStatus;
+  child_name?: string;
+  expires_at?: string;
 }
 
 interface TrustedAdultRow {
@@ -28,10 +30,12 @@ interface TrustedAdultRow {
   accepted_at?: string | null;
   accepted_by?: string | null;
   acceptance_method?: string | null;
+  child_name?: string;
+  expires_at?: string;
 }
 
 const normalizeTrustedAdultStatus = (status: string): TrustedAdultStatus => {
-  if (status === 'active' || status === 'connected' || status === 'pending') return status;
+  if (status === 'active' || status === 'connected' || status === 'pending' || status === 'declined' || status === 'revoked' || status === 'expired') return status;
   return 'pending';
 };
 
@@ -41,8 +45,11 @@ const mapTrustedAdultRow = (row: TrustedAdultRow): TrustedAdultRecord => ({
   role: row.role,
   email: row.email,
   phone: row.phone,
-  status:
-    row.accepted_at
+  child_name: row.child_name,
+  expires_at: row.expires_at,
+  status: ['declined', 'revoked', 'expired'].includes(row.status)
+    ? normalizeTrustedAdultStatus(row.status)
+    : row.accepted_at
       && row.adult_id
       && row.accepted_by === row.adult_id
       && row.acceptance_method === 'account_email'
@@ -118,11 +125,10 @@ export async function fetchTrustedAdultsForChild(childId: string): Promise<Trust
   if (!TRUSTED_ADULT_INVITATIONS_ENABLED) throw new Error('Trusted-adult connections are temporarily unavailable.');
   if (!isSupabaseConfigured) return [];
 
-  const { data, error } = await getSupabaseClient()
-    .from('trusted_adults')
-    .select('id, adult_id, name, role, email, phone, status, accepted_at, accepted_by, acceptance_method')
-    .eq('child_id', childId)
-    .order('created_at', { ascending: true });
+  const client = getSupabaseClient();
+  const { data: { user } } = await client.auth.getUser();
+  if (user?.id !== childId) throw new Error('Sign in as this child to view support connections.');
+  const { data, error } = await client.rpc('list_trusted_support_contacts_v1');
 
   if (error) throw error;
   return ((data ?? []) as TrustedAdultRow[]).map(mapTrustedAdultRow);
@@ -148,7 +154,7 @@ export async function saveTrustedAdultForChild(
     throw new Error('You need to be signed in as this child to add a trusted adult.');
   }
 
-  const { data, error } = await client.rpc('record_trusted_adult_request_v1', {
+  const { data, error } = await client.rpc('create_trusted_support_invitation_v1', {
     p_child_id: childId,
     p_name: adult.name,
     p_role: adult.role,
@@ -259,16 +265,17 @@ export async function requestTrustedAdultSupport(
   source: 'buddy-conversation' | 'mood-check-in' | 'child-dashboard',
   urgent = false,
   requestId = crypto.randomUUID(),
+  contactId: string | null = null,
 ): Promise<void> {
   if (!SUPPORT_RECORDING_ENABLED) throw new Error('Support recording is temporarily unavailable. No adult was contacted.');
   if (!isSupabaseConfigured) throw new Error('Secure support recording is unavailable.');
   const client = getSupabaseClient();
   const { data: { user }, error: userError } = await client.auth.getUser();
   if (userError || user?.id !== childId) throw new Error('Sign in as this child to record a support request.');
-  const { data, error } = await client.rpc('record_child_support_request_v1', {
-    p_child_id: childId, p_request_id: requestId, p_source: source, p_urgent: urgent,
+  const { data, error } = await client.rpc('record_trusted_support_request_v1', {
+    p_child_id: childId, p_request_id: requestId, p_source: source, p_urgent: urgent, p_contact_id: contactId,
   });
-  if (error || !data) throw new Error('The support record could not be confirmed. No adult was contacted.');
+  if (error || !data) throw new Error('The support record could not be confirmed. Check your support history or retry with the same request.');
 }
 
 export async function fetchRecentMoodCheckIns(
@@ -286,4 +293,50 @@ export async function fetchRecentMoodCheckIns(
 
   if (error) throw error;
   return data ?? [];
+}
+
+export interface SupportRequestRecord {
+  id: string;
+  child_name: string;
+  contact_id: string | null;
+  adult_name: string | null;
+  source: string;
+  urgent: boolean;
+  created_at: string;
+  seen_at: string | null;
+  connection_active: boolean;
+}
+
+export async function fetchAdultSupportInvitations(): Promise<TrustedAdultRecord[]> {
+  if (!TRUSTED_ADULT_INVITATIONS_ENABLED || !isSupabaseConfigured) throw new Error('Support invitations are unavailable.');
+  const { data, error } = await getSupabaseClient().rpc('list_trusted_support_contacts_v1');
+  if (error) throw error;
+  return ((data ?? []) as TrustedAdultRow[]).map(mapTrustedAdultRow);
+}
+
+export async function respondToSupportInvitation(invitationId: string, accept: boolean, isAdult = false): Promise<void> {
+  if (!TRUSTED_ADULT_INVITATIONS_ENABLED || !isSupabaseConfigured) throw new Error('Support invitations are unavailable.');
+  const { error } = await getSupabaseClient().rpc('respond_trusted_support_invitation_v1', {
+    p_invitation_id: invitationId, p_accept: accept, p_is_adult: isAdult,
+  });
+  if (error) throw error;
+}
+
+export async function revokeSupportContact(contactId: string): Promise<void> {
+  if (!TRUSTED_ADULT_INVITATIONS_ENABLED || !isSupabaseConfigured) throw new Error('Support connections are unavailable.');
+  const { error } = await getSupabaseClient().rpc('revoke_trusted_support_contact_v1', { p_contact_id: contactId });
+  if (error) throw error;
+}
+
+export async function fetchSupportRequests(): Promise<SupportRequestRecord[]> {
+  if (!SUPPORT_RECORDING_ENABLED || !isSupabaseConfigured) throw new Error('Support history is unavailable.');
+  const { data, error } = await getSupabaseClient().rpc('list_trusted_support_requests_v1');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function acknowledgeSupportRequest(requestId: string): Promise<void> {
+  if (!SUPPORT_RECORDING_ENABLED || !isSupabaseConfigured) throw new Error('Support recording is unavailable.');
+  const { error } = await getSupabaseClient().rpc('acknowledge_trusted_support_request_v1', { p_request_id: requestId });
+  if (error) throw error;
 }

@@ -1,11 +1,11 @@
-import { SUPPORT_RECORDING_ENABLED, DIRECT_ADULT_GUIDANCE } from 'constants/releaseCapabilities';
-import React, { useRef, useState } from 'react';
-import { Hand, Heart, Loader2 } from 'lucide-react';
+import SupportRequestAction from 'components/support/SupportRequestAction';
+import React, { useState } from 'react';
+import { Heart, Loader2 } from 'lucide-react';
 import { buildCompanionContext, isOpenAiConfigured, respondToMoodCheckIn } from 'services/ai';
 import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
 import { useAuth } from 'hooks/useAuth';
-import { requestTrustedAdultSupport, saveMoodCheckIn } from 'services/supabase/autismProfileService';
+import { saveMoodCheckIn } from 'services/supabase/autismProfileService';
 
 const MOODS = [
   { emoji: '😊', label: 'Happy', value: 'happy' },
@@ -30,8 +30,7 @@ const MoodCheckInPanel: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [adultActionRequired, setAdultActionRequired] = useState(false);
   const [urgent, setUrgent] = useState(false);
-  const [adultRequestStatus, setAdultRequestStatus] = useState('');
-  const supportRequestIds = useRef(new Map<string, string>());
+  const [checkInAttempt, setCheckInAttempt] = useState(0);
 
   const ctx = buildCompanionContext(
     autismProfile,
@@ -40,11 +39,13 @@ const MoodCheckInPanel: React.FC = () => {
   );
 
   const handleSubmit = async () => {
-    if (!mood) return;
+    if (!mood || loading) return;
+    setCheckInAttempt(attempt => attempt + 1);
+    setAdultActionRequired(false);
+    setResponse('');
     setLoading(true);
     setError('');
     setSaved(false);
-    supportRequestIds.current.clear();
     try {
       const result = await respondToMoodCheckIn(mood, note, ctx);
       setResponse(result.response);
@@ -63,21 +64,6 @@ const MoodCheckInPanel: React.FC = () => {
     }
   };
 
-  const requestAdult = async () => {
-    if (!user?.id) {
-      setAdultRequestStatus('In guest mode, please show this screen to a trusted adult nearby.');
-      return;
-    }
-    try {
-      const key = `${user.id}:${urgent}`;
-      const requestId = supportRequestIds.current.get(key) ?? crypto.randomUUID();
-      supportRequestIds.current.set(key, requestId);
-      await requestTrustedAdultSupport(user.id, 'mood-check-in', urgent, requestId);
-      setAdultRequestStatus('Your support request was recorded in AdaptBuddy. Delivery to an adult is not confirmed, so please also go to a safe adult nearby.');
-    } catch {
-      setAdultRequestStatus('We could not confirm whether the support request was recorded. No adult was contacted. Please show this screen to a trusted adult nearby now.');
-    }
-  };
 
   return (
     <div className="space-y-5">
@@ -141,24 +127,7 @@ const MoodCheckInPanel: React.FC = () => {
           {suggestion && (
             <p className="mt-3 text-xs text-slate-600 dark:text-gray-400">{suggestion}</p>
           )}
-          {adultActionRequired && !SUPPORT_RECORDING_ENABLED && (
-            <p className="mt-3 text-sm font-semibold" role="status">{DIRECT_ADULT_GUIDANCE}</p>
-          )}
-          {adultActionRequired && SUPPORT_RECORDING_ENABLED && (
-            <button
-              type="button"
-              onClick={() => void requestAdult()}
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
-            >
-              <Hand className="h-4 w-4" aria-hidden />
-              Record support request
-            </button>
-          )}
-          {adultRequestStatus && (
-            <p className="mt-3 rounded-xl bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-950 dark:bg-amber-950/50 dark:text-amber-100" role="status">
-              {adultRequestStatus}
-            </p>
-          )}
+          {adultActionRequired && <SupportRequestAction source="mood-check-in" urgent={urgent} contextKey={String(checkInAttempt)} />}
           {saved && (
             <p className="mt-3 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
               Check-in saved ✓

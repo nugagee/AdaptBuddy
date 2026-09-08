@@ -7,7 +7,7 @@ export interface TrustedAdult {
   email?: string;
   phone?: string;
   contact?: string;
-  status: 'active' | 'connected' | 'pending';
+  status: 'active' | 'connected' | 'pending' | 'declined' | 'revoked' | 'expired';
 }
 
 interface TrustedAdultState {

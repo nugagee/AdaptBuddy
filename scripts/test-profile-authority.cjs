@@ -15,7 +15,7 @@ let checks = 0;
     const asActor = async (id, statement, role = 'authenticated') => {
       await db.exec('begin');
       try {
-        await db.query("select set_config('request.jwt.claims', $1, true)",[JSON.stringify({sub:id,role})]);
+        await db.query("select set_config('request.jwt.claims', $1, true)",[JSON.stringify({sub:id,role,session_id:id})]);
         await db.exec(`set local role ${role}`);
         const result = await db.query(statement);
         await db.exec('commit');
@@ -44,7 +44,8 @@ let checks = 0;
     assert.equal((await asActor(admin,'select public.is_admin() as allowed'))[0].allowed,true);checks++;
     await asActor(admin,`update profiles set is_authorized=true,status='active' where id='${teacher}'`);checks++;
     await denied(admin,"update profiles set status='pending' where id=auth.uid()");
-    await denied(admin,`update profiles set role='admin' where id='${teacher}'`);
+    await asActor(admin,`update profiles set role='parent' where id='${teacher}'`);checks++;
+    await denied(admin,`update profiles set admin_verified_at=now() where id='${teacher}'`);
     await asActor(admin,`update profiles set status='suspended' where id='${admin}'`,'service_role');
     assert.equal((await asActor(admin,'select public.is_admin() as allowed'))[0].allowed,false);checks++;
     // Rehearsal must be rerunnable and must preserve the editable profile data.

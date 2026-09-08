@@ -96,7 +96,7 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
     rpc:async(name)=>{calls.push(name);return {data:null,error:{code:'PGRST202'}};},
   })}});
   await assert.rejects(service.saveTrustedAdultForChild('child',{name:'Test',role:'parent',email:'test@example.invalid',phone:'test'}),/unavailable/);
-  assert.deepEqual(calls,['record_trusted_adult_request_v1']);checks++;
+  assert.deepEqual(calls,['create_trusted_support_invitation_v1']);checks++;
   // A private note and its derived analysis must cause only the private journal write.
   const writes=[];
   const journal=loadTs('src/services/supabase/autismProfileService.ts',{...enabledCapabilities,'./client':{isSupabaseConfigured:true,getSupabaseClient:()=>({
@@ -128,15 +128,15 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
     rpc:async(name,args)=>{supportCalls.push({name,args});return {data:'entry',error:null};},
   })}});
   await supportService.requestTrustedAdultSupport('child','mood-check-in',true,'same-request-id');
-  assert.equal(supportCalls.length,1);assert.equal(supportCalls[0].name,'record_child_support_request_v1');
+  assert.equal(supportCalls.length,1);assert.equal(supportCalls[0].name,'record_trusted_support_request_v1');
   assert.equal(supportCalls[0].args.p_child_id,'child');assert.equal(supportCalls[0].args.p_request_id,'same-request-id');checks++;
-  // The shipped release must reject unfinished actions before any backend access.
+  // The enabled candidate still supports a code-level emergency disable before backend access.
   const releaseCapabilities=loadTs('src/constants/releaseCapabilities.ts',{});
-  assert.equal(releaseCapabilities.TRUSTED_ADULT_INVITATIONS_ENABLED,false);
-  assert.equal(releaseCapabilities.SUPPORT_RECORDING_ENABLED,false);
+  assert.equal(releaseCapabilities.TRUSTED_ADULT_INVITATIONS_ENABLED,true);
+  assert.equal(releaseCapabilities.SUPPORT_RECORDING_ENABLED,true);
   let backendAccesses=0;
   const disabled=loadTs('src/services/supabase/autismProfileService.ts',{
-    'constants/releaseCapabilities':releaseCapabilities,
+    'constants/releaseCapabilities':{...releaseCapabilities,TRUSTED_ADULT_INVITATIONS_ENABLED:false,SUPPORT_RECORDING_ENABLED:false},
     './client':{isSupabaseConfigured:true,getSupabaseClient:()=>{backendAccesses++;throw new Error('Unexpected backend access');}},
   });
   for(const id of ['child','another-child']){
@@ -148,7 +148,7 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
   assert.equal(backendAccesses,0);checks++;
   const moodWrites=[];
   const moodService=loadTs('src/services/supabase/autismProfileService.ts',{
-    'constants/releaseCapabilities':releaseCapabilities,
+    'constants/releaseCapabilities':{...releaseCapabilities,TRUSTED_ADULT_INVITATIONS_ENABLED:false,SUPPORT_RECORDING_ENABLED:false},
     './client':{isSupabaseConfigured:true,getSupabaseClient:()=>({from:table=>({insert:async row=>{moodWrites.push({table,row});return {error:null};}})})},
   });
   await moodService.saveMoodCheckIn('child','sad',' private mood ','private response');

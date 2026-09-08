@@ -1,5 +1,7 @@
 # Scoped live release — 8 September 2026
 
+Historical production record: the subsequent enablement request is tracked in [SCOPED_SUPPORT_ENABLEMENT.md](SCOPED_SUPPORT_ENABLEMENT.md).
+
 The owner requested deployment now, deferring the remaining safeguarding operations. PR #15 is already integrated. This release preserves the learning improvements and private journal/mood saves, while keeping new trusted-adult requests and atomic support recording disabled in the application. This does not certify the existing database authority or school-access rules as complete.
 
 ## Release boundary

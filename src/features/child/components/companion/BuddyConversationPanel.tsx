@@ -1,11 +1,10 @@
-import { SUPPORT_RECORDING_ENABLED, DIRECT_ADULT_GUIDANCE } from 'constants/releaseCapabilities';
+import SupportRequestAction from 'components/support/SupportRequestAction';
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Hand, Loader2, Send, ShieldCheck, UserRound } from 'lucide-react';
+import { Bot, Loader2, Send, ShieldCheck, UserRound } from 'lucide-react';
 import { buildCompanionContext, sendBuddyMessage } from 'services/ai';
-import { requestTrustedAdultSupport } from 'services/supabase/autismProfileService';
 import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
 import { useAuth } from 'hooks/useAuth';
-import type { BuddyChatMessage, BuddyRiskLevel } from 'features/child/types/companionOnboarding';
+import type { BuddyChatMessage } from 'features/child/types/companionOnboarding';
 
 const QUICK_MESSAGES = [
   'I do not understand',
@@ -25,7 +24,7 @@ interface BuddyConversationPanelProps {
 }
 
 const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initialMessage }) => {
-  const { profile: authProfile, user } = useAuth();
+  const { profile: authProfile } = useAuth();
   const autismProfile = useAutismProfileStore((state) => state.profile);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<BuddyChatMessage[]>([
@@ -37,8 +36,6 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [adultRequestStatus, setAdultRequestStatus] = useState('');
-  const supportRequestIds = useRef(new Map<string, string>());
   const initialMessageSent = useRef(false);
   const conversationRef = useRef<HTMLDivElement>(null);
 
@@ -60,8 +57,6 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
     setMessages(nextMessages);
     setInput('');
     setError('');
-    setAdultRequestStatus('');
-    supportRequestIds.current.clear();
     setLoading(true);
 
     try {
@@ -96,27 +91,8 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
     if (conversation) conversation.scrollTop = conversation.scrollHeight;
   }, [loading, messages]);
 
-  const requestAdult = async (riskLevel: BuddyRiskLevel) => {
-    if (!user?.id) {
-      setAdultRequestStatus('In guest mode, please show this screen to a trusted adult nearby.');
-      return;
-    }
 
-    try {
-      const key = `${user.id}:${riskLevel}`;
-      const requestId = supportRequestIds.current.get(key) ?? crypto.randomUUID();
-      supportRequestIds.current.set(key, requestId);
-      await requestTrustedAdultSupport(user.id, 'buddy-conversation', riskLevel === 'urgent', requestId);
-      setAdultRequestStatus('Your support request was recorded in AdaptBuddy. Delivery to an adult is not confirmed, so please go to a safe adult nearby now.');
-    } catch {
-      setAdultRequestStatus('We could not confirm whether the support request was recorded. No adult was contacted. Please show this screen to a trusted adult nearby now.');
-    }
-  };
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    void send();
-  };
+  const submit = (event: FormEvent) => { event.preventDefault(); void send(); };
 
   return (
     <div className="space-y-5">
@@ -168,19 +144,7 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
                 {message.role === 'user' ? 'You' : 'AI Buddy'}
               </div>
               <p className="whitespace-pre-wrap break-words">{message.content}</p>
-              {message.adultActionRequired && !SUPPORT_RECORDING_ENABLED && (
-            <p className="mt-3 text-sm font-semibold" role="status">{DIRECT_ADULT_GUIDANCE}</p>
-          )}
-          {message.adultActionRequired && SUPPORT_RECORDING_ENABLED && (
-                <button
-                  type="button"
-                  onClick={() => void requestAdult(message.riskLevel ?? 'concern')}
-                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 font-bold text-white hover:bg-red-700"
-                >
-                  <Hand className="h-4 w-4" aria-hidden />
-                  Record support request
-                </button>
-              )}
+              {message.adultActionRequired && <SupportRequestAction source="buddy-conversation" urgent={message.riskLevel === 'urgent'} contextKey={message.id} />}
             </div>
           </div>
         ))}
@@ -192,11 +156,7 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
         )}
       </div>
 
-      {adultRequestStatus && (
-        <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950 dark:bg-amber-950/40 dark:text-amber-100" role="status">
-          {adultRequestStatus}
-        </p>
-      )}
+
       {error && <p className="text-sm font-semibold text-red-700 dark:text-red-300" role="alert">{error}</p>}
 
       <form onSubmit={submit} className="flex flex-col gap-3 sm:flex-row">

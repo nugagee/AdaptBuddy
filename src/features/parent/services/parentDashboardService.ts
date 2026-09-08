@@ -1357,7 +1357,7 @@ export class ParentDashboardService {
 
     void relationship;
     throw new Error(
-      'Direct Buddy ID linking is temporarily disabled while verified parent/trusted-adult approval is being completed. Ask the child to record a trusted-adult invitation request. No email is sent yet, so the adult must be told separately.',
+      'Direct Buddy ID linking is temporarily disabled while verified parent/trusted-adult approval is being completed. New connections are temporarily unavailable. Please speak with the child directly.',
     );
   }
 

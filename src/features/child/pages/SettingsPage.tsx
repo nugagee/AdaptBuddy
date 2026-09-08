@@ -1,3 +1,4 @@
+import { TRUSTED_ADULT_INVITATIONS_ENABLED, DIRECT_ADULT_GUIDANCE } from 'constants/releaseCapabilities';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Camera, Check, Copy, KeyRound, Loader2, Plus, Save, ShieldCheck, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -85,7 +86,7 @@ const SettingsPage: React.FC = () => {
   }, [activeProfile]);
 
   useEffect(() => {
-    if (!activeProfile || isGuest || activeProfile.role !== 'child') {
+    if (!TRUSTED_ADULT_INVITATIONS_ENABLED || !activeProfile || isGuest || activeProfile.role !== 'child') {
       clearTrustedAdults();
       return;
     }
@@ -481,7 +482,7 @@ const SettingsPage: React.FC = () => {
                   Trusted adult
                 </h2>
                 <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
-                  Only a verified connected adult can be selected. This build cannot complete trusted-adult acceptance yet, and recorded requests cannot see your updates.
+                  Trusted-adult connections are temporarily unavailable. {DIRECT_ADULT_GUIDANCE}
                 </p>
               </div>
             </div>
@@ -559,11 +560,11 @@ const SettingsPage: React.FC = () => {
             )}
             {!trustedAdultsLoading && !trustedAdultsUnavailable && connectedTrustedAdults.length === 0 && (
               <p className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-                No trusted adult is connected yet. You can record a request below, but this build will not send it and has no acceptance screen yet.
+                No trusted adult is connected yet. Please speak to an adult you trust directly when you need help.
               </p>
             )}
 
-            <div className="mt-6 rounded-2xl border border-dashed border-adapt-indigo/25 bg-adapt-indigo/5 p-4 dark:border-adapt-cyan/25 dark:bg-adapt-cyan/5">
+            {TRUSTED_ADULT_INVITATIONS_ENABLED && (<div className="mt-6 rounded-2xl border border-dashed border-adapt-indigo/25 bg-adapt-indigo/5 p-4 dark:border-adapt-cyan/25 dark:bg-adapt-cyan/5">
               <div className="mb-4 flex items-center gap-2">
                 <UserRound className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
                 <h3 className="font-bold text-adapt-navy dark:text-gray-100">
@@ -640,7 +641,7 @@ const SettingsPage: React.FC = () => {
                   Sign in as the child to record a request. This build does not send an email or contact an adult.
                 </p>
               )}
-            </div>
+            </div>)}
           </section>
 
           <FeedbackPulsePanel

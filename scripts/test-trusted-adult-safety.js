@@ -57,7 +57,7 @@ mustMatch(settings, /disabled=\{!connected\}/, 'Pending trusted-adult cards must
 mustMatch(settings, /Recorded — not connected/, 'The UI must describe recorded requests without implying verification or delivery.');
 mustMatch(settings, /No email or message was sent/, 'Recorded-request copy must disclose that no message was sent.');
 mustMatch(settings, /No trusted adult is connected yet/, 'The zero-recipient state must be explicit.');
-mustMatch(settings, /has no acceptance screen yet/, 'The zero-recipient state must disclose that acceptance is not implemented.');
+mustMatch(settings, /TRUSTED_ADULT_INVITATIONS_ENABLED &&/, 'The unfinished request form must respect the release gate.');
 mustMatch(settings, /Record a trusted-adult request/, 'The form title must describe the implemented record action.');
 mustMatch(settings, /Record request/, 'The form button must describe the implemented record action.');
 mustMatch(settings, /disabled=\{savingTrustedAdult \|\| isGuest \|\| trustedAdultsUnavailable \|\| trustedAdultsLoading\}/, 'Guest mode must disable real invitations.');
@@ -96,7 +96,8 @@ for (const source of [moodPanel, conversationPanel]) {
   mustNotMatch(source, /Tell a trusted adult now/, 'An in-app record button must not claim to contact an adult.');
 }
 
-mustMatch(buddyApi, /support button records a request but does not contact an adult/g, 'Buddy API safety copy must disclose that the button does not contact an adult.');
+mustMatch(buddyApi, /AdaptBuddy cannot contact an adult for you/g, 'Buddy safety copy must give honest direct-contact guidance.');
+mustNotMatch(buddyApi, /support button records/, 'Buddy must not advertise unavailable recording.');
 mustNotMatch(buddyApi, /use the button below|use a quick support button/i, 'Buddy API safety copy must not imply external contact through the support button.');
 mustNotMatch(parentService, /send a trusted-adult invitation/i, 'The parent flow must not claim an invitation was sent.');
 

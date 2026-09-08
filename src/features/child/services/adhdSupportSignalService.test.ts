@@ -36,7 +36,7 @@ describe('syncAdhdSupportSignal', () => {
     expect(mockSaveJournalEntry).not.toHaveBeenCalled();
   });
 
-  it('creates a low-risk shared signal with the metadata used by adult dashboards', async () => {
+  it('saves a low-risk learning check-in privately, including its derived analysis', async () => {
     await syncAdhdSupportSignal({
       childId: 'child-123',
       activityId: 'adhd-focus-coach',
@@ -48,7 +48,7 @@ describe('syncAdhdSupportSignal', () => {
       expect.objectContaining({
         childId: 'child-123',
         emotion: 'calm',
-        isShared: true,
+        isShared: false,
         text: expect.stringContaining('ADHD Focus Coach completed.'),
         analysis: expect.objectContaining({
           riskLevel: 'low',

@@ -650,13 +650,13 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
             emotion: signal.emotion,
             text,
             analysis,
-            isShared: true,
+            isShared: false,
           });
         }
-        setMoodMessage(signal.level === 'urgent' ? 'Support signal sent.' : 'Check-in saved.');
+        setMoodMessage(`${canSyncRemote ? 'Check-in saved privately.' : 'Saved on this device.'}${signal.level === 'urgent' ? ' Please speak to a safe adult nearby. No adult was contacted.' : ''}`);
       } catch (saveError) {
         console.warn('Task mood check-in saved locally only:', saveError);
-        setMoodMessage('Saved on this device. Sync will catch up when available.');
+        setMoodMessage('Saved on this device only. No adult was contacted.');
       } finally {
         setMoodSaving(false);
         setCompletedActivityForMood(null);
@@ -859,7 +859,7 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
               </p>
               <h3 className="mt-1 text-lg font-black">How did that feel?</h3>
               <p className="text-sm font-semibold opacity-80">
-                This can help your trusted adults understand your day.
+                This check-in is private. Speak to a safe adult directly if you need help.
               </p>
             </div>
             <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-black text-amber-800 shadow-sm dark:bg-gray-900 dark:text-amber-200">
@@ -901,7 +901,7 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
           {selectedSignal && signalNeedsAdultContext(selectedSignal) && (
             <div className="mt-4 rounded-2xl bg-white/80 p-3 dark:bg-gray-900/80">
               <label className="text-sm font-black text-adapt-navy dark:text-gray-100" htmlFor="task-worry-note">
-                What should your adults know?
+                A private note for your check-in
               </label>
               <textarea
                 id="task-worry-note"
@@ -912,7 +912,7 @@ const NowNextLaterBoard: React.FC<NowNextLaterBoardProps> = ({
                 className="mt-2 w-full rounded-2xl border border-amber-100 bg-white px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-950"
               />
               <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-gray-400">
-                Parent insight: {selectedSignal.parentInsight}
+                Check-in summary: {selectedSignal.parentInsight}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <button

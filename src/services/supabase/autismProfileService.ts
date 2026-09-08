@@ -1,3 +1,4 @@
+import { TRUSTED_ADULT_INVITATIONS_ENABLED, SUPPORT_RECORDING_ENABLED } from 'constants/releaseCapabilities';
 import { getSupabaseClient, isSupabaseConfigured } from './client';
 import type { AutismProfile } from 'features/child/types/autismProfile';
 import type { EmotionAnalysis, RiskLevel } from 'types/ai.types';
@@ -114,6 +115,7 @@ export async function saveMoodCheckIn(
 }
 
 export async function fetchTrustedAdultsForChild(childId: string): Promise<TrustedAdultRecord[]> {
+  if (!TRUSTED_ADULT_INVITATIONS_ENABLED) throw new Error('Trusted-adult connections are temporarily unavailable.');
   if (!isSupabaseConfigured) return [];
 
   const { data, error } = await getSupabaseClient()
@@ -130,6 +132,7 @@ export async function saveTrustedAdultForChild(
   childId: string,
   adult: TrustedAdultInput,
 ): Promise<TrustedAdultRecord> {
+  if (!TRUSTED_ADULT_INVITATIONS_ENABLED) throw new Error('Trusted-adult requests are temporarily unavailable. No request was recorded.');
   if (!isSupabaseConfigured) {
     throw new Error('Trusted-adult invitations are unavailable because secure storage is not configured.');
   }
@@ -229,7 +232,7 @@ export async function saveJournalEntry({
     throw new Error('This support entry was not saved because secure storage is not configured.');
   }
 
-  if (isShared) throw new Error('Use the support-request action to record a shared request.');
+  if (isShared) throw new Error('Sharing journal entries is unavailable. No adult was contacted.');
   const client = getSupabaseClient();
   const riskLevel = deriveSupportRiskLevel(analysis, emotion, text);
 
@@ -257,6 +260,7 @@ export async function requestTrustedAdultSupport(
   urgent = false,
   requestId = crypto.randomUUID(),
 ): Promise<void> {
+  if (!SUPPORT_RECORDING_ENABLED) throw new Error('Support recording is temporarily unavailable. No adult was contacted.');
   if (!isSupabaseConfigured) throw new Error('Secure support recording is unavailable.');
   const client = getSupabaseClient();
   const { data: { user }, error: userError } = await client.auth.getUser();

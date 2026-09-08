@@ -115,6 +115,6 @@ export async function syncAdhdSupportSignal({
     emotion: deriveEmotion(signal),
     text: buildSignalText(activityTitle, signal),
     analysis: buildAnalysis(activityId, activityTitle, signal),
-    isShared: true,
+    isShared: false,
   });
 }

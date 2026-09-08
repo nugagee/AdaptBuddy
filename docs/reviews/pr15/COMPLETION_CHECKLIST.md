@@ -1,5 +1,7 @@
 # PR #15 — what is complete and what remains
 
+**Current release scope (8 September):** the owner has now requested a live update while deferring the remaining safeguarding work. [SCOPED_LIVE_RELEASE.md](SCOPED_LIVE_RELEASE.md) defines the reduced scope: private learning/journal/mood and profile compatibility, with new adult requests and support recording disabled. The historical integration hold below remains the preparation state until this scoped release is deployed. R1–R7 remain open wherever their full acceptance criteria are unmet.
+
 Current position: PR #15 is merged at `a40cf2c2f61abc919af65f953cc28dd459d85c44`; the local main checkout is updated. Automatic production deployment is held, and the live release was verified unchanged. This checklist does not claim that the new safeguarding workflow is live or ready for a pilot. Supabase Free remains the chosen plan.
 
 ## Work already combined and verified

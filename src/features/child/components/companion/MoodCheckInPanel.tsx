@@ -1,3 +1,4 @@
+import { SUPPORT_RECORDING_ENABLED, DIRECT_ADULT_GUIDANCE } from 'constants/releaseCapabilities';
 import React, { useRef, useState } from 'react';
 import { Hand, Heart, Loader2 } from 'lucide-react';
 import { buildCompanionContext, isOpenAiConfigured, respondToMoodCheckIn } from 'services/ai';
@@ -140,7 +141,10 @@ const MoodCheckInPanel: React.FC = () => {
           {suggestion && (
             <p className="mt-3 text-xs text-slate-600 dark:text-gray-400">{suggestion}</p>
           )}
-          {adultActionRequired && (
+          {adultActionRequired && !SUPPORT_RECORDING_ENABLED && (
+            <p className="mt-3 text-sm font-semibold" role="status">{DIRECT_ADULT_GUIDANCE}</p>
+          )}
+          {adultActionRequired && SUPPORT_RECORDING_ENABLED && (
             <button
               type="button"
               onClick={() => void requestAdult()}

@@ -1,3 +1,4 @@
+import { SUPPORT_RECORDING_ENABLED, DIRECT_ADULT_GUIDANCE } from 'constants/releaseCapabilities';
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Hand, Loader2, Send, ShieldCheck, UserRound } from 'lucide-react';
 import { buildCompanionContext, sendBuddyMessage } from 'services/ai';
@@ -167,7 +168,10 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
                 {message.role === 'user' ? 'You' : 'AI Buddy'}
               </div>
               <p className="whitespace-pre-wrap break-words">{message.content}</p>
-              {message.adultActionRequired && (
+              {message.adultActionRequired && !SUPPORT_RECORDING_ENABLED && (
+            <p className="mt-3 text-sm font-semibold" role="status">{DIRECT_ADULT_GUIDANCE}</p>
+          )}
+          {message.adultActionRequired && SUPPORT_RECORDING_ENABLED && (
                 <button
                   type="button"
                   onClick={() => void requestAdult(message.riskLevel ?? 'concern')}

@@ -90,7 +90,8 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
     assert.equal(f.store.getState().user,null);assert.equal(f.signOuts(),1);f.cleanup();checks++;
   }
   const calls=[];
-  const service=loadTs('src/services/supabase/autismProfileService.ts',{'./client':{isSupabaseConfigured:true,getSupabaseClient:()=>({
+  const enabledCapabilities={'constants/releaseCapabilities':{TRUSTED_ADULT_INVITATIONS_ENABLED:true,SUPPORT_RECORDING_ENABLED:true}};
+  const service=loadTs('src/services/supabase/autismProfileService.ts',{...enabledCapabilities,'./client':{isSupabaseConfigured:true,getSupabaseClient:()=>({
     auth:{getUser:async()=>({data:{user:{id:'child'}},error:null})},
     rpc:async(name)=>{calls.push(name);return {data:null,error:{code:'PGRST202'}};},
   })}});
@@ -98,7 +99,7 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
   assert.deepEqual(calls,['record_trusted_adult_request_v1']);checks++;
   // A private note and its derived analysis must cause only the private journal write.
   const writes=[];
-  const journal=loadTs('src/services/supabase/autismProfileService.ts',{'./client':{isSupabaseConfigured:true,getSupabaseClient:()=>({
+  const journal=loadTs('src/services/supabase/autismProfileService.ts',{...enabledCapabilities,'./client':{isSupabaseConfigured:true,getSupabaseClient:()=>({
     from:table=>({insert:row=>{writes.push({table,row});return {select:()=>({single:async()=>({data:{id:'entry'},error:null})})};}}),
   })}});
   await journal.saveJournalEntry({childId:'child',emotion:'sad',text:'private words',analysis:{parentInsight:'derived private words',riskLevel:'high'}});
@@ -122,12 +123,36 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
   const summary=await dashboard.getDashboardSummary();
   assert.equal(summary.children.length,1);assert.equal(summary.trustedAdultsUnavailable,true);assert.equal(summary.trustedAdults.length,0);checks++;
   const supportCalls=[];
-  const supportService=loadTs('src/services/supabase/autismProfileService.ts',{'./client':{isSupabaseConfigured:true,getSupabaseClient:()=>({
+  const supportService=loadTs('src/services/supabase/autismProfileService.ts',{...enabledCapabilities,'./client':{isSupabaseConfigured:true,getSupabaseClient:()=>({
     auth:{getUser:async()=>({data:{user:{id:'child'}},error:null})},
     rpc:async(name,args)=>{supportCalls.push({name,args});return {data:'entry',error:null};},
   })}});
   await supportService.requestTrustedAdultSupport('child','mood-check-in',true,'same-request-id');
   assert.equal(supportCalls.length,1);assert.equal(supportCalls[0].name,'record_child_support_request_v1');
   assert.equal(supportCalls[0].args.p_child_id,'child');assert.equal(supportCalls[0].args.p_request_id,'same-request-id');checks++;
+  // The shipped release must reject unfinished actions before any backend access.
+  const releaseCapabilities=loadTs('src/constants/releaseCapabilities.ts',{});
+  assert.equal(releaseCapabilities.TRUSTED_ADULT_INVITATIONS_ENABLED,false);
+  assert.equal(releaseCapabilities.SUPPORT_RECORDING_ENABLED,false);
+  let backendAccesses=0;
+  const disabled=loadTs('src/services/supabase/autismProfileService.ts',{
+    'constants/releaseCapabilities':releaseCapabilities,
+    './client':{isSupabaseConfigured:true,getSupabaseClient:()=>{backendAccesses++;throw new Error('Unexpected backend access');}},
+  });
+  for(const id of ['child','another-child']){
+    await assert.rejects(disabled.saveTrustedAdultForChild(id,{name:'Test',role:'parent',email:'test@example.invalid',phone:''}),/unavailable/);
+    await assert.rejects(disabled.requestTrustedAdultSupport(id,'mood-check-in',true,'test-request'),/unavailable/);
+  }
+  await assert.rejects(disabled.fetchTrustedAdultsForChild('child'),/unavailable/);
+  await assert.rejects(disabled.saveJournalEntry({childId:'child',emotion:'sad',text:'private',isShared:true}),/Sharing journal entries is unavailable/);
+  assert.equal(backendAccesses,0);checks++;
+  const moodWrites=[];
+  const moodService=loadTs('src/services/supabase/autismProfileService.ts',{
+    'constants/releaseCapabilities':releaseCapabilities,
+    './client':{isSupabaseConfigured:true,getSupabaseClient:()=>({from:table=>({insert:async row=>{moodWrites.push({table,row});return {error:null};}})})},
+  });
+  await moodService.saveMoodCheckIn('child','sad',' private mood ','private response');
+  assert.equal(moodWrites.length,1);assert.equal(moodWrites[0].table,'mood_check_ins');
+  assert.equal(moodWrites[0].row.is_shared,false);assert.equal(moodWrites[0].row.note,'private mood');checks++;
   console.log(`Auth and privacy boundaries: ${checks} runtime checks passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

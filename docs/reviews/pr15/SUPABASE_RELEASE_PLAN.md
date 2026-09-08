@@ -1,3 +1,5 @@
+> **Source integration authorised, production release held (8 September 2026).** The owner authorised merging PR #15 while automatic deployment for `upload/adaptbuddy-web` is disabled in `vercel.json`. This supersedes the earlier keep-draft/no-merge instruction below. It does not authorise releasing unfinished safeguarding features or applying the broad database draft. The current remaining work is tracked in [COMPLETION_CHECKLIST.md](COMPLETION_CHECKLIST.md).
+
 # Supabase work required before PR #15 can ship
 
 This is an implementation and staging plan, not executable migration approval. The live audit and evidence are in `REVIEW.md`; `READ_ONLY_SUPABASE_AUDIT.sql` can repeat the catalog inspection without reading personal records.

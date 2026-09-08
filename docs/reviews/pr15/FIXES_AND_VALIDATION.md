@@ -1,3 +1,5 @@
+> **Source integration authorised, production release held (8 September 2026).** The owner authorised merging PR #15 while automatic deployment for `upload/adaptbuddy-web` is disabled in `vercel.json`. This supersedes the earlier keep-draft/no-merge instruction below. It does not authorise releasing unfinished safeguarding features or applying the broad database draft. The current remaining work is tracked in [COMPLETION_CHECKLIST.md](COMPLETION_CHECKLIST.md).
+
 # PR #15 fixes and validation — 8 September 2026
 
 The repair branch combines PR #15 (`ccb40b2`) with the seven local ADHD/Dyslexia commits ending at `324e597`. The dashboard conflict is resolved with energy pacing, support signals, achievements and Dyslexia progress preserved. The original findings in `REVIEW.md` describe the earlier PR snapshot; this file records the subsequent repairs.

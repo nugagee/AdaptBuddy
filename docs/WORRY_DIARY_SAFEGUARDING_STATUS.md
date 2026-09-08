@@ -1,3 +1,5 @@
+> **Source integration authorised, production release held (8 September 2026).** The owner authorised merging PR #15 while automatic deployment for `upload/adaptbuddy-web` is disabled in `vercel.json`. This supersedes the earlier keep-draft/no-merge instruction below. It does not authorise releasing unfinished safeguarding features or applying the broad database draft. The current remaining work is tracked in [the completion checklist](reviews/pr15/COMPLETION_CHECKLIST.md).
+
 # Worry Diary Safeguarding — Phase 1 Review Checkpoint
 
 **Status:** Pre-pilot, not deployable. This isolated draft consolidates selected application guardrails and an unapplied database proposal for review. It is not an emergency service and does not provide guaranteed adult notification.

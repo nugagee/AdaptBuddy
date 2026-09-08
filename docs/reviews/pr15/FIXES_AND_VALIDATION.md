@@ -30,6 +30,10 @@ CI=true npm test -- --watchAll=false --runInBand
 npm run build
 ```
 
+## Subsequent local Supabase integration
+
+A free local GoTrue/PostgREST/PostgreSQL rehearsal now passes **21 checks** against a schema-only restore of all 26 public tables and 92 live policies. It found and addressed a missing editable profile field in a separate compatibility draft. See [LOCAL_SUPABASE_REHEARSAL.md](LOCAL_SUPABASE_REHEARSAL.md) for the scope, initial failure, rerun and remaining concurrency gaps. No hosted data was copied or modified.
+
 ## Supabase and release status
 
 The authenticated Supabase CLI already reaches the linked AdaptBuddy project. No password or API key needs to be pasted into chat. Only read-only catalog inspection has been performed against the hosted project; these SQL changes have not been applied there.
@@ -39,12 +43,13 @@ All SQL candidates remain outside `supabase/migrations`:
 - `041_profile_authority_boundary.sql`: smaller containment candidate; this and the broad draft are not interchangeable rollout steps. The broad draft includes the same profile boundary plus disruptive relationship cleanup.
 - `041_safeguarding_access_guardrails.draft.sql`: broad relationship/admin quarantine candidate; requires affected-record inventory, a backup and a staged recovery/re-verification rehearsal.
 - `042_atomic_support_record.sql`: in-app support recording only; depends on reviewed child/adult access rules and the relevant existing tables.
+- `043_profile_details_compatibility.sql`: adds the missing editable profile field and accepts current options while preserving legacy values; tested through the local API.
 
 Do not merge/deploy this candidate yet. The live effect of migration 040 is still missing; source and schema must be released in a tested order. New request actions intentionally fail closed on servers without their versioned functions.
 
 Remaining release work:
 
-1. Confirm a disposable Supabase staging target, reconcile the complete deployed schema/RLS/RPC surface and rehearse OTP signup, account switching, migration/recovery and concurrent acceptance/revocation using separate real test accounts. The inactive older project has not been assumed disposable.
+1. Continue the free local rehearsal with dedicated concurrent acceptance/suspension and classroom approval checks, downstream policy review, and migration/recovery testing. Basic email-confirmed signup, profile permissions, note privacy, revocation and concurrent support retries now pass against the restored live public schema. Hosted configuration, delivery providers and load remain separate checks. The inactive older project has not been repurposed.
 2. Confirm rotation of the historically exposed administrator credential and revocation of its old sessions; verify legitimate administrator provenance. Removing source credentials does not revoke them.
 3. Decide exactly what accepted contact email permits. The broad draft still creates the historical parent-dashboard relationship on email acceptance; wider guardian authority and all downstream policy scopes need review before release.
 4. Complete invitation delivery and accept/decline UI, eligible recipient routing, external delivery/receipts/retries, escalation and adult response/closure. A successfully recorded request is not evidence that anybody saw it.

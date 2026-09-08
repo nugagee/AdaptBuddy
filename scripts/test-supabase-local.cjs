@@ -50,6 +50,15 @@ async function signup(label,role){
  return actor;
 }
 (async()=>{
+ // Restoring a schema invalidates PostgREST's cache briefly. Wait for a real
+ // empty-result query to succeed before creating test accounts.
+ const readyUntil=Date.now()+10000;
+ while(true){
+  const ready=await rest(null,'profiles?select=id&limit=0');
+  if(ready.ok)break;
+  if(Date.now()>=readyUntil || !['PGRST002','PGRST205'].includes(ready.data?.code))okay(ready);
+  await new Promise(r=>setTimeout(r,100));
+ }
  let child,adult,stranger,teacher,malicious;
  await test('Real signup, local email confirmation and profile synchronization',async()=>{child=await signup('child','child');assert.equal((await profile(child)).role,'child')});
  if(!child)throw new Error('Cannot continue without local Auth signup');

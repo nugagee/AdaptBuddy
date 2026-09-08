@@ -802,6 +802,7 @@ as $$
 declare
   v_adult_id uuid := auth.uid();
   v_adult public.profiles%rowtype;
+  v_child_id uuid;
   v_auth_email text;
   v_auth_email_confirmed_at timestamptz;
   v_invitation public.trusted_adults%rowtype;
@@ -811,15 +812,31 @@ begin
     raise exception 'You need to be signed in to accept this invitation.';
   end if;
 
-  select *
-  into v_adult
-  from public.profiles
-  where id = v_adult_id;
+  -- Discover the child first, then revalidate the invitation after locking it.
+  select child_id into v_child_id from public.trusted_adults where id = p_invitation_id;
+  if v_child_id is null then
+    raise exception 'Trusted-adult invitation not found.';
+  end if;
 
+  -- Match identity synchronization's lock order: Auth, profiles, invitation.
+  -- SHARE conflicts with non-key status/email updates; KEY SHARE would not.
+  -- Locks remain held through the acceptance and relationship writes so a
+  -- concurrent invalidation either runs first or removes the completed link.
   select lower(email), email_confirmed_at
   into v_auth_email, v_auth_email_confirmed_at
   from auth.users
-  where id = v_adult_id;
+  where id = v_adult_id
+  for share;
+
+  perform id from public.profiles
+  where id in (v_adult_id, v_child_id)
+  order by id for share;
+
+  select * into v_adult from public.profiles where id = v_adult_id;
+  if not exists (select 1 from public.profiles where id = v_child_id
+    and role::text = 'child' and is_authorized is true and status = 'active') then
+    raise exception 'An active child account is required to accept this invitation.';
+  end if;
 
   if v_adult.id is null
      or v_adult.role::text <> 'parent'
@@ -842,6 +859,10 @@ begin
 
   if v_invitation.id is null then
     raise exception 'Trusted-adult invitation not found.';
+  end if;
+
+  if v_invitation.child_id is distinct from v_child_id then
+    raise exception 'This invitation changed. Reload it before accepting.';
   end if;
 
   if v_invitation.status <> 'pending' then
@@ -1322,11 +1343,13 @@ returns trigger language plpgsql security definer set search_path = public
 as $$
 begin
   if tg_op = 'DELETE' or new.role is distinct from old.role or new.email is distinct from old.email
+    or new.email_verified_at is distinct from old.email_verified_at
     or new.status is distinct from old.status or new.is_authorized is distinct from old.is_authorized
     or new.admin_verified_at is distinct from old.admin_verified_at
     or new.admin_verified_by is distinct from old.admin_verified_by
     or new.admin_verification_method is distinct from old.admin_verification_method then
-    update public.trusted_adults set adult_id = null, status = 'pending' where adult_id = old.id;
+    update public.trusted_adults set adult_id = null, status = 'pending'
+      where adult_id = old.id or child_id = old.id;
     update public.class_memberships set status = 'paused', updated_at = now()
       where status = 'active' and (teacher_id = old.id or child_id = old.id);
     update public.class_join_requests set parent_approved = false, parent_approved_by = null,

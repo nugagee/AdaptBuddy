@@ -1,10 +1,28 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Star, X, Zap } from 'lucide-react';
 import type { NeuroActivity } from 'features/child/data/neuroDashboardContent';
-import type { AdhdSupportSignalInput } from 'features/child/store/childProgressStore';
+import type {
+  AchievementBadgeInput,
+  AdhdEnergyPacingInput,
+  AdhdSupportSignalInput,
+  DyslexiaPhonicsSessionInput,
+  DyslexiaReaderPreferencesInput,
+  DyslexiaReadingSessionInput,
+} from 'features/child/store/childProgressStore';
+import AdhdEnergyCheckInActivity from './AdhdEnergyCheckInActivity';
+import AdhdMovementBurstActivity from './AdhdMovementBurstActivity';
+import AdhdQuestChainActivity from './AdhdQuestChainActivity';
+import DyslexiaOverlayReaderActivity from './DyslexiaOverlayReaderActivity';
+import DyslexiaPhonicsTraceActivity from './DyslexiaPhonicsTraceActivity';
+import DyslexiaReadAloudActivity from './DyslexiaReadAloudActivity';
 
 export interface ActivitySessionResult {
   adhdSupportSignal?: AdhdSupportSignalInput;
+  adhdEnergyPacing?: AdhdEnergyPacingInput;
+  achievementBadge?: AchievementBadgeInput;
+  dyslexiaReadingSession?: DyslexiaReadingSessionInput;
+  dyslexiaReaderPreferences?: DyslexiaReaderPreferencesInput;
+  dyslexiaPhonicsSession?: DyslexiaPhonicsSessionInput;
 }
 
 const ADHD_ENERGY_OPTIONS = [
@@ -641,6 +659,60 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       );
     }
 
+    if (activity.id === 'adhd-movement-burst') {
+      return (
+        <AdhdMovementBurstActivity
+          onComplete={(signal) => onComplete({ adhdSupportSignal: signal })}
+        />
+      );
+    }
+
+    if (activity.id === 'adhd-quest-chain') {
+      return (
+        <AdhdQuestChainActivity
+          onComplete={(badge) => onComplete({ achievementBadge: badge })}
+        />
+      );
+    }
+
+    if (activity.id === 'adhd-mood-check') {
+      return (
+        <AdhdEnergyCheckInActivity
+          onComplete={(pacing, signal) => onComplete({
+            adhdEnergyPacing: pacing,
+            adhdSupportSignal: signal,
+          })}
+        />
+      );
+    }
+
+    if (activity.id === 'dyslexia-read-aloud') {
+      return (
+        <DyslexiaReadAloudActivity
+          onComplete={(session) => onComplete({ dyslexiaReadingSession: session })}
+        />
+      );
+    }
+
+    if (activity.id === 'dyslexia-overlay-read') {
+      return (
+        <DyslexiaOverlayReaderActivity
+          onComplete={(session, preferences) => onComplete({
+            dyslexiaReadingSession: session,
+            dyslexiaReaderPreferences: preferences,
+          })}
+        />
+      );
+    }
+
+    if (activity.id === 'dyslexia-phonics-trace') {
+      return (
+        <DyslexiaPhonicsTraceActivity
+          onComplete={(session) => onComplete({ dyslexiaPhonicsSession: session })}
+        />
+      );
+    }
+
     return (
       <div className="rounded-2xl bg-adapt-mist/60 p-4 dark:bg-gray-800/60">
         <p className="text-xs font-semibold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
@@ -653,7 +725,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
         </ul>
       </div>
     );
-  }, [activity.id, adhdBreakState, adhdEnergy, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, dayCards, moveDayCard, patternAnswer, selectedAdhdBreak, selectedAdhdEnergy, selectedFeeling, storyScenario]);
+  }, [activity.id, adhdBreakState, adhdEnergy, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, dayCards, moveDayCard, onComplete, patternAnswer, selectedAdhdBreak, selectedAdhdEnergy, selectedFeeling, storyScenario]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
@@ -687,15 +759,17 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
           <p className="text-xs text-slate-400 italic">{activity.inspiration}</p>
 
-          <button
-            type="button"
-            onClick={handleCompleteClick}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-adapt-teal py-3.5 font-bold text-white shadow-md transition hover:scale-[1.02]"
-          >
-            <Check className="h-5 w-5" aria-hidden />
-            Mark Complete
-            <Star className="h-4 w-4 fill-amber-300 text-amber-300" aria-hidden />
-          </button>
+          {!['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check', 'dyslexia-read-aloud', 'dyslexia-overlay-read', 'dyslexia-phonics-trace'].includes(activity.id) ? (
+            <button
+              type="button"
+              onClick={handleCompleteClick}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-adapt-teal py-3.5 font-bold text-white shadow-md transition hover:scale-[1.02]"
+            >
+              <Check className="h-5 w-5" aria-hidden />
+              Mark Complete
+              <Star className="h-4 w-4 fill-amber-300 text-amber-300" aria-hidden />
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

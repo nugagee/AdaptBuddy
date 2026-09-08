@@ -241,7 +241,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     id: 'adhd-focus-sprint',
     neuroId: 'adhd',
     title: 'Focus Sprint 🎯',
-    description: '12-minute hyper-focus window with one clear micro-goal',
+    description: 'A short hyper-focus window with one clear micro-goal',
     durationMinutes: 12,
     category: 'focus',
     icon: Timer,
@@ -286,22 +286,22 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     id: 'adhd-movement-burst',
     neuroId: 'adhd',
     title: 'Movement Burst',
-    description: '60-second energizer: jump, stretch, spin — then back to task',
+    description: '60-second state-matched movement reset with standing and seated choices',
     durationMinutes: 3,
     category: 'motor',
     icon: Zap,
-    inspiration: 'Exercise breaks improve ADHD focus (CDC)',
+    inspiration: 'Inclusive movement breaks for regulation, activation, and task return',
     starsReward: 2,
   },
   {
     id: 'adhd-quest-chain',
     neuroId: 'adhd',
     title: 'Quest Chain',
-    description: '3 tiny wins in a row — unlock a badge when the chain completes',
+    description: 'Turn one goal into 3 sequential tiny wins and keep the unlocked badge',
     durationMinutes: 15,
     category: 'creative',
     icon: Gamepad2,
-    inspiration: 'Gamification (Habitica-style)',
+    inspiration: 'Immediate reinforcement, visible progress, and low-pressure task sequencing',
     starsReward: 6,
   },
   {
@@ -312,8 +312,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     durationMinutes: 2,
     category: 'regulation',
     icon: Heart,
-    inspiration: 'Mood-adaptive pacing (Vedyx Leap)',
-    action: 'journal',
+    inspiration: 'Energy-aware pacing with shorter demands and predictable recovery time',
     starsReward: 2,
   },
 
@@ -338,7 +337,6 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'literacy',
     icon: Hand,
     inspiration: 'Lexy multisensory structured literacy',
-    route: ROUTES.PRONUNCIATION_BUDDY,
     starsReward: 4,
   },
   {
@@ -659,7 +657,7 @@ export function getDailyActivitiesForNeuro(neuroId: string, daySeed = new Date()
   const start = daySeed % pool.length;
   const picked = [pool[start], pool[(start + 1) % pool.length]];
   if (neuroId === 'adhd') {
-    ['adhd-focus-coach', 'adhd-task-breakdown', 'adhd-break-prescription'].forEach((activityId) => {
+    ['adhd-focus-coach', 'adhd-task-breakdown', 'adhd-break-prescription', 'adhd-mood-check'].forEach((activityId) => {
       if (picked.some((activity) => activity.id === activityId)) return;
       const activity = pool.find((item) => item.id === activityId);
       if (activity) picked.push(activity);

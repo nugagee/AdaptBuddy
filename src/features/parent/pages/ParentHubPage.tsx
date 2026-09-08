@@ -252,11 +252,11 @@ const EmptyState: React.FC<{ title: string; detail: string }> = ({ title, detail
 
 const defaultTeacherVisibility: TeacherClassVisibilitySettings = {
   childName: false,
-  neuroProfile: true,
-  dailyMood: 'summary',
+  neuroProfile: false,
+  dailyMood: 'hidden',
   worryDiaryText: false,
-  safeguardingAlerts: true,
-  academicTasks: true,
+  safeguardingAlerts: false,
+  academicTasks: false,
   personalNotes: false,
 };
 
@@ -1810,6 +1810,11 @@ const ParentHubPage: React.FC = () => {
           </div>
         )}
 
+        {dashboardData?.trustedAdultsUnavailable && (
+          <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+            Trusted-adult connections are unavailable. Their connection status could not be checked. Please contact your care team directly if support is needed.
+          </p>
+        )}
         {dashboardData && dashboardData.children.length > 0 && renderChildSwitcher(dashboardData.children)}
 
         {!currentChild ? (

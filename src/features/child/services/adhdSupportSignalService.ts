@@ -10,7 +10,7 @@ interface SyncAdhdSupportSignalInput {
 }
 
 const highSupportReasons = ['overloaded', 'do not know where to start'];
-const mediumSupportReasons = ['too many steps', 'too hard', 'too big', 'stuck', 'frustrated', 'overwhelmed'];
+const mediumSupportReasons = ['too many steps', 'too hard', 'too big', 'stuck', 'frustrated', 'overwhelmed', 'scattered'];
 
 const normalizeText = (value: string): string => value.toLowerCase().trim();
 
@@ -35,7 +35,7 @@ const deriveEmotion = (signal: AdhdSupportSignalInput): EmotionType => {
 
   if (/tired|sleepy/.test(searchable)) return 'tired';
   if (/frustrated|too hard/.test(searchable)) return 'angry';
-  if (/overwhelmed|stuck|do not know|too many|too big/.test(searchable)) return 'anxious';
+  if (/overloaded|overwhelmed|scattered|stuck|do not know|too many|too big/.test(searchable)) return 'anxious';
   if (/focused|task breakdown/.test(searchable)) return 'calm';
   return 'excited';
 };
@@ -82,7 +82,13 @@ const buildAnalysis = (
     timestamp: new Date(),
     signalId: activityId,
     signalLabel: buildSignalLabel(signal),
-    signalCategory: signal.taskTitle?.toLowerCase().includes('break') ? 'regulation' : 'cognitive',
+    signalCategory:
+      activityId === 'adhd-break-prescription'
+      || activityId === 'adhd-movement-burst'
+      || activityId === 'adhd-mood-check'
+      || signal.taskTitle?.toLowerCase().includes('break')
+        ? 'regulation'
+        : 'cognitive',
     supportLevel,
     source: 'adhd_support_signal',
     activityLabel: activityTitle,

@@ -49,6 +49,7 @@ export interface Alert {
 
 export interface TrustedAdult {
   id: string;
+  adultUserId?: string;
   childId: string;
   name: string;
   email: string;
@@ -340,6 +341,7 @@ export interface DashboardSummary {
   recentEntries: JournalEntry[];
   recentAlerts: Alert[];
   trustedAdults: TrustedAdult[];
+  trustedAdultsUnavailable?: boolean;
   wellbeingTrends: Record<string, WellbeingTrendPoint[]>;
   messages: ParentMessage[];
   meetings: CareMeeting[];
@@ -428,6 +430,9 @@ interface TrustedAdultRow {
   email: string | null;
   phone: string | null;
   status: string | null;
+  accepted_at: string | null;
+  accepted_by: string | null;
+  acceptance_method: string | null;
 }
 
 interface ParentMessageRow {
@@ -499,13 +504,6 @@ interface ParentFeedbackRow {
   themes: unknown;
 }
 
-interface BuddyLinkRow {
-  child_id: string;
-  child_name: string | null;
-  buddy_id: string | null;
-  relationship: string | null;
-  created_at: string;
-}
 
 interface UnlinkChildRow {
   child_id: string;
@@ -685,11 +683,11 @@ const normalizeAssignmentType = (value: unknown): ParentAssignmentType =>
 
 const defaultTeacherVisibilitySettings: TeacherClassVisibilitySettings = {
   childName: false,
-  neuroProfile: true,
-  dailyMood: 'summary',
+  neuroProfile: false,
+  dailyMood: 'hidden',
   worryDiaryText: false,
-  safeguardingAlerts: true,
-  academicTasks: true,
+  safeguardingAlerts: false,
+  academicTasks: false,
   personalNotes: false,
 };
 
@@ -718,11 +716,11 @@ const normalizeTeacherVisibility = (value: unknown): TeacherClassVisibilitySetti
 
   return {
     childName: raw.childName === true,
-    neuroProfile: raw.neuroProfile !== false,
+    neuroProfile: raw.neuroProfile === true,
     dailyMood,
     worryDiaryText: raw.worryDiaryText === true,
-    safeguardingAlerts: raw.safeguardingAlerts !== false,
-    academicTasks: raw.academicTasks !== false,
+    safeguardingAlerts: raw.safeguardingAlerts === true,
+    academicTasks: raw.academicTasks === true,
     personalNotes: raw.personalNotes === true,
   };
 };
@@ -827,6 +825,9 @@ const mapJournalEntry = (
   };
 };
 
+/** Public contract adapter used to verify that shared child evidence reaches the parent experience. */
+export const mapParentJournalEntry = mapJournalEntry;
+
 const getJoinedJournalEntry = (row: AlertRow): { text?: string | null } | null => {
   if (!row.journal_entries) return null;
   return Array.isArray(row.journal_entries) ? row.journal_entries[0] ?? null : row.journal_entries;
@@ -842,13 +843,20 @@ const mapAlert = (row: AlertRow): Alert => ({
 });
 
 const mapTrustedAdult = (row: TrustedAdultRow): TrustedAdult => ({
-  id: row.adult_id || row.id,
+  id: row.id,
+  adultUserId: row.adult_id ?? undefined,
   childId: row.child_id,
   name: row.name || 'Trusted adult',
   email: row.email || '',
   phone: row.phone || undefined,
   relationship: row.role || 'trusted adult',
-  status: normalizeTrustedAdultStatus(row.status),
+  status:
+    row.accepted_at
+      && row.adult_id
+      && row.accepted_by === row.adult_id
+      && row.acceptance_method === 'account_email'
+      ? normalizeTrustedAdultStatus(row.status)
+      : 'pending',
 });
 
 const mapParentMessage = (row: ParentMessageRow): ParentMessage => ({
@@ -924,13 +932,6 @@ const mapChildSignal = (row: ChildSignalRow): ChildSignal => ({
   seenAt: row.seen_at ?? undefined,
 });
 
-const mapBuddyLinkResult = (row: BuddyLinkRow): BuddyLinkResult => ({
-  childId: row.child_id,
-  childName: row.child_name || 'Child',
-  buddyId: row.buddy_id || '',
-  relationship: row.relationship || 'parent',
-  createdAt: row.created_at,
-});
 
 const mapUnlinkChildResult = (row: UnlinkChildRow): UnlinkChildResult => ({
   childId: row.child_id,
@@ -1354,18 +1355,10 @@ export class ParentDashboardService {
       throw new Error('Enter a Buddy ID first.');
     }
 
-    const { data, error } = await getSupabaseClient().rpc('link_child_by_buddy_id', {
-      p_buddy_id: cleanBuddyId,
-      p_relationship: relationship,
-    });
-
-    if (error) throw error;
-
-    const rows = Array.isArray(data) ? (data as BuddyLinkRow[]) : data ? [data as BuddyLinkRow] : [];
-    const row = rows[0];
-    if (!row) throw new Error('No child profile was linked.');
-
-    return mapBuddyLinkResult(row);
+    void relationship;
+    throw new Error(
+      'Direct Buddy ID linking is temporarily disabled while verified parent/trusted-adult approval is being completed. Ask the child to record a trusted-adult invitation request. No email is sent yet, so the adult must be told separately.',
+    );
   }
 
   static async unlinkChild(childId: string): Promise<UnlinkChildResult> {
@@ -1491,6 +1484,7 @@ export class ParentDashboardService {
       };
     }
 
+    let trustedAdultsUnavailable = false;
     const [
       recentEntries,
       recentAlerts,
@@ -1506,7 +1500,10 @@ export class ParentDashboardService {
     ] = await Promise.all([
       this.getRecentEntriesForChildren(childIds, childNames, 30),
       this.getAlertsForChildren(childIds, 20),
-      this.getTrustedAdultsForChildren(childIds),
+      this.getTrustedAdultsForChildren(childIds).catch(() => {
+        trustedAdultsUnavailable = true;
+        return [] as TrustedAdult[];
+      }),
       this.getMessagesForChildren(childIds, 12),
       this.getMeetingsForChildren(childIds),
       this.getGoalsForChildren(childIds),
@@ -1530,6 +1527,7 @@ export class ParentDashboardService {
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 12),
       trustedAdults,
+      trustedAdultsUnavailable,
       wellbeingTrends,
       messages,
       meetings,
@@ -1684,7 +1682,7 @@ export class ParentDashboardService {
 
     const { data, error } = await getSupabaseClient()
       .from('trusted_adults')
-      .select('id, child_id, adult_id, name, role, email, phone, status')
+      .select('id, child_id, adult_id, name, role, email, phone, status, accepted_at, accepted_by, acceptance_method')
       .in('child_id', childIds)
       .order('created_at', { ascending: true });
 
@@ -1802,23 +1800,9 @@ export class ParentDashboardService {
     if (error) {
       if (isSchemaUnavailableError(error)) {
         logOptionalTableWarning('parent_teacher_class_requests_audit', error);
-
-        const { data: fallbackData, error: fallbackError } = await getSupabaseClient().rpc(
-          'parent_teacher_class_requests',
-          {
-            p_child_ids: childIds,
-          },
+        throw new Error(
+          'Verified class approval audit is unavailable, so class request data was not loaded.',
         );
-
-        if (fallbackError) {
-          if (isSchemaUnavailableError(fallbackError)) {
-            logOptionalTableWarning('parent_teacher_class_requests', fallbackError);
-            return [];
-          }
-          throw fallbackError;
-        }
-
-        return ((fallbackData ?? []) as ParentTeacherClassRequestRpcRow[]).map(mapParentTeacherClassRequest);
       }
       throw error;
     }

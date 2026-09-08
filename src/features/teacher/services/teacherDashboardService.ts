@@ -332,11 +332,11 @@ interface MembershipResultRow {
 
 const defaultVisibilitySettings: TeacherVisibilitySettings = {
   childName: false,
-  neuroProfile: true,
-  dailyMood: 'summary',
+  neuroProfile: false,
+  dailyMood: 'hidden',
   worryDiaryText: false,
-  safeguardingAlerts: true,
-  academicTasks: true,
+  safeguardingAlerts: false,
+  academicTasks: false,
   personalNotes: false,
 };
 
@@ -363,11 +363,11 @@ const normalizeVisibility = (value: unknown): TeacherVisibilitySettings => {
 
   return {
     childName: raw.childName === true,
-    neuroProfile: raw.neuroProfile !== false,
+    neuroProfile: raw.neuroProfile === true,
     dailyMood,
     worryDiaryText: raw.worryDiaryText === true,
-    safeguardingAlerts: raw.safeguardingAlerts !== false,
-    academicTasks: raw.academicTasks !== false,
+    safeguardingAlerts: raw.safeguardingAlerts === true,
+    academicTasks: raw.academicTasks === true,
     personalNotes: raw.personalNotes === true,
   };
 };
@@ -464,7 +464,9 @@ const mapClass = (
     subject: row.subject ?? 'General',
     yearGroup: row.year_group ?? '',
     createdAt: row.created_at,
-    studentCount: memberships.filter((membership) => membership.class_id === row.id && membership.status !== 'removed').length,
+    studentCount: memberships.filter(
+      (membership) => membership.class_id === row.id && membership.status === 'active',
+    ).length,
     pendingRequests: requests.filter((request) => {
       const status = normalizeStatus(request.status, teacherRequestStatuses, 'pending');
       return request.class_id === row.id && pendingRequestStatuses.includes(status);
@@ -510,7 +512,8 @@ const buildAssignmentProgress = (
   const activeMemberships = memberships.filter(
     (membership) =>
       membership.class_id === row.class_id
-      && normalizeStatus(membership.status, ['active', 'paused', 'removed'] as const, 'active') === 'active',
+      && membership.status === 'active'
+      && normalizeVisibility(membership.visibility_settings).academicTasks,
   );
   const submissionsByChild = new Map(
     submissions
@@ -536,10 +539,13 @@ const buildAssignmentProgress = (
     return {
       childId: membership.child_id,
       childName: visibilitySettings.childName ? getProfileName(profile) : 'Learner',
-      buddyId: profile?.buddy_id ?? null,
+      buddyId: null,
       neurotypes: visibilitySettings.neuroProfile ? profile?.neuro_types ?? [] : [],
       status,
-      moodAfterTask: submission?.mood_after_task ?? undefined,
+      moodAfterTask:
+        visibilitySettings.dailyMood === 'full'
+          ? submission?.mood_after_task ?? undefined
+          : undefined,
       supportUsed: submission?.support_used ?? [],
       updatedAt: submission?.updated_at ?? submission?.submitted_at ?? undefined,
     };
@@ -583,6 +589,9 @@ const mapSignal = (
   text: '',
   createdAt: row.created_at,
 });
+
+/** Public contract adapter used to verify that shared child evidence reaches the teacher experience. */
+export const mapTeacherSupportSignal = mapSignal;
 
 const withVisibleSignalText = (
   signal: TeacherSupportSignal,
@@ -959,7 +968,7 @@ export class TeacherDashboardService {
 
     const activeMembershipRows = membershipRows.filter((membership) => membership.status === 'active');
     const profileChildIds = Array.from(new Set([
-      ...membershipRows.map((membership) => membership.child_id),
+      ...activeMembershipRows.map((membership) => membership.child_id),
       ...requestRows
         .filter((request) => request.parent_approved === true || request.status === 'approved')
         .map((request) => request.child_id),
@@ -984,7 +993,7 @@ export class TeacherDashboardService {
 
     const classes = rawClasses.map((row) => mapClass(row, membershipRows, requestRows, assignmentRows));
     const students = membershipRows
-      .filter((membership) => membership.status !== 'removed')
+      .filter((membership) => membership.status === 'active')
       .map((membership) => {
         const profile = profiles.get(membership.child_id);
         const latestSignal = signals.find((signal) => signal.childId === membership.child_id);
@@ -994,11 +1003,11 @@ export class TeacherDashboardService {
           classId: membership.class_id,
           childId: membership.child_id,
           childName: visibilitySettings.childName ? getProfileName(profile) : 'Learner',
-          buddyId: profile?.buddy_id ?? null,
+          buddyId: null,
           neurotypes: visibilitySettings.neuroProfile ? profile?.neuro_types ?? [] : [],
-          age: profile?.age,
+          age: undefined,
           visibilitySettings,
-          status: normalizeStatus(membership.status, ['active', 'paused', 'removed'] as const, 'active'),
+          status: 'active' as const,
           joinedAt: membership.joined_at,
           latestSignal,
           completionSummary: this.getCompletionSummary(membership.child_id, membership.class_id, assignmentRows, submissionRows),
@@ -1014,7 +1023,7 @@ export class TeacherDashboardService {
         classId: request.class_id,
         childId: request.child_id,
         childName: parentApproved && visibilitySettings.childName ? getProfileName(profile) : 'Pending learner',
-        buddyId: request.requested_buddy_id ?? profile?.buddy_id ?? null,
+        buddyId: request.requested_buddy_id ?? null,
         neurotypes: parentApproved && visibilitySettings.neuroProfile ? profile?.neuro_types ?? [] : [],
         requestedBy: request.requested_by,
         requestMethod: request.request_method ?? 'buddy_id',

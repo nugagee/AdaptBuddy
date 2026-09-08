@@ -154,7 +154,7 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
       onClose();
     } catch (error) {
       console.error('Failed to save journal entry:', error);
-      setSaveError('Your feeling is safe here, but it could not sync yet. Please try again.');
+      setSaveError('Your entry was not saved. Your words are still in this window so you can try again. No adult was contacted.');
     } finally {
       setIsSaving(false);
     }
@@ -275,7 +275,7 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
                 <p className="text-sm font-bold dark:text-gray-100">Your privacy</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   Your journal words stay private unless you choose to share them. If you ask for
-                  help or may be unsafe, AdaptBuddy can alert an authorised trusted adult.
+                  help or may be unsafe, speak to an adult you trust directly. This journal does not contact an adult. If there is immediate danger, call 999.
                 </p>
               </div>
             </div>

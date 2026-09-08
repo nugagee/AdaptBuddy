@@ -306,7 +306,7 @@ function safetyReply(riskLevel) {
     };
   }
   return {
-    content: 'Thank you for telling me. I am an AI helper, so a trusted adult is the right person to help with this. You can use the button below or go to a safe adult nearby.',
+    content: 'Thank you for telling me. I am an AI helper, so a trusted adult is the right person to help with this. Please go to a safe adult nearby and show them this message. The in-app support button records a request but does not contact an adult.',
     riskLevel: 'concern',
     adultActionRequired: true,
   };
@@ -357,7 +357,7 @@ module.exports = async function handler(req, res) {
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: 'Buddy is not connected yet. Please use a quick support button.' });
+  if (!apiKey) return res.status(503).json({ error: 'Buddy is not connected yet. Please go to a safe adult nearby. The in-app support button records a request but does not contact an adult.' });
 
   // The request context is user-controlled. Only the name stored behind the
   // authenticated child's RLS-protected profile can relax a pet-name rule.
@@ -384,7 +384,7 @@ module.exports = async function handler(req, res) {
     inputModeration = await moderate(apiKey, moderationInput);
   } catch (error) {
     console.error('Buddy input moderation unavailable', error instanceof Error ? error.message : 'unknown');
-    return res.status(503).json({ error: 'Buddy safety checks are temporarily unavailable. Please use a quick support button or ask a trusted adult.' });
+    return res.status(503).json({ error: 'Buddy safety checks are temporarily unavailable. Please go to a safe adult nearby. The in-app support button records a request but does not contact an adult.' });
   }
 
   const moderationLevel = moderationRisk(inputModeration);

@@ -37,6 +37,7 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [adultRequestStatus, setAdultRequestStatus] = useState('');
+  const supportRequestIds = useRef(new Map<string, string>());
   const initialMessageSent = useRef(false);
   const conversationRef = useRef<HTMLDivElement>(null);
 
@@ -59,6 +60,7 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
     setInput('');
     setError('');
     setAdultRequestStatus('');
+    supportRequestIds.current.clear();
     setLoading(true);
 
     try {
@@ -100,10 +102,13 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
     }
 
     try {
-      await requestTrustedAdultSupport(user.id, 'buddy-conversation', riskLevel === 'urgent');
-      setAdultRequestStatus('Your support request was sent to a trusted adult. Please also go to a safe adult nearby now.');
+      const key = `${user.id}:${riskLevel}`;
+      const requestId = supportRequestIds.current.get(key) ?? crypto.randomUUID();
+      supportRequestIds.current.set(key, requestId);
+      await requestTrustedAdultSupport(user.id, 'buddy-conversation', riskLevel === 'urgent', requestId);
+      setAdultRequestStatus('Your support request was recorded in AdaptBuddy. Delivery to an adult is not confirmed, so please go to a safe adult nearby now.');
     } catch {
-      setAdultRequestStatus('The message could not send. Please show this screen to a trusted adult nearby now.');
+      setAdultRequestStatus('We could not confirm whether the support request was recorded. No adult was contacted. Please show this screen to a trusted adult nearby now.');
     }
   };
 
@@ -119,7 +124,7 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
           <p>
             <strong>I am an AI helper, not a person.</strong> I can make mistakes. You can stop at
-            any time. If you may be unsafe, I will help you reach a trusted adult.
+            any time. If you may be unsafe, I will tell you to go to a safe adult nearby.
           </p>
         </div>
       </div>
@@ -169,7 +174,7 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
                   className="mt-3 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 font-bold text-white hover:bg-red-700"
                 >
                   <Hand className="h-4 w-4" aria-hidden />
-                  Tell a trusted adult now
+                  Record support request
                 </button>
               )}
             </div>

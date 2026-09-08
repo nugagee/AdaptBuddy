@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Hand, Heart, Loader2 } from 'lucide-react';
 import { buildCompanionContext, isOpenAiConfigured, respondToMoodCheckIn } from 'services/ai';
 import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
@@ -30,6 +30,7 @@ const MoodCheckInPanel: React.FC = () => {
   const [adultActionRequired, setAdultActionRequired] = useState(false);
   const [urgent, setUrgent] = useState(false);
   const [adultRequestStatus, setAdultRequestStatus] = useState('');
+  const supportRequestIds = useRef(new Map<string, string>());
 
   const ctx = buildCompanionContext(
     autismProfile,
@@ -42,6 +43,7 @@ const MoodCheckInPanel: React.FC = () => {
     setLoading(true);
     setError('');
     setSaved(false);
+    supportRequestIds.current.clear();
     try {
       const result = await respondToMoodCheckIn(mood, note, ctx);
       setResponse(result.response);
@@ -66,10 +68,13 @@ const MoodCheckInPanel: React.FC = () => {
       return;
     }
     try {
-      await requestTrustedAdultSupport(user.id, 'mood-check-in', urgent);
-      setAdultRequestStatus('Your support request was sent. Please also go to a safe adult nearby.');
+      const key = `${user.id}:${urgent}`;
+      const requestId = supportRequestIds.current.get(key) ?? crypto.randomUUID();
+      supportRequestIds.current.set(key, requestId);
+      await requestTrustedAdultSupport(user.id, 'mood-check-in', urgent, requestId);
+      setAdultRequestStatus('Your support request was recorded in AdaptBuddy. Delivery to an adult is not confirmed, so please also go to a safe adult nearby.');
     } catch {
-      setAdultRequestStatus('The message could not send. Please show this screen to a trusted adult nearby.');
+      setAdultRequestStatus('We could not confirm whether the support request was recorded. No adult was contacted. Please show this screen to a trusted adult nearby now.');
     }
   };
 
@@ -142,7 +147,7 @@ const MoodCheckInPanel: React.FC = () => {
               className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
             >
               <Hand className="h-4 w-4" aria-hidden />
-              Tell a trusted adult now
+              Record support request
             </button>
           )}
           {adultRequestStatus && (

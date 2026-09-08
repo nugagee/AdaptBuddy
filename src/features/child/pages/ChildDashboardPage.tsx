@@ -14,6 +14,9 @@ import ActivitySessionModal, {
   type ActivitySessionResult,
 } from 'features/child/components/dashboard/ActivitySessionModal';
 import AdhdSupportSignalsPanel from 'features/child/components/dashboard/AdhdSupportSignalsPanel';
+import AdhdEnergyPacingPanel from 'features/child/components/dashboard/AdhdEnergyPacingPanel';
+import AchievementBadgesPanel from 'features/child/components/dashboard/AchievementBadgesPanel';
+import DyslexiaReadingProgressPanel from 'features/child/components/dashboard/DyslexiaReadingProgressPanel';
 import ChildClassroomPanel from 'features/child/components/dashboard/ChildClassroomPanel';
 import TeacherAssignmentsPanel from 'features/child/components/dashboard/TeacherAssignmentsPanel';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
@@ -25,6 +28,7 @@ import {
 } from 'features/child/data/neuroDashboardContent';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
 import { syncAdhdSupportSignal } from 'features/child/services/adhdSupportSignalService';
+import { adaptAdhdActivitiesForEnergy } from 'features/child/utils/adhdEnergyPacing';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
 import '../components/dashboard/child-dashboard.css';
@@ -41,6 +45,12 @@ const ChildDashboardPage: React.FC = () => {
 
   const completeActivity = useChildProgressStore((s) => s.completeActivity);
   const addAdhdSupportSignal = useChildProgressStore((s) => s.addAdhdSupportSignal);
+  const unlockAchievementBadge = useChildProgressStore((s) => s.unlockAchievementBadge);
+  const setAdhdEnergyPacing = useChildProgressStore((s) => s.setAdhdEnergyPacing);
+  const adhdEnergyPacing = useChildProgressStore((s) => s.adhdEnergyPacing);
+  const addDyslexiaReadingSession = useChildProgressStore((s) => s.addDyslexiaReadingSession);
+  const setDyslexiaReaderPreferences = useChildProgressStore((s) => s.setDyslexiaReaderPreferences);
+  const addDyslexiaPhonicsSession = useChildProgressStore((s) => s.addDyslexiaPhonicsSession);
   const setTodayMood = useChildProgressStore((s) => s.setTodayMood);
   const completions = useChildProgressStore((s) => s.completions);
 
@@ -50,7 +60,14 @@ const ChildDashboardPage: React.FC = () => {
     () => (profile?.neuro_types?.length ? profile.neuro_types : ['autism']),
     [profile?.neuro_types],
   );
-  const dailyActivities = useMemo(() => getActivitiesForNeuros(neuroTypes), [neuroTypes]);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayEnergyPacing = adhdEnergyPacing?.checkedAt.startsWith(todayKey)
+    ? adhdEnergyPacing
+    : null;
+  const dailyActivities = useMemo(
+    () => adaptAdhdActivitiesForEnergy(getActivitiesForNeuros(neuroTypes), todayEnergyPacing),
+    [neuroTypes, todayEnergyPacing],
+  );
   const welcomeMessage = (location.state as { message?: string } | null)?.message;
 
   const today = new Date().toISOString().slice(0, 10);
@@ -106,17 +123,37 @@ const ChildDashboardPage: React.FC = () => {
         console.warn('ADHD support signal saved locally only:', syncError);
       });
     }
-    setCelebration(`+${activeActivity.starsReward} stars! Great job on "${activeActivity.title}"`);
+    if (result?.achievementBadge) {
+      unlockAchievementBadge(result.achievementBadge);
+    }
+    if (result?.adhdEnergyPacing) {
+      setAdhdEnergyPacing(result.adhdEnergyPacing);
+    }
+    if (result?.dyslexiaReadingSession) {
+      addDyslexiaReadingSession(result.dyslexiaReadingSession);
+    }
+    if (result?.dyslexiaReaderPreferences) {
+      setDyslexiaReaderPreferences(result.dyslexiaReaderPreferences);
+    }
+    if (result?.dyslexiaPhonicsSession) {
+      addDyslexiaPhonicsSession(result.dyslexiaPhonicsSession);
+    }
+    setCelebration(
+      result?.achievementBadge
+        ? `${result.achievementBadge.emoji} ${result.achievementBadge.title} badge unlocked! +${activeActivity.starsReward} stars`
+        : `+${activeActivity.starsReward} stars! Great job on "${activeActivity.title}"`,
+    );
     setActiveActivity(null);
     window.setTimeout(() => setCelebration(null), 4000);
-  }, [activeActivity, addAdhdSupportSignal, childId, completeActivity]);
+  }, [activeActivity, addAdhdSupportSignal, addDyslexiaPhonicsSession, addDyslexiaReadingSession, childId, completeActivity, setAdhdEnergyPacing, setDyslexiaReaderPreferences, unlockAchievementBadge]);
 
   const handleFocusComplete = useCallback(() => {
-    completeActivity('adhd-focus-sprint', 'adhd', 5, 12);
+    const focusDuration = dailyActivities.find((activity) => activity.id === 'adhd-focus-sprint')?.durationMinutes ?? 12;
+    completeActivity('adhd-focus-sprint', 'adhd', 5, focusDuration);
     setShowFocusTimer(false);
     setCelebration('Focus sprint complete! +5 stars');
     window.setTimeout(() => setCelebration(null), 4000);
-  }, [completeActivity]);
+  }, [completeActivity, dailyActivities]);
 
   const handleJournalClose = useCallback(() => {
     setShowJournal(false);
@@ -195,6 +232,15 @@ const ChildDashboardPage: React.FC = () => {
           }}
         />
 
+        {neuroTypes.includes('adhd') && (
+          <>
+            <AdhdEnergyPacingPanel />
+            <AdhdSupportSignalsPanel />
+            <AchievementBadgesPanel />
+          </>
+        )}
+
+        {neuroTypes.includes('dyslexia') && <DyslexiaReadingProgressPanel />}
         <DailyOrbitProgress totalActivities={dailyActivities.length} onMoodCheck={() => setShowJournal(true)} />
 
         <details className="child-dashboard-drawer">
@@ -208,7 +254,6 @@ const ChildDashboardPage: React.FC = () => {
                 window.setTimeout(() => setCelebration(null), 3500);
               }}
             />
-            {neuroTypes.includes('adhd') && <AdhdSupportSignalsPanel />}
           </div>
         </details>
 
@@ -216,7 +261,15 @@ const ChildDashboardPage: React.FC = () => {
           <summary><Settings2 className="h-5 w-5" aria-hidden /> More tools and progress</summary>
           <div className="space-y-6 pt-5">
             {neuroTypes.map((neuroId) => (
-              <NeuroZoneCard key={neuroId} neuroId={neuroId} activities={getDailyActivitiesForNeuro(neuroId)} onStartActivity={handleStartActivity} />
+              <NeuroZoneCard
+                key={neuroId}
+                neuroId={neuroId}
+                activities={adaptAdhdActivitiesForEnergy(
+                  getDailyActivitiesForNeuro(neuroId),
+                  todayEnergyPacing,
+                )}
+                onStartActivity={handleStartActivity}
+              />
             ))}
             <MetricsConstellation neuroTypes={neuroTypes} />
             <AccessibilityDock neuroTypes={neuroTypes} />
@@ -242,7 +295,7 @@ const ChildDashboardPage: React.FC = () => {
 
       {showFocusTimer && (
         <FocusTimerModal
-          durationMinutes={12}
+          durationMinutes={dailyActivities.find((activity) => activity.id === 'adhd-focus-sprint')?.durationMinutes ?? 12}
           onClose={() => setShowFocusTimer(false)}
           onComplete={handleFocusComplete}
         />

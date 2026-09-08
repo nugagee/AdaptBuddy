@@ -18,9 +18,11 @@ The owner requested deployment now, deferring the remaining safeguarding operati
 - Full application regression check: **18 suites / 69 tests passed**, including the two support surfaces, hidden Settings invitation form, ADHD and Dyslexia learning. Production build passed.
 - A fresh schema-only production backup matched the rehearsed baseline byte for byte (SHA-256 `c0ca015ae4660ff9ddc7f3b361f802319639720a615d91d73671a8e724549ccb`). It contains no user records and is kept outside Git. Local synthetic full-backup recovery was separately verified in `ACCESS_LIFECYCLE_AND_RECOVERY.md`.
 
+Independent candidate review found one false empty-state message when connection lookup was disabled. The message is now gated on an enabled lookup, with an existing-contact regression case. No remaining recording route was found in the inspected callers.
+
 ## Deployment record
 
-Database application, production commit and live verification will be recorded after successful execution. Keep the Git deployment hold through preparation; remove it only for this scoped release. Supabase remains Free and Vercel remains Hobby.
+The exact scoped SQL transaction was applied to `fmlxtlicawkgiemubyid` on 8 September 2026. Readback confirmed both new columns, current profile constraints, the private mood default and stricter adult-read policy; the child policy and existing row counts were preserved. Both deferred RPCs remain absent. Vercel preview `8qaxqUdHEoewXbgDYDBjTi93EsCY` passed for source candidate `f50c043`. The production Git hold is removed by this release change. Final live verification is recorded separately after deployment. Supabase remains Free and Vercel remains Hobby.
 
 ## Recovery and remaining work
 

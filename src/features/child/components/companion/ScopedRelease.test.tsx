@@ -5,6 +5,7 @@ import { respondToMoodCheckIn, sendBuddyMessage } from 'services/ai';
 import { saveMoodCheckIn, requestTrustedAdultSupport, saveTrustedAdultForChild, fetchTrustedAdultsForChild } from 'services/supabase/autismProfileService';
 import MoodCheckInPanel from './MoodCheckInPanel';
 import BuddyConversationPanel from './BuddyConversationPanel';
+import { useTrustedAdultStore } from 'features/child/store/trustedAdultStore';
 import SettingsPage from 'features/child/pages/SettingsPage';
 
 jest.mock('hooks/useAuth', () => {
@@ -51,6 +52,7 @@ test('Buddy conversation provides direct help guidance without unavailable recor
 });
 
 test('settings keeps ordinary editing available while the invitation form is absent', async () => {
+  useTrustedAdultStore.getState().setTrustedAdults('child', [{ id: 'existing', name: 'Existing adult', role: 'parent', email: 'adult@example.invalid', phone: '', status: 'connected' }]);
   render(<MemoryRouter><SettingsPage /></MemoryRouter>);
   await waitFor(() => expect(screen.getByText(/Trusted-adult connections are temporarily unavailable/)).toBeInTheDocument());
   expect(screen.queryByLabelText('Phone number')).not.toBeInTheDocument();
@@ -58,4 +60,5 @@ test('settings keeps ordinary editing available while the invitation form is abs
   expect(screen.getByRole('button', { name: /Save/ })).toBeInTheDocument();
   expect(saveTrustedAdultForChild).not.toHaveBeenCalled();
   expect(fetchTrustedAdultsForChild).not.toHaveBeenCalled();
+  expect(screen.queryByText(/No trusted adult is connected yet/)).not.toBeInTheDocument();
 });

@@ -558,7 +558,7 @@ const SettingsPage: React.FC = () => {
                 We cannot check your trusted-adult connections right now. Speak to an adult you trust directly if you need help.
               </p>
             )}
-            {!trustedAdultsLoading && !trustedAdultsUnavailable && connectedTrustedAdults.length === 0 && (
+            {TRUSTED_ADULT_INVITATIONS_ENABLED && !trustedAdultsLoading && !trustedAdultsUnavailable && connectedTrustedAdults.length === 0 && (
               <p className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
                 No trusted adult is connected yet. Please speak to an adult you trust directly when you need help.
               </p>

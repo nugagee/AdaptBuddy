@@ -2,7 +2,7 @@
 
 **Prepared and verified locally; not applied or deployed to production.** The owner requested new adult invitations and support recording. The candidate enables both application flags, adds the adult inbox, and prepares the required database changes. Production remains on `4e4fd67e664cd00ec86a4d99923bdb6e20129a3f` with both capabilities disabled.
 
-The remaining release dependency is the owner's identification of the legitimate administrator email and confirmation that its previously exposed password has been rotated. That answer is needed to preserve legitimate administration while closing a verified takeover route. Do not infer identity from an existing `role='admin'` row. No plan upgrade, new hosted project, real invitation email, live test account, or billable AI request was made for this work.
+The owner has now confirmed the existing administrator account and explicitly stated that its previously exposed password has not been changed yet. Administrator identity is resolved; password rotation remains pending. The confirmed email and these two distinct states are saved in a private release-plan file outside Git. Do not ask the owner to identify the account again or mark password rotation complete without their confirmation. No administrator verification or live enablement has been applied. No plan upgrade, new hosted project, real invitation email, live test account, or billable AI request was made for this work.
 
 ## Behavior and permission boundary
 
@@ -26,7 +26,7 @@ The broader school/guardian quarantine draft and older shared-support draft are 
 
 ## Verification
 
-Outcome: the identified paths are fixed in the local candidate; live enablement is blocked on the administrator facts above.
+Outcome: the identified paths are fixed in the local candidate; live enablement is blocked on the pending password change above.
 
 | Gate | Command / evidence | Result |
 | --- | --- | --- |
@@ -44,9 +44,11 @@ One fresh read-only investigator and one fresh read-only reviewer were used as r
 
 The local project was `adaptbuddy-local-rehearsal`, with API and captured confirmation mail bound to localhost. Test scripts require that project name and its separate Docker socket. Synthetic results and logs remain outside Git. These checks do not claim hosted restore privilege or end-to-end verification on production.
 
+Simply leaving this account unverified is not a complete temporary suspension: some historical product-feedback and class permissions still test the raw admin role instead of `is_admin()`. That alternative was inspected but not applied. The existing reviewed release sequence remains unchanged.
+
 ## Exact release order
 
-1. Receive the legitimate admin email and confirmation of password rotation. Revoke its old sessions as part of release preparation; do not record passwords or tokens. Keep the confirmation in private operational evidence.
+1. Administrator identity is confirmed. Obtain confirmation of password rotation when the owner completes it. Revoke its old sessions as part of release preparation; do not record passwords or tokens. Keep the confirmation in private operational evidence.
 2. Verify CLI project reference `fmlxtlicawkgiemubyid`, take a fresh private backup of the affected hosted schema/data and record aggregate preflight counts. Confirm the scoped 040/043 release still exists. Do not use another Supabase project or the broad 041/042 drafts.
 3. Create a private plan JSON with `projectRef`, `adminEmail`, `adminIdentityConfirmedByOwner: true` and `adminPasswordRotated: true`, using actual owner confirmation. Run `node scripts/prepare-support-release.cjs <private-plan.json> <private-output.sql>`. The generator does not connect or deploy. Its output is private and must not be committed.
 4. Apply that generated transaction to the confirmed project. It locks and verifies the selected active, confirmed existing admin, applies the narrow authority boundary, verifies only that admin, and creates the scoped support contracts atomically. A missing/mismatched administrator aborts the transaction.

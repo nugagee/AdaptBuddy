@@ -1,8 +1,10 @@
 # Scoped support enablement — 8 September 2026
 
-**Prepared and verified locally; not applied or deployed to production.** The owner requested new adult invitations and support recording. The candidate enables both application flags, adds the adult inbox, and prepares the required database changes. Production remains on `4e4fd67e664cd00ec86a4d99923bdb6e20129a3f` with both capabilities disabled.
+**Database release applied and verified on 8 September 2026; enabled source prepared for production deployment.** The owner requested new adult invitations and support recording, confirmed the existing administrator identity, and subsequently confirmed that its exposed password had been changed. Both application flags are enabled in this release. The earlier production deployment at `4e4fd67e664cd00ec86a4d99923bdb6e20129a3f` is the web rollback point.
 
-The owner has now confirmed the existing administrator account and explicitly stated that its previously exposed password has not been changed yet. Administrator identity is resolved; password rotation remains pending. The confirmed email and these two distinct states are saved in a private release-plan file outside Git. Do not ask the owner to identify the account again or mark password rotation complete without their confirmation. No administrator verification or live enablement has been applied. No plan upgrade, new hosted project, real invitation email, live test account, or billable AI request was made for this work.
+The exact generated transaction was applied to confirmed project `fmlxtlicawkgiemubyid`. Readback verified the sole intended administrator, canonical identity fields, the profile guard, both protected support tables, and all sixteen changed function definitions and browser grants against the tested local database. Existing row counts and non-identity profile fields were preserved. No support requests or invitations were created during deployment checks. There were zero administrator sessions before and after the transaction; the owner can sign in afresh with the changed password.
+
+The private release plan records the owner's identity and password-rotation confirmations separately. No credential was requested or captured. No plan upgrade, new hosted project, real invitation email, live test account, or billable AI request was made for this work.
 
 ## Behavior and permission boundary
 
@@ -26,7 +28,7 @@ The broader school/guardian quarantine draft and older shared-support draft are 
 
 ## Verification
 
-Outcome: the identified paths are fixed in the local candidate; live enablement is blocked on the pending password change above.
+Outcome: the identified paths are fixed in the verified database release and tested application candidate. Production web verification follows deployment of this exact source.
 
 | Gate | Command / evidence | Result |
 | --- | --- | --- |
@@ -48,7 +50,7 @@ Simply leaving this account unverified is not a complete temporary suspension: s
 
 ## Exact release order
 
-1. Administrator identity is confirmed. Obtain confirmation of password rotation when the owner completes it. Revoke its old sessions as part of release preparation; do not record passwords or tokens. Keep the confirmation in private operational evidence.
+1. Complete: administrator identity and password rotation confirmed by the owner. No administrator sessions remained at preflight or readback. Confirmations are recorded without credentials in private operational evidence.
 2. Verify CLI project reference `fmlxtlicawkgiemubyid`, take a fresh private backup of the affected hosted schema/data and record aggregate preflight counts. Confirm the scoped 040/043 release still exists. Do not use another Supabase project or the broad 041/042 drafts.
 3. Create a private plan JSON with `projectRef`, `adminEmail`, `adminIdentityConfirmedByOwner: true` and `adminPasswordRotated: true`, using actual owner confirmation. Run `node scripts/prepare-support-release.cjs <private-plan.json> <private-output.sql>`. The generator does not connect or deploy. Its output is private and must not be committed.
 4. Apply that generated transaction to the confirmed project. It locks and verifies the selected active, confirmed existing admin, applies the narrow authority boundary, verifies only that admin, and creates the scoped support contracts atomically. A missing/mismatched administrator aborts the transaction.
@@ -56,3 +58,16 @@ Simply leaving this account unverified is not a complete temporary suspension: s
 6. Merge/push the exact verified source and create a Production build in Vercel project `adaptbuddy-platform`. Verify the commit, Ready status, both production domains and required routes. Do not assume a Git push triggered deployment.
 
 If the web release regresses, restore the prior scoped Vercel deployment or disable both checked-in flags and rebuild. Preserve the stricter profile permissions and private support data. Do not restore the vulnerable role-based authority check as a rollback. Any database correction should be a forward repair from a verified backup and the reviewed transaction, not a broad draft replay.
+
+
+## Hosted database release evidence
+
+Private backups and readbacks are stored in `/private/tmp/adaptbuddy-support-live-release` with restricted filesystem permissions, outside Git. The schema backup differed from the original rehearsed baseline only by the already-deployed scoped 040/043 changes.
+
+- Schema backup SHA-256: `eafb1b817cb6b36db61b91772f27ad2061b292965fa32bbf3ad057ab013f5eb7`.
+- Affected profiles/functions/triggers backup SHA-256: `fb13957fe07d3ef1ace6f1ba1ac5fa6ae94db2a57548f5bc1c998ff155603e91`.
+- Applied transaction SHA-256: `746ba5d66ed14158ba2ccd16999816973086dcb1383d9e3251e9eec9dda88b43`.
+- Preserved counts: 7 profiles, 2 historical trusted adults, 2 historical child relationships, 1 mood check-in; journals, alerts and parent-child signals remained empty. New support contacts and requests remained empty.
+- All 16 relevant function definitions and authenticated/anonymous execution grants match the successful local rehearsal. Both new tables have RLS enabled and deny direct browser reads and inserts.
+
+The database readback proves deployed definitions, grants and preserved state. Real Auth and recipient workflow tests ran locally; no production account was impersonated or used to create test records. Final production URL and build verification is recorded separately after the web deployment.

@@ -1,15 +1,11 @@
 import type {
+  BuddyChatMessage,
   CompanionContext,
   GeneratedSocialStory,
   MoodCheckInResult,
   SimplifiedLanguageResult,
 } from 'features/child/types/companionOnboarding';
-import { ageAwareTone, companionContextPrompt } from './companionContext';
-import { chatCompletion, isOpenAiConfigured, parseJsonBlock } from './openaiService';
-
-const BASE_SYSTEM = `You are AdaptBuddy, a warm AI companion for neurodiverse children aged 4–17.
-You are supportive, never clinical, never diagnostic, and never give medical advice.
-You help children feel understood throughout their day.`;
+import { buddyRequest, isOpenAiConfigured, parseJsonBlock } from './openaiService';
 
 function fallbackSimplify(text: string): SimplifiedLanguageResult {
   const sentences = text
@@ -22,7 +18,7 @@ function fallbackSimplify(text: string): SimplifiedLanguageResult {
   return {
     original: text,
     simplified: sentences.length ? sentences : [text],
-    tip: 'Add REACT_APP_OPENAI_API_KEY for smarter simplification.',
+    tip: 'Buddy used a simple offline version because the AI service is not connected.',
   };
 }
 
@@ -55,13 +51,7 @@ export async function simplifyLanguage(
   if (!text.trim()) throw new Error('Please enter some text to simplify.');
   if (!isOpenAiConfigured) return fallbackSimplify(text);
 
-  const system = `${BASE_SYSTEM}
-${ageAwareTone(ctx.age)}
-${companionContextPrompt(ctx)}
-Return JSON only: { "simplified": string[], "tip": string }
-Each item in simplified should be one short, clear step. Use the child's interests when helpful.`;
-
-  const raw = await chatCompletion(system, `Simplify this instruction for the child:\n"${text.trim()}"`);
+  const raw = (await buddyRequest('simplify', text.trim(), ctx)).content;
   try {
     const parsed = parseJsonBlock<{ simplified: string[]; tip?: string }>(raw);
     return {
@@ -84,18 +74,7 @@ export async function generateSocialStory(
   if (!scenario.trim()) throw new Error('Describe the situation for your story.');
   if (!isOpenAiConfigured) return fallbackStory(scenario, ctx);
 
-  const system = `${BASE_SYSTEM}
-${ageAwareTone(ctx.age)}
-${companionContextPrompt(ctx)}
-Write a personalized social story with 4–6 short panels.
-Use the child's name. Be reassuring and practical.
-Return JSON only: { "title": string, "panels": string[] }`;
-
-  const raw = await chatCompletion(
-    system,
-    `Create a social story for this situation: ${scenario.trim()}`,
-    { temperature: 0.7 },
-  );
+  const raw = (await buddyRequest('story', scenario.trim(), ctx)).content;
 
   try {
     return parseJsonBlock<GeneratedSocialStory>(raw);
@@ -112,24 +91,36 @@ export async function respondToMoodCheckIn(
   if (!mood) throw new Error('Please choose how you are feeling.');
   if (!isOpenAiConfigured) return fallbackMood(mood, note, ctx);
 
-  const system = `${BASE_SYSTEM}
-${ageAwareTone(ctx.age)}
-${companionContextPrompt(ctx)}
-The child selected mood: ${mood}.
-Respond with empathy in 2–3 short sentences. Offer one gentle suggestion if appropriate.
-Return JSON only: { "response": string, "suggestion": string }`;
-
   const user = note.trim()
     ? `Mood: ${mood}. They wrote: "${note.trim()}"`
     : `Mood: ${mood}. No extra note.`;
 
-  const raw = await chatCompletion(system, user, { temperature: 0.7, maxTokens: 400 });
+  const result = await buddyRequest('mood', user, ctx);
+  const raw = result.content;
 
   try {
-    return parseJsonBlock<MoodCheckInResult>(raw);
+    return {
+      ...parseJsonBlock<MoodCheckInResult>(raw),
+      riskLevel: result.riskLevel,
+      adultActionRequired: result.adultActionRequired,
+    };
   } catch {
-    return { response: raw, suggestion: 'Would a calm break help right now?' };
+    return {
+      response: raw,
+      suggestion: 'Would a calm break or a trusted adult help right now?',
+      riskLevel: result.riskLevel,
+      adultActionRequired: result.adultActionRequired,
+    };
   }
+}
+
+export async function sendBuddyMessage(
+  message: string,
+  ctx: CompanionContext,
+  history: BuddyChatMessage[],
+) {
+  if (!message.trim()) throw new Error('Type or choose something to tell Buddy.');
+  return buddyRequest('conversation', message.trim(), ctx, history);
 }
 
 export { isOpenAiConfigured };

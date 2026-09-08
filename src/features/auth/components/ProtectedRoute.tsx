@@ -19,7 +19,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   useEffect(() => {
     if (!isAuthenticated && !canUseGuestRoute && storedGuestMode) {
-      restoreGuestMode();
+      void restoreGuestMode().catch((error) => {
+        console.error('Could not restore guest mode:', error);
+      });
     }
   }, [canUseGuestRoute, isAuthenticated, restoreGuestMode, storedGuestMode]);
 

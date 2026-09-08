@@ -101,7 +101,7 @@ const SmartRecommendationsPanel: React.FC<SmartRecommendationsPanelProps> = ({
         <div className="rounded-2xl border border-dashed border-adapt-teal/40 bg-adapt-teal/5 p-4 dark:border-adapt-cyan/30 dark:bg-adapt-cyan/5">
           <p className="flex items-center gap-2 text-sm text-slate-600 dark:text-gray-400">
             <Sparkles className="h-4 w-4 text-adapt-teal" aria-hidden />
-            Built on UDL principles — adapts to how you feel today, not just your diagnosis.
+            Built on UDL principles — adapts to your choices and support profile today.
           </p>
         </div>
       </div>

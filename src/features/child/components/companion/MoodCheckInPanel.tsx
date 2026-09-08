@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { Heart, Loader2 } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Hand, Heart, Loader2 } from 'lucide-react';
 import { buildCompanionContext, isOpenAiConfigured, respondToMoodCheckIn } from 'services/ai';
 import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
 import { useAuth } from 'hooks/useAuth';
-import { saveMoodCheckIn } from 'services/supabase/autismProfileService';
+import { requestTrustedAdultSupport, saveMoodCheckIn } from 'services/supabase/autismProfileService';
 
 const MOODS = [
   { emoji: '😊', label: 'Happy', value: 'happy' },
@@ -27,6 +27,10 @@ const MoodCheckInPanel: React.FC = () => {
   const [response, setResponse] = useState('');
   const [suggestion, setSuggestion] = useState('');
   const [saved, setSaved] = useState(false);
+  const [adultActionRequired, setAdultActionRequired] = useState(false);
+  const [urgent, setUrgent] = useState(false);
+  const [adultRequestStatus, setAdultRequestStatus] = useState('');
+  const supportRequestIds = useRef(new Map<string, string>());
 
   const ctx = buildCompanionContext(
     autismProfile,
@@ -39,10 +43,13 @@ const MoodCheckInPanel: React.FC = () => {
     setLoading(true);
     setError('');
     setSaved(false);
+    supportRequestIds.current.clear();
     try {
       const result = await respondToMoodCheckIn(mood, note, ctx);
       setResponse(result.response);
       setSuggestion(result.suggestion ?? '');
+      setAdultActionRequired(result.adultActionRequired === true);
+      setUrgent(result.riskLevel === 'urgent');
       setTodayMood(mood);
       if (user?.id) {
         await saveMoodCheckIn(user.id, mood, note, result.response);
@@ -55,15 +62,32 @@ const MoodCheckInPanel: React.FC = () => {
     }
   };
 
+  const requestAdult = async () => {
+    if (!user?.id) {
+      setAdultRequestStatus('In guest mode, please show this screen to a trusted adult nearby.');
+      return;
+    }
+    try {
+      const key = `${user.id}:${urgent}`;
+      const requestId = supportRequestIds.current.get(key) ?? crypto.randomUUID();
+      supportRequestIds.current.set(key, requestId);
+      await requestTrustedAdultSupport(user.id, 'mood-check-in', urgent, requestId);
+      setAdultRequestStatus('Your support request was recorded in AdaptBuddy. Delivery to an adult is not confirmed, so please also go to a safe adult nearby.');
+    } catch {
+      setAdultRequestStatus('We could not confirm whether the support request was recorded. No adult was contacted. Please show this screen to a trusted adult nearby now.');
+    }
+  };
+
   return (
     <div className="space-y-5">
       <p className="text-sm text-slate-600 dark:text-gray-400">
-        How are you feeling right now? AdaptBuddy listens without judging — this is your safe space.
+        How are you feeling right now? You choose what to share. Buddy is an AI helper and may
+        suggest asking a trusted adult when you need human support.
       </p>
 
       {!isOpenAiConfigured && (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          AI responses use a gentle fallback until OpenAI is configured.
+          AI Buddy is not connected right now. A gentle fallback will help instead.
         </p>
       )}
 
@@ -115,6 +139,21 @@ const MoodCheckInPanel: React.FC = () => {
           <p className="text-sm leading-relaxed text-adapt-navy dark:text-gray-200">{response}</p>
           {suggestion && (
             <p className="mt-3 text-xs text-slate-600 dark:text-gray-400">{suggestion}</p>
+          )}
+          {adultActionRequired && (
+            <button
+              type="button"
+              onClick={() => void requestAdult()}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
+            >
+              <Hand className="h-4 w-4" aria-hidden />
+              Record support request
+            </button>
+          )}
+          {adultRequestStatus && (
+            <p className="mt-3 rounded-xl bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-950 dark:bg-amber-950/50 dark:text-amber-100" role="status">
+              {adultRequestStatus}
+            </p>
           )}
           {saved && (
             <p className="mt-3 text-xs font-semibold text-emerald-600 dark:text-emerald-400">

@@ -9,6 +9,8 @@ export const ROUTES = {
   GUEST_ENTRY: '/guest',
   SIGNUP: '/signup',
   FORGOT_PASSWORD: '/forgot-password',
+  TRUST_AND_SAFETY: '/trust-and-safety',
+  EVIDENCE: '/evidence',
   CHILD_DASHBOARD: '/dashboard',
   CHILD_ACTIVITY_LOG: '/activity-log',
   AUTISM_SPACE: '/autism-space',

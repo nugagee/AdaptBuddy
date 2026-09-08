@@ -154,7 +154,7 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
       onClose();
     } catch (error) {
       console.error('Failed to save journal entry:', error);
-      setSaveError('Your feeling is safe here, but it could not sync yet. Please try again.');
+      setSaveError('Your entry was not saved. Your words are still in this window so you can try again. No adult was contacted.');
     } finally {
       setIsSaving(false);
     }
@@ -272,9 +272,10 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
             <div className="flex items-start gap-3">
               <Lock className="mt-1 h-5 w-5 shrink-0 text-green-600" aria-hidden />
               <div>
-                <p className="text-sm font-bold dark:text-gray-100">Private & Safe</p>
+                <p className="text-sm font-bold dark:text-gray-100">Your privacy</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  This is just for you. Trusted adults only see alerts if you&apos;re really upset.
+                  Your journal words stay private unless you choose to share them. If you ask for
+                  help or may be unsafe, speak to an adult you trust directly. This journal does not contact an adult. If there is immediate danger, call 999.
                 </p>
               </div>
             </div>

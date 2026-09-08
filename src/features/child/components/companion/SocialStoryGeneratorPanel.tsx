@@ -63,7 +63,7 @@ const SocialStoryGeneratorPanel: React.FC = () => {
 
       {!isOpenAiConfigured && (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          Add OpenAI key for fully personalised stories. A template story is used until then.
+          AI Buddy is not connected right now. A template story is available.
         </p>
       )}
 

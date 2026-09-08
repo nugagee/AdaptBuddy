@@ -1,0 +1,21 @@
+# Supabase work required before PR #15 can ship
+
+This is an implementation and staging plan, not executable migration approval. The live audit and evidence are in `REVIEW.md`; `READ_ONLY_SUPABASE_AUDIT.sql` can repeat the catalog inspection without reading personal records.
+
+1. **Confirm a staging target and administrator containment.** The CLI lists the active linked `AdaptBuddy Project` and an older inactive `AdaptBuddyProject`. The older project is not assumed to be disposable or staging. Obtain the owner's intended test target. Rotate the historically exposed admin password and revoke its sessions through the identity provider; never put the replacement credential in source or chat. Review privileged activity and existing administrator provenance.
+
+2. **Prepare a small authority-boundary change first.** Protect profile role/status/authorisation from ordinary sessions and sanitise signup metadata. Use server-owned canonical identity fields. Keep normal OTP signup/profile updates working by updating the application contract alongside the trigger. Test ordinary self-update, attempted role elevation, signup requesting admin, service-role administration, and suspended accounts. Do not use the broad draft's mass quarantine as an untested emergency patch.
+
+3. **Reconcile deployed schema rather than rerunning every historical file.** The linked database lacks the effect of 040 and the trusted-adult RPC expected by application source. Inventory schema/migration history, table and column grants, policies and function signatures. Migration 040 must be rehearsed with the old application's read/write behaviour and the planned release; verify that private mood notes cannot be retrieved by connected adults and that explicitly shared notes remain accessible only to eligible recipients.
+
+4. **Use a pending-only invitation contract.** Add acceptance evidence with a reviewed additive migration. Disable legacy Buddy ID authorisation at the server. Add delivered invitations, an authenticated recipient inbox, accept/decline and revocation actions. Keep email acceptance distinct from guardian authority. Define who can see which child data and who can authorise school access; do not automatically grant broad access merely because an email matches.
+
+5. **Complete revocation and row-level access rules.** Test changes through child revocation, adult unlink, account deletion, suspension, withdrawn guardian evidence, classroom ownership changes and expired invitations. All derived school, session, assignment, report and support access must follow current authority. Review all existing policies and security-definer functions, not just the functions touched by draft 041.
+
+6. **Make the disclosure pathway reliable.** Use one authenticated server transaction with idempotency for the disclosure/assessment/incident/outbox record. Determine eligible recipients server-side. Add delivery receipts, retries and fallback escalation. Preserve a disclosure when analysis or delivery is unavailable and show accurate immediate guidance; never classify a child as safe solely from model/keyword output.
+
+7. **Rehearse relationship changes with recoverable state.** Draft 041 removes family relationships, demotes unverified administrators and pauses school memberships. Before any replacement migration does this, create a staging backup, count affected records without exposing child details, establish which relationships can be re-verified, and test both recovery and re-approval. Do not restore vulnerable access policies as an automatic rollback.
+
+8. **Verify a combined candidate.** Resolve the local `ChildDashboardPage.tsx` conflict while preserving ADHD/Dyslexia features. Run the combined build, the 66 neuro-feature tests, added runtime auth tests and child/accepted-adult/unrelated-adult/approved-teacher/unapproved-teacher database tests. Exercise real delivery in a controlled test environment. Have safeguarding and privacy owners accept the operational pathway before a child pilot.
+
+Only after that evidence exists should the reviewed SQL be promoted from drafts, the PR be made ready, and the deployment/database sequence be approved as a concrete release.

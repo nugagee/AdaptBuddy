@@ -18,11 +18,15 @@ export interface TrustedAdultRecord extends TrustedAdultInput {
 
 interface TrustedAdultRow {
   id: string;
+  adult_id?: string | null;
   name: string;
   role: string;
   email: string;
   phone: string;
   status: string;
+  accepted_at?: string | null;
+  accepted_by?: string | null;
+  acceptance_method?: string | null;
 }
 
 const normalizeTrustedAdultStatus = (status: string): TrustedAdultStatus => {
@@ -36,7 +40,13 @@ const mapTrustedAdultRow = (row: TrustedAdultRow): TrustedAdultRecord => ({
   role: row.role,
   email: row.email,
   phone: row.phone,
-  status: normalizeTrustedAdultStatus(row.status),
+  status:
+    row.accepted_at
+      && row.adult_id
+      && row.accepted_by === row.adult_id
+      && row.acceptance_method === 'account_email'
+    ? normalizeTrustedAdultStatus(row.status)
+    : 'pending',
 });
 
 export interface AutismProfileRow {
@@ -88,6 +98,7 @@ export async function saveMoodCheckIn(
   mood: string,
   note: string,
   aiResponse?: string,
+  isShared = false,
 ): Promise<void> {
   if (!isSupabaseConfigured) return;
 
@@ -96,6 +107,7 @@ export async function saveMoodCheckIn(
     mood,
     note: note.trim() || null,
     ai_response: aiResponse ?? null,
+    is_shared: isShared,
   });
 
   if (error) throw error;
@@ -106,7 +118,7 @@ export async function fetchTrustedAdultsForChild(childId: string): Promise<Trust
 
   const { data, error } = await getSupabaseClient()
     .from('trusted_adults')
-    .select('id, name, role, email, phone, status')
+    .select('id, adult_id, name, role, email, phone, status, accepted_at, accepted_by, acceptance_method')
     .eq('child_id', childId)
     .order('created_at', { ascending: true });
 
@@ -119,11 +131,7 @@ export async function saveTrustedAdultForChild(
   adult: TrustedAdultInput,
 ): Promise<TrustedAdultRecord> {
   if (!isSupabaseConfigured) {
-    return {
-      ...adult,
-      id: `trusted-${Date.now()}`,
-      status: 'pending',
-    };
+    throw new Error('Trusted-adult invitations are unavailable because secure storage is not configured.');
   }
 
   const client = getSupabaseClient();
@@ -137,14 +145,18 @@ export async function saveTrustedAdultForChild(
     throw new Error('You need to be signed in as this child to add a trusted adult.');
   }
 
-  const { data, error } = await client.rpc('add_trusted_adult_for_child', {
+  const { data, error } = await client.rpc('record_trusted_adult_request_v1', {
+    p_child_id: childId,
     p_name: adult.name,
     p_role: adult.role,
     p_email: adult.email,
     p_phone: adult.phone,
   });
 
-  if (error) throw error;
+  if (error) throw new Error('Trusted-adult requests are unavailable right now. No request was recorded.');
+  if (!data || data.status !== 'pending' || data.adult_id || data.accepted_at || data.accepted_by) {
+    throw new Error('The server could not confirm a pending-only request. Contact support before trying again.');
+  }
   return mapTrustedAdultRow(data as TrustedAdultRow);
 }
 
@@ -167,42 +179,6 @@ const toSerializableAnalysis = (analysis?: EmotionAnalysis | null) => {
         ? analysis.timestamp.toISOString()
         : analysis.timestamp,
   };
-};
-
-const signalColorForEmotion = (emotion: string): string => {
-  switch (emotion.toLowerCase()) {
-    case 'happy':
-    case 'excited':
-    case 'good':
-      return 'green';
-    case 'calm':
-    case 'okay':
-      return 'blue';
-    case 'tired':
-      return 'purple';
-    case 'sad':
-    case 'anxious':
-    case 'worried':
-    case 'too noisy':
-    case 'too bright':
-    case 'confused':
-      return 'yellow';
-    case 'frustrated':
-      return 'orange';
-    case 'angry':
-    case 'i need help':
-      return 'red';
-    default:
-      return 'blue';
-  }
-};
-
-const signalColorForAnalysis = (analysis: EmotionAnalysis | null | undefined, emotion: string): string => {
-  if (analysis?.supportLevel === 'urgent') return 'red';
-  if (typeof analysis?.signalLabel === 'string') return signalColorForEmotion(analysis.signalLabel);
-  if (analysis?.signalCategory === 'sensory' || analysis?.signalCategory === 'cognitive') return 'yellow';
-  if (analysis?.supportLevel === 'concern') return 'yellow';
-  return signalColorForEmotion(emotion);
 };
 
 const deriveSupportRiskLevel = (
@@ -247,14 +223,17 @@ export async function saveJournalEntry({
   text,
   analysis,
   audioUrl = null,
-  isShared = true,
+  isShared = false,
 }: JournalEntryInput): Promise<void> {
-  if (!isSupabaseConfigured) return;
+  if (!isSupabaseConfigured) {
+    throw new Error('This support entry was not saved because secure storage is not configured.');
+  }
 
+  if (isShared) throw new Error('Use the support-request action to record a shared request.');
   const client = getSupabaseClient();
   const riskLevel = deriveSupportRiskLevel(analysis, emotion, text);
 
-  const { data, error } = await client
+  const { error } = await client
     .from('journal_entries')
     .insert({
       child_id: childId,
@@ -270,26 +249,22 @@ export async function saveJournalEntry({
 
   if (error) throw error;
 
-  const { error: signalError } = await client.from('parent_child_signals').insert({
-    child_id: childId,
-    emotion: analysis?.signalLabel ?? analysis?.emotion ?? emotion,
-    color: signalColorForAnalysis(analysis, analysis?.emotion ?? emotion),
-    note: analysis?.parentInsight
-      ? `${analysis.parentInsight}${text.trim() ? ` ${text.trim()}` : ''}`
-      : text.trim() || null,
+}
+
+export async function requestTrustedAdultSupport(
+  childId: string,
+  source: 'buddy-conversation' | 'mood-check-in' | 'child-dashboard',
+  urgent = false,
+  requestId = crypto.randomUUID(),
+): Promise<void> {
+  if (!isSupabaseConfigured) throw new Error('Secure support recording is unavailable.');
+  const client = getSupabaseClient();
+  const { data: { user }, error: userError } = await client.auth.getUser();
+  if (userError || user?.id !== childId) throw new Error('Sign in as this child to record a support request.');
+  const { data, error } = await client.rpc('record_child_support_request_v1', {
+    p_child_id: childId, p_request_id: requestId, p_source: source, p_urgent: urgent,
   });
-
-  if (signalError) throw signalError;
-
-  if (riskLevel === 'medium' || riskLevel === 'high') {
-    const { error: alertError } = await client.from('alerts').insert({
-      child_id: childId,
-      journal_entry_id: data.id,
-      risk_level: riskLevel,
-    });
-
-    if (alertError) throw alertError;
-  }
+  if (error || !data) throw new Error('The support record could not be confirmed. No adult was contacted.');
 }
 
 export async function fetchRecentMoodCheckIns(

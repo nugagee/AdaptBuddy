@@ -34,6 +34,8 @@ import LoginPage from 'pages/LoginPage';
 import GuestEntryPage from 'pages/GuestEntryPage';
 import SignupPage from 'pages/SignupPage';
 import ForgotPasswordPage from 'pages/ForgotPasswordPage';
+import TrustAndSafetyPage from 'pages/TrustAndSafetyPage';
+import EvidencePage from 'pages/EvidencePage';
 import AdminLoginPage from 'features/admin/pages/AdminLoginPage';
 import AdminDashboardPage from 'features/admin/pages/AdminDashboardPage';
 import AdminUsersPage from 'features/admin/pages/AdminUsersPage';
@@ -72,6 +74,8 @@ const AppRoutes: React.FC = () => (
     <Route path={ROUTES.GUEST_ENTRY} element={<GuestEntryPage />} />
     <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
     <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
+    <Route path={ROUTES.TRUST_AND_SAFETY} element={<TrustAndSafetyPage />} />
+    <Route path={ROUTES.EVIDENCE} element={<EvidencePage />} />
     <Route path={ROUTES.ADMIN_LOGIN} element={<AdminLoginPage />} />
     <Route path={ROUTES.ADMIN_DASHBOARD} element={withAdmin(<AdminDashboardPage />)} />
     <Route path={ROUTES.ADMIN_USERS} element={withAdmin(<AdminUsersPage />)} />

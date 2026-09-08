@@ -25,8 +25,14 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "CI=false react-scripts build",
+    "test:buddy-safety": "node scripts/test-buddy-safety.js",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "prebuild": "npm run test:buddy-safety && npm run test:trusted-adult-safety && npm run test:auth-boundaries",
+    "test:trusted-adult-safety": "node scripts/test-trusted-adult-safety.js",
+    "test:auth-boundaries": "node scripts/test-auth-boundaries.cjs",
+    "test:safeguarding-db": "node scripts/test-profile-authority.cjs && node scripts/test-trusted-adult-database.cjs",
+    "test:safeguarding": "npm run test:buddy-safety && npm run test:trusted-adult-safety && npm run test:auth-boundaries && npm run test:safeguarding-db"
   },
   "eslintConfig": {
     "extends": [
@@ -44,5 +50,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8"
   }
 }

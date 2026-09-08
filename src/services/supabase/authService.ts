@@ -269,7 +269,8 @@ export interface ProfileUpsertPayload {
   emailVerified?: boolean;
 }
 
-/** Saves or updates the user profile row after OTP verification. */
+/** Updates editable details on the profile created by the Auth trigger.
+ * Identity, role and verification are server-owned; never upsert them from the browser. */
 export async function upsertUserProfile(payload: ProfileUpsertPayload) {
   const firstName = payload.firstName.trim();
   const lastName = payload.lastName.trim();
@@ -277,9 +278,6 @@ export async function upsertUserProfile(payload: ProfileUpsertPayload) {
   const childName = payload.childName?.trim() || null;
 
   const row = {
-    id: payload.id,
-    email: payload.email.trim(),
-    role: payload.role,
     first_name: firstName,
     last_name: lastName,
     full_name: fullName,
@@ -287,14 +285,12 @@ export async function upsertUserProfile(payload: ProfileUpsertPayload) {
     sex: payload.sex ?? null,
     gender: payload.gender ?? null,
     age: payload.age ?? null,
-    neuro_types: [],
-    onboarding_completed: false,
-    email_verified_at: payload.emailVerified ? new Date().toISOString() : null,
   };
 
   const { data, error } = await getSupabaseClient()
     .from('profiles')
-    .upsert(row, { onConflict: 'id' })
+    .update(row)
+    .eq('id', payload.id)
     .select()
     .single();
 

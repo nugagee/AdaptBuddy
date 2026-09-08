@@ -1,45 +1,33 @@
 # AdaptBuddy Admin Console
 
-Platform analytics and user management for administrators.
+The repository contains administrator UI surfaces and a service-role bootstrap script. Every privileged operation still needs server-side authorisation and multi-account testing before pilot use.
 
-## Setup (one-time)
+## Live security action required
 
-### 1. Run database migrations (two steps)
+The previous bootstrap credential was stored in source control and must be treated as exposed, including in a private repository. Removing it from the current branch does not remove it from history.
 
-PostgreSQL requires the `admin` enum value to be **committed** before it can be used. Run these **separately** in **Supabase Dashboard → SQL Editor**:
+1. Rotate the existing administrator password directly in Supabase Auth.
+2. Revoke the account's existing sessions and review recent authentication and administrator activity.
+3. Store the replacement only in an approved secret manager.
+4. Implement and verify MFA and assurance-level enforcement for every administrator before a pilot or production launch.
 
-**Step A** — paste and run only:
+The bootstrap script does not print credentials and deliberately does not change the password or sessions of an existing account.
 
-```
-supabase/migrations/004_admin_role_enum.sql
-```
+## Database proposal — do not apply
 
-Wait for success.
+`migration-drafts/041_safeguarding_access_guardrails.draft.sql` is a security design proposal, not an approved migration. Do **not** apply, rename, or promote it until an independent database/RLS audit and staged rehearsal are complete.
 
-**Step B** — open a **new query**, paste and run:
+The earlier numbered migrations remain the current repository history. In particular, migrations `004_admin_role_enum.sql` and `005_admin_platform.sql` were designed to be applied separately because PostgreSQL must commit the `admin` enum value before it is used. This note does not authorise any live database change.
 
-```
-supabase/migrations/005_admin_platform.sql
-```
+## Controlled bootstrap or re-verification
 
-This adds profile fields (`gender`, `is_authorized`, `status`), admin RLS policies, and privileged RPC functions.
-
-> If you see `unsafe use of new value "admin"`, you ran both steps in one query. Run Step A alone first.
-
-**Step C** (optional but recommended) — run in a **new query**:
-
-```
-supabase/migrations/007_sex_and_gender_split.sql
-```
-
-This separates **sex** (UK ONS / NHS biological/legal) and **gender identity** (UK NHS) into distinct `profiles.sex` and `profiles.gender` columns, migrates existing data, and updates admin analytics + `admin_create_user`.
-
-### 2. Seed the superadmin account
-
-Add your **service role key** to `.env` (never commit this key):
+Use a secure local shell or controlled deployment job only after the relevant database design is approved. Never put the service-role key or administrator password in frontend code or in any browser-exposed `REACT_APP_*` variable.
 
 ```env
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+REACT_APP_SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=read-from-your-secret-manager
+SUPERADMIN_EMAIL=your-authorised-admin@example.com
+SUPERADMIN_PASSWORD=a-new-high-entropy-secret
 ```
 
 Then run:
@@ -48,47 +36,19 @@ Then run:
 node scripts/seed-superadmin.js
 ```
 
-Default credentials:
+- For a new account, `SUPERADMIN_PASSWORD` is required and must be at least 16 characters.
+- For an existing account, rotate its password and revoke sessions in Supabase Auth first. The script leaves both untouched.
+- The script records `admin_verified_at`, `admin_verified_by`, and `admin_verification_method` only where the reviewed schema supports them.
+- Remove temporary local secrets immediately after the command completes.
 
-| Field | Value |
-|-------|--------|
-| Email | `superadmin@adaptbuddy.com` |
-| Password | `Password@1` |
+## Intended post-review boundaries
 
-### 3. Sign in
+The draft proposal aims to establish these properties; they are not current production guarantees:
 
-Open **`/admin/login`** in the app.
+- Public signup metadata cannot create an administrator.
+- A user session cannot change its canonical email, role, verification, status, or authorisation fields.
+- Active administrator access requires an active, authorised admin profile with service-role verification evidence.
+- Creating or promoting another administrator is a controlled service-role operation.
+- `SUPABASE_SERVICE_ROLE_KEY` remains server-only and is never committed, logged, or exposed through client code.
 
-## Features
-
-### Overview (`/admin`)
-- Total users, role breakdown (child / parent / teacher / admin)
-- Sex and gender identity distribution charts (UK standard)
-- Authorized vs unauthorized accounts
-- Recent signups (7 / 30 days)
-- Average age, onboarding stats
-- Account status breakdown
-
-### Users (`/admin/users`)
-- Search and filter by role
-- **Create** users (any role, including admin)
-- **Edit** profile, role, sex, gender identity, age, status, authorization
-- **Authorize / revoke** access
-- **Reset password** (admin RPC)
-- **Delete** users (cannot delete yourself)
-
-## Creating more admins
-
-1. Sign in as superadmin
-2. Go to **Users → Create user**
-3. Set **Role** to `admin`
-4. Save
-
-Or update an existing user’s role to `admin` via **Edit**.
-
-## Security notes
-
-- Admin role is **not** available on public signup
-- All admin actions require `profiles.role = 'admin'` (enforced by RLS + RPCs)
-- `SUPABASE_SERVICE_ROLE_KEY` is only for the seed script — never expose in frontend code
-- Change the default superadmin password after first login in production
+Before release, verify each property with separate authorised and unauthorised accounts, secret scanning, dependency checks, and database policy tests.

@@ -660,7 +660,7 @@ export const ACCESSIBILITY_TOOLS: NeuroAccessibilityTool[] = [
   { id: 'tool-motion', neuroIds: ['autism', 'spd', 'tourettes'], label: 'Calm Motion', description: 'Reduce animations', icon: Wind, action: 'reduced-motion' },
   { id: 'tool-music', neuroIds: ['spd', 'adhd', 'autism'], label: 'Calm Sounds', description: 'Lo-fi & nature mixes', icon: Music, action: 'music' },
   { id: 'tool-writing', neuroIds: ['dysgraphia', 'dyslexia', 'dyspraxia', 'tourettes'], label: 'Voice Writing', description: 'Speak instead of type', icon: Mic, action: 'writing' },
-  { id: 'tool-pronunciation', neuroIds: [...PRONUNCIATION_NEURO_IDS], label: 'Pronounce', description: 'Listen, repeat, practise words', icon: Mic, action: 'pronunciation' },
+  { id: 'tool-pronunciation', neuroIds: Array.from(PRONUNCIATION_NEURO_IDS), label: 'Pronounce', description: 'Listen, repeat, practise words', icon: Mic, action: 'pronunciation' },
 ];
 
 export const NEURO_METRICS: NeuroMetricDefinition[] = [

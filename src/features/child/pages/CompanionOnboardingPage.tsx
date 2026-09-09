@@ -284,9 +284,7 @@ const CompanionOnboardingPage: React.FC = () => {
 
       setProfile({
         ...currentAuth.profile,
-        neuro_types: currentAuth.profile.neuro_types.length > 0
-          ? currentAuth.profile.neuro_types
-          : ['autism'],
+        neuro_types: [...currentAuth.profile.neuro_types],
         onboarding_completed: true,
         companion_onboarding_completed: true,
         updated_at: new Date().toISOString(),

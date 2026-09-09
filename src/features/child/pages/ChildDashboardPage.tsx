@@ -36,6 +36,7 @@ import {
   useChildProgressReadAccess,
 } from 'features/child/store/childProgressReadAccess';
 import { syncAdhdSupportSignal } from 'features/child/services/adhdSupportSignalService';
+import { useActiveChildSupportProfile } from 'features/child/hooks/useActiveChildSupportProfile';
 import { adaptAdhdActivitiesForEnergy } from 'features/child/utils/adhdEnergyPacing';
 import {
   getDailyMissionCompletions,
@@ -49,6 +50,7 @@ const ChildDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile, user, isGuest } = useAuth();
+  const { preferredName } = useActiveChildSupportProfile();
   const authenticatedChildId =
     !isGuest && user?.id && profile?.role === 'child' && profile.id === user.id
       ? user.id
@@ -69,7 +71,7 @@ const ChildDashboardPage: React.FC = () => {
   const adhdEnergyPacing = isProgressReady ? storedAdhdEnergyPacing : null;
   const completions = isProgressReady ? storedCompletions : [];
 
-  const firstName = profile?.first_name || 'Friend';
+  const firstName = preferredName;
   const childId = authenticatedChildId ?? profile?.id ?? 'guest-child';
   const neuroTypes = useMemo(
     () => profile?.neuro_types ?? [],

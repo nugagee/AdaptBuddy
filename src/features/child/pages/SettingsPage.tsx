@@ -43,7 +43,7 @@ const SettingsPage: React.FC = () => {
       avatar_url: null,
       bio: null,
       age: null,
-      neuro_types: ['autism'],
+      neuro_types: [],
       onboarding_completed: true,
       email_verified_at: null,
       created_at: now,

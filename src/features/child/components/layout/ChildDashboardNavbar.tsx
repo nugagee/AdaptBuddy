@@ -15,6 +15,7 @@ import {
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
 import { NEURO_OPTION_MAP } from 'constants/neuroOptions';
+import { useActiveChildSupportProfile } from 'features/child/hooks/useActiveChildSupportProfile';
 import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
 
 interface NavItem {
@@ -39,12 +40,13 @@ const ChildDashboardNavbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, user, signOut } = useAuth();
+  const { preferredName } = useActiveChildSupportProfile();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const displayName =
-    profile?.first_name ||
+    preferredName ||
     user?.user_metadata?.first_name ||
     profile?.full_name ||
     user?.email?.split('@')[0] ||
@@ -53,16 +55,13 @@ const ChildDashboardNavbar: React.FC = () => {
   const email = profile?.email || user?.email || '';
   const avatarUrl = profile?.avatar_url;
   const initials = displayName.trim().charAt(0).toUpperCase() || 'F';
-
-  const neuroLabel =
-    profile?.companion_onboarding_completed || profile?.neuro_types?.includes('autism')
-      ? 'Autism companion'
-      : profile?.neuro_types?.length
-        ? profile.neuro_types
-            .slice(0, 2)
-            .map((id) => NEURO_OPTION_MAP[id]?.name.split(' ').slice(1).join(' ') || id)
-            .join(' · ')
-        : 'Set up your profile';
+  const selectedNeuroTypes = profile?.neuro_types ?? [];
+  const neuroLabel = selectedNeuroTypes.length
+    ? selectedNeuroTypes
+        .slice(0, 2)
+        .map((id) => NEURO_OPTION_MAP[id]?.name || id)
+        .join(' · ')
+    : 'Set up your profile';
 
   useEffect(() => {
     if (!menuOpen) return undefined;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { NEURO_ACTIVITIES } from 'features/child/data/neuroDashboardContent';
 import ActivitySessionModal, { type ActivitySessionResult } from './ActivitySessionModal';
 
@@ -304,6 +304,62 @@ describe('ActivitySessionModal ADHD results', () => {
         sessionId: expect.any(String),
         checksMade: 1,
         confidence: 'practised',
+      }),
+    });
+  });
+
+  it('hands Word Bank Express practice back without a generic completion bypass', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('dysgraphia-word-bank')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add Today' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add I' }));
+    fireEvent.click(screen.getByRole('button', { name: 'I practised' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save sentence practice' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      dysgraphiaWordBankSession: expect.objectContaining({
+        activityId: 'dysgraphia-word-bank',
+        sessionId: expect.any(String),
+        selectedWordIds: ['today', 'i'],
+        confidence: 'practised',
+      }),
+    });
+  });
+
+  it('hands a child-led sensory choice back without a generic completion bypass', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('spd-sensory-checklist')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
+    ['Light and things I see', 'Sounds', 'Touch and textures', 'Movement'].forEach((areaName) => {
+      fireEvent.click(within(screen.getByRole('group', { name: areaName })).getByRole('button', {
+        name: 'Comfortable',
+      }));
+    });
+    fireEvent.click(screen.getByRole('button', { name: /keep things as they are/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ready to continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save my comfort choice' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      sensoryComfortSession: expect.objectContaining({
+        activityId: 'spd-sensory-checklist',
+        sessionId: expect.any(String),
+        supportChoiceId: 'keep-going',
+        confidence: 'ready-to-continue',
       }),
     });
   });

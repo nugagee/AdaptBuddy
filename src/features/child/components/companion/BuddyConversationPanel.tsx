@@ -1,12 +1,11 @@
 import SupportRequestAction from 'components/support/SupportRequestAction';
-import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Loader2, Send, ShieldCheck, UserRound } from 'lucide-react';
 import { buildCompanionContext, sendBuddyMessage } from 'services/ai';
 import {
-  selectAutismProfileForChild,
-  useAutismProfileStore,
-} from 'features/child/store/autismProfileStore';
-import { useAuth } from 'hooks/useAuth';
+  getCurrentReadyChildSupportProfile,
+  useActiveChildSupportProfile,
+} from 'features/child/hooks/useActiveChildSupportProfile';
 import type { BuddyChatMessage } from 'features/child/types/companionOnboarding';
 
 const QUICK_MESSAGES = [
@@ -22,50 +21,92 @@ function messageId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const createInitialMessages = (): BuddyChatMessage[] => [
+  {
+    id: 'buddy-intro',
+    role: 'assistant',
+    content: 'Hi! I am an AI helper. I can make words clearer, help with a next step, or help you ask a trusted adult.',
+  },
+];
+
 interface BuddyConversationPanelProps {
   initialMessage?: string;
 }
 
 const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initialMessage }) => {
-  const { profile: authProfile, user } = useAuth();
-  const autismProfile = useAutismProfileStore((state) =>
-    selectAutismProfileForChild(state, user?.id),
-  );
+  const {
+    age,
+    childId,
+    isReady,
+    preferredName,
+    supportProfile,
+  } = useActiveChildSupportProfile();
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<BuddyChatMessage[]>([
-    {
-      id: 'buddy-intro',
-      role: 'assistant',
-      content: 'Hi! I am an AI helper. I can make words clearer, help with a next step, or help you ask a trusted adult.',
-    },
-  ]);
+  const [messages, setMessages] = useState<BuddyChatMessage[]>(createInitialMessages);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const initialMessageSent = useRef(false);
   const conversationRef = useRef<HTMLDivElement>(null);
+  const requestVersionRef = useRef(0);
+  const requestInFlightRef = useRef(false);
+  const resetScopeRef = useRef<string | null | undefined>(undefined);
 
   const context = useMemo(
     () => buildCompanionContext(
-      autismProfile,
-      authProfile?.first_name || 'friend',
-      authProfile?.age ?? null,
+      supportProfile,
+      preferredName,
+      age,
     ),
-    [autismProfile, authProfile?.age, authProfile?.first_name],
+    [age, preferredName, supportProfile],
   );
 
-  const send = async (chosen?: string) => {
+  useEffect(() => {
+    // React StrictMode replays effects in development. Only reset once for the
+    // same owner so a route-provided initial message is never submitted twice.
+    if (resetScopeRef.current === childId) return;
+    resetScopeRef.current = childId;
+    requestVersionRef.current += 1;
+    requestInFlightRef.current = false;
+    initialMessageSent.current = false;
+    setInput('');
+    setMessages(createInitialMessages());
+    setLoading(false);
+    setError('');
+  }, [childId]);
+
+  const send = useCallback(async (chosen?: string) => {
     const content = (chosen ?? input).trim();
-    if (!content || loading) return;
+    if (!content || requestInFlightRef.current) return;
+
+    const requestOwnerId = childId;
+    if (
+      !requestOwnerId
+      || !supportProfile
+      || !getCurrentReadyChildSupportProfile(requestOwnerId)
+    ) {
+      setError('Your support profile is still getting ready. Please try again in a moment.');
+      return;
+    }
+
+    const requestVersion = ++requestVersionRef.current;
+    const conversationHistory = messages;
+    requestInFlightRef.current = true;
 
     const userMessage: BuddyChatMessage = { id: messageId(), role: 'user', content };
-    const nextMessages = [...messages, userMessage];
+    const nextMessages = [...conversationHistory, userMessage];
     setMessages(nextMessages);
     setInput('');
     setError('');
     setLoading(true);
 
     try {
-      const response = await sendBuddyMessage(content, context, messages);
+      const response = await sendBuddyMessage(content, context, conversationHistory);
+      if (
+        requestVersionRef.current !== requestVersion
+        || !getCurrentReadyChildSupportProfile(requestOwnerId)
+      ) {
+        return;
+      }
       setMessages((current) => [
         ...current,
         {
@@ -77,19 +118,25 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
         },
       ]);
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : 'Buddy could not answer just now.');
+      if (
+        requestVersionRef.current === requestVersion
+        && getCurrentReadyChildSupportProfile(requestOwnerId)
+      ) {
+        setError(caught instanceof Error ? caught.message : 'Buddy could not answer just now.');
+      }
     } finally {
-      setLoading(false);
+      if (requestVersionRef.current === requestVersion) {
+        requestInFlightRef.current = false;
+        setLoading(false);
+      }
     }
-  };
+  }, [childId, context, input, messages, supportProfile]);
 
   useEffect(() => {
-    if (!initialMessage || initialMessageSent.current) return;
+    if (!initialMessage || !isReady || initialMessageSent.current) return;
     initialMessageSent.current = true;
     void send(initialMessage);
-    // The launch action should run once, not whenever conversation state changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMessage]);
+  }, [initialMessage, isReady, send]);
 
   useEffect(() => {
     const conversation = conversationRef.current;
@@ -117,13 +164,19 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
             key={message}
             type="button"
             onClick={() => void send(message)}
-            disabled={loading}
+            disabled={loading || !isReady}
             className="rounded-full border border-adapt-indigo/25 bg-white px-3 py-2 text-sm font-semibold text-adapt-navy hover:border-adapt-indigo hover:bg-adapt-indigo/5 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
           >
             {message}
           </button>
         ))}
       </div>
+
+      {!isReady && (
+        <p className="text-sm text-slate-500 dark:text-gray-400" role="status">
+          Your support profile is getting ready…
+        </p>
+      )}
 
       <div
         ref={conversationRef}
@@ -172,12 +225,13 @@ const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initial
           onChange={(event) => setInput(event.target.value)}
           maxLength={1200}
           rows={2}
+          disabled={!isReady}
           placeholder="Type what you need…"
           className="min-h-14 flex-1 resize-none rounded-2xl border-2 border-slate-200 bg-white px-4 py-3 text-base text-adapt-navy outline-none focus:border-adapt-indigo dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
         />
         <button
           type="submit"
-          disabled={loading || !input.trim()}
+          disabled={loading || !input.trim() || !isReady}
           className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-adapt-indigo px-5 py-3 font-bold text-white hover:bg-adapt-purple disabled:opacity-50 dark:bg-adapt-cyan dark:text-gray-950"
         >
           <Send className="h-5 w-5" aria-hidden />

@@ -19,6 +19,8 @@ import AchievementBadgesPanel from 'features/child/components/dashboard/Achievem
 import DyslexiaReadingProgressPanel from 'features/child/components/dashboard/DyslexiaReadingProgressPanel';
 import DyscalculiaProgressPanel from 'features/child/components/dashboard/DyscalculiaProgressPanel';
 import DyspraxiaProgressPanel from 'features/child/components/dashboard/DyspraxiaProgressPanel';
+import DysgraphiaWordBankProgressPanel from 'features/child/components/dashboard/DysgraphiaWordBankProgressPanel';
+import SensoryComfortProgressPanel from 'features/child/components/dashboard/SensoryComfortProgressPanel';
 import ChildClassroomPanel from 'features/child/components/dashboard/ChildClassroomPanel';
 import TeacherAssignmentsPanel from 'features/child/components/dashboard/TeacherAssignmentsPanel';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
@@ -70,7 +72,7 @@ const ChildDashboardPage: React.FC = () => {
   const firstName = profile?.first_name || 'Friend';
   const childId = authenticatedChildId ?? profile?.id ?? 'guest-child';
   const neuroTypes = useMemo(
-    () => (profile?.neuro_types?.length ? profile.neuro_types : ['autism']),
+    () => profile?.neuro_types ?? [],
     [profile?.neuro_types],
   );
   const todayKey = new Date().toISOString().slice(0, 10);
@@ -241,6 +243,12 @@ const ChildDashboardPage: React.FC = () => {
     if (result?.dyspraxiaPlanningSession) {
       progress.addDyspraxiaPlanningSession(result.dyspraxiaPlanningSession);
     }
+    if (result?.dysgraphiaWordBankSession) {
+      progress.addDysgraphiaWordBankSession(result.dysgraphiaWordBankSession);
+    }
+    if (result?.sensoryComfortSession) {
+      progress.addSensoryComfortSession(result.sensoryComfortSession);
+    }
     showCelebrationForOwner(
       expectedOwnerId,
       result?.achievementBadge
@@ -362,6 +370,8 @@ const ChildDashboardPage: React.FC = () => {
         {neuroTypes.includes('dyslexia') && <DyslexiaReadingProgressPanel />}
         {neuroTypes.includes('dyscalculia') && <DyscalculiaProgressPanel />}
         {neuroTypes.includes('dyspraxia') && <DyspraxiaProgressPanel />}
+        {neuroTypes.includes('dysgraphia') && <DysgraphiaWordBankProgressPanel />}
+        {neuroTypes.includes('spd') && <SensoryComfortProgressPanel />}
         <DailyOrbitProgress activityIds={dailyActivityIds} onMoodCheck={openJournal} />
 
         <details className="child-dashboard-drawer">

@@ -142,6 +142,47 @@ export interface DyspraxiaPlanningSession extends Omit<DyspraxiaPlanningSessionI
   createdAt: string;
 }
 
+export interface DysgraphiaWordBankSessionInput {
+  sessionId: string;
+  activityId: 'dysgraphia-word-bank';
+  promptId: string;
+  promptTitle: string;
+  selectedWordIds: string[];
+  selectedWords: string[];
+  editsMade: number;
+  checksMade: number;
+  supportsUsed: string[];
+  confidence: 'confident' | 'practised' | 'need-help';
+}
+
+export interface DysgraphiaWordBankSession extends Omit<DysgraphiaWordBankSessionInput, 'sessionId'> {
+  id: string;
+  createdAt: string;
+}
+
+export type SensoryArea = 'sight' | 'sound' | 'touch' | 'movement';
+export type SensoryComfortChoice = 'comfortable' | 'a-bit-much' | 'need-change';
+
+export interface SensoryComfortSelection {
+  area: SensoryArea;
+  comfort: SensoryComfortChoice;
+}
+
+export interface SensoryComfortSessionInput {
+  sessionId: string;
+  activityId: 'spd-sensory-checklist';
+  selections: SensoryComfortSelection[];
+  supportChoiceId: string;
+  supportChoiceLabel: string;
+  supportsUsed: string[];
+  confidence: 'ready-to-continue' | 'need-more-time' | 'ask-for-help';
+}
+
+export interface SensoryComfortSession extends Omit<SensoryComfortSessionInput, 'sessionId'> {
+  id: string;
+  createdAt: string;
+}
+
 export type ChildProgressHydrationStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 interface ChildProgressState {
@@ -157,6 +198,8 @@ interface ChildProgressState {
   dyslexiaPhonicsSessions: DyslexiaPhonicsSession[];
   dyscalculiaSessions: DyscalculiaSession[];
   dyspraxiaPlanningSessions: DyspraxiaPlanningSession[];
+  dysgraphiaWordBankSessions: DysgraphiaWordBankSession[];
+  sensoryComfortSessions: SensoryComfortSession[];
   starsTotal: number;
   streakDays: number;
   lastActiveDate: string;
@@ -185,6 +228,10 @@ interface ChildProgressState {
   getTodayDyscalculiaSessions: () => DyscalculiaSession[];
   addDyspraxiaPlanningSession: (session: DyspraxiaPlanningSessionInput) => void;
   getTodayDyspraxiaPlanningSessions: () => DyspraxiaPlanningSession[];
+  addDysgraphiaWordBankSession: (session: DysgraphiaWordBankSessionInput) => void;
+  getTodayDysgraphiaWordBankSessions: () => DysgraphiaWordBankSession[];
+  addSensoryComfortSession: (session: SensoryComfortSessionInput) => void;
+  getTodaySensoryComfortSessions: () => SensoryComfortSession[];
   getNeuroMetricValue: (neuroId: string) => number;
   incrementNeuroMetric: (neuroId: string, amount?: number) => void;
   setTodayMood: (mood: string) => void;
@@ -207,6 +254,8 @@ type ChildProgressData = Pick<
   | 'dyslexiaPhonicsSessions'
   | 'dyscalculiaSessions'
   | 'dyspraxiaPlanningSessions'
+  | 'dysgraphiaWordBankSessions'
+  | 'sensoryComfortSessions'
   | 'starsTotal'
   | 'streakDays'
   | 'lastActiveDate'
@@ -372,6 +421,43 @@ const isPersistedChildProgressState = (
       && isPracticeConfidence(item.confidence)
       && typeof item.createdAt === 'string');
 
+  const dysgraphiaWordBankSessionsValid = Array.isArray(value.dysgraphiaWordBankSessions)
+    && value.dysgraphiaWordBankSessions.every((item) =>
+      isRecord(item)
+      && typeof item.id === 'string'
+      && item.activityId === 'dysgraphia-word-bank'
+      && typeof item.promptId === 'string'
+      && typeof item.promptTitle === 'string'
+      && isStringArray(item.selectedWordIds)
+      && isStringArray(item.selectedWords)
+      && item.selectedWordIds.length === item.selectedWords.length
+      && item.selectedWords.length > 0
+      && isFiniteNumber(item.editsMade)
+      && item.editsMade >= 0
+      && isFiniteNumber(item.checksMade)
+      && item.checksMade >= 0
+      && isStringArray(item.supportsUsed)
+      && isPracticeConfidence(item.confidence)
+      && typeof item.createdAt === 'string');
+
+  const sensoryComfortSessionsValid = Array.isArray(value.sensoryComfortSessions)
+    && value.sensoryComfortSessions.every((item) =>
+      isRecord(item)
+      && typeof item.id === 'string'
+      && item.activityId === 'spd-sensory-checklist'
+      && Array.isArray(item.selections)
+      && item.selections.length === 4
+      && item.selections.every((selection) =>
+        isRecord(selection)
+        && ['sight', 'sound', 'touch', 'movement'].includes(String(selection.area))
+        && ['comfortable', 'a-bit-much', 'need-change'].includes(String(selection.comfort)))
+      && new Set(item.selections.map((selection) => String(selection.area))).size === 4
+      && typeof item.supportChoiceId === 'string'
+      && typeof item.supportChoiceLabel === 'string'
+      && isStringArray(item.supportsUsed)
+      && ['ready-to-continue', 'need-more-time', 'ask-for-help'].includes(String(item.confidence))
+      && typeof item.createdAt === 'string');
+
   return (
     typeof value.ownerId === 'string'
     && completionsValid
@@ -384,6 +470,8 @@ const isPersistedChildProgressState = (
     && phonicsSessionsValid
     && dyscalculiaSessionsValid
     && dyspraxiaPlanningSessionsValid
+    && dysgraphiaWordBankSessionsValid
+    && sensoryComfortSessionsValid
     && isFiniteNumber(value.starsTotal)
     && isFiniteNumber(value.streakDays)
     && typeof value.lastActiveDate === 'string'
@@ -403,6 +491,8 @@ const createInitialChildProgressData = (): ChildProgressData => ({
   dyslexiaPhonicsSessions: [],
   dyscalculiaSessions: [],
   dyspraxiaPlanningSessions: [],
+  dysgraphiaWordBankSessions: [],
+  sensoryComfortSessions: [],
   starsTotal: 0,
   streakDays: 0,
   lastActiveDate: '',
@@ -502,7 +592,9 @@ export const useChildProgressStore = create<ChildProgressState>()(
         }));
 
         const usesStructuredMetric = activityId === 'dyscalculia-number-line'
-          || activityId === 'dyspraxia-sequence-steps';
+          || activityId === 'dyspraxia-sequence-steps'
+          || activityId === 'dysgraphia-word-bank'
+          || activityId === 'spd-sensory-checklist';
         if (!usesStructuredMetric) {
           get().incrementNeuroMetric(neuroId, 1);
         }
@@ -645,6 +737,44 @@ export const useChildProgressStore = create<ChildProgressState>()(
         return get().dyspraxiaPlanningSessions.filter((session) => session.createdAt.startsWith(today));
       },
 
+      addDysgraphiaWordBankSession: (session) => {
+        const { sessionId, ...sessionData } = session;
+        set((state) => {
+          if (state.dysgraphiaWordBankSessions.some((saved) => saved.id === sessionId)) return state;
+          return {
+            dysgraphiaWordBankSessions: [
+              { ...sessionData, id: sessionId, createdAt: new Date().toISOString() },
+              ...state.dysgraphiaWordBankSessions,
+            ].slice(0, 30),
+            metricValues: incrementMetricSnapshot(state.metricValues, 'dysgraphia', 1),
+          };
+        });
+      },
+
+      getTodayDysgraphiaWordBankSessions: () => {
+        const today = todayKey();
+        return get().dysgraphiaWordBankSessions.filter((session) => session.createdAt.startsWith(today));
+      },
+
+      addSensoryComfortSession: (session) => {
+        const { sessionId, ...sessionData } = session;
+        set((state) => {
+          if (state.sensoryComfortSessions.some((saved) => saved.id === sessionId)) return state;
+          return {
+            sensoryComfortSessions: [
+              { ...sessionData, id: sessionId, createdAt: new Date().toISOString() },
+              ...state.sensoryComfortSessions,
+            ].slice(0, 30),
+            metricValues: incrementMetricSnapshot(state.metricValues, 'spd', 1),
+          };
+        });
+      },
+
+      getTodaySensoryComfortSessions: () => {
+        const today = todayKey();
+        return get().sensoryComfortSessions.filter((session) => session.createdAt.startsWith(today));
+      },
+
       getNeuroMetricValue: (neuroId) => {
         const today = todayKey();
         const entry = get().metricValues.find((m) => m.neuroId === neuroId && m.date === today);
@@ -693,7 +823,7 @@ export const useChildProgressStore = create<ChildProgressState>()(
       name: 'adaptbuddy-child-progress-v2',
       storage: childProgressPersistScope.storage,
       skipHydration: true,
-      version: 3,
+      version: 4,
       partialize: (state): PersistedChildProgressState => ({
         ownerId: state.ownerId,
         completions: state.completions,
@@ -706,6 +836,8 @@ export const useChildProgressStore = create<ChildProgressState>()(
         dyslexiaPhonicsSessions: state.dyslexiaPhonicsSessions,
         dyscalculiaSessions: state.dyscalculiaSessions,
         dyspraxiaPlanningSessions: state.dyspraxiaPlanningSessions,
+        dysgraphiaWordBankSessions: state.dysgraphiaWordBankSessions,
+        sensoryComfortSessions: state.sensoryComfortSessions,
         starsTotal: state.starsTotal,
         streakDays: state.streakDays,
         lastActiveDate: state.lastActiveDate,
@@ -713,7 +845,7 @@ export const useChildProgressStore = create<ChildProgressState>()(
         focusMinutesToday: state.focusMinutesToday,
       }),
       migrate: (persistedState, version): PersistedChildProgressState => {
-        const candidate = version >= 3 || !isRecord(persistedState)
+        const candidate = version >= 4 || !isRecord(persistedState)
           ? persistedState
           : {
             ...persistedState,
@@ -722,6 +854,12 @@ export const useChildProgressStore = create<ChildProgressState>()(
               : [],
             dyspraxiaPlanningSessions: Array.isArray(persistedState.dyspraxiaPlanningSessions)
               ? persistedState.dyspraxiaPlanningSessions
+              : [],
+            dysgraphiaWordBankSessions: Array.isArray(persistedState.dysgraphiaWordBankSessions)
+              ? persistedState.dysgraphiaWordBankSessions
+              : [],
+            sensoryComfortSessions: Array.isArray(persistedState.sensoryComfortSessions)
+              ? persistedState.sensoryComfortSessions
               : [],
           };
         if (!isPersistedChildProgressState(candidate)) {

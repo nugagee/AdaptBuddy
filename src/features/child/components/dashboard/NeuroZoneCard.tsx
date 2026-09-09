@@ -65,7 +65,8 @@ const NeuroZoneCard: React.FC<NeuroZoneCardProps> = ({ neuroId, activities, onSt
       <ul className="space-y-3 p-5 sm:p-6">
         {activities.map((activity) => {
           const planned = activity.availability === 'planned';
-          const done = !planned && isCompleted(activity.id);
+          const trackable = !planned && isTrackableDailyActivity(activity);
+          const done = trackable && isCompleted(activity.id);
           const ActivityIcon = activity.icon;
 
           return (
@@ -105,7 +106,7 @@ const NeuroZoneCard: React.FC<NeuroZoneCardProps> = ({ neuroId, activities, onSt
                         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-gray-800 dark:text-gray-300">
                           Coming next
                         </span>
-                      ) : (
+                      ) : trackable ? (
                         <>
                           <span className="inline-flex items-center gap-1 text-xs text-slate-500">
                             <Clock className="h-3 w-3" aria-hidden />
@@ -116,6 +117,10 @@ const NeuroZoneCard: React.FC<NeuroZoneCardProps> = ({ neuroId, activities, onSt
                             +{activity.starsReward}
                           </span>
                         </>
+                      ) : (
+                        <span className="text-xs font-semibold text-slate-500 dark:text-gray-400">
+                          Opens a learning tool
+                        </span>
                       )}
                     </div>
                     <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">{activity.description}</p>
@@ -145,7 +150,7 @@ const NeuroZoneCard: React.FC<NeuroZoneCardProps> = ({ neuroId, activities, onSt
                       className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-adapt-indigo to-adapt-teal px-5 py-2.5 text-sm font-bold text-white shadow-md transition hover:scale-[1.02] hover:shadow-lg"
                     >
                       <Play className="h-4 w-4" aria-hidden />
-                      Start
+                      {trackable ? 'Start activity' : 'Open tool'}
                     </button>
                   )}
                 </div>

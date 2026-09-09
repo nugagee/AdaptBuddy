@@ -1,7 +1,9 @@
 import type {
   AdhdSupportSignalInput,
+  DysgraphiaWordBankSessionInput,
   DyscalculiaSessionInput,
   DyspraxiaPlanningSessionInput,
+  SensoryComfortSessionInput,
 } from './childProgressStore';
 import {
   beginChildProgressScope,
@@ -36,6 +38,8 @@ const resetProgressStore = () => {
     dyslexiaPhonicsSessions: [],
     dyscalculiaSessions: [],
     dyspraxiaPlanningSessions: [],
+    dysgraphiaWordBankSessions: [],
+    sensoryComfortSessions: [],
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -317,16 +321,52 @@ describe('childProgressStore ADHD support signals', () => {
       supportsUsed: ['large move controls'],
       confidence: 'practised',
     };
+    const wordBankSession: DysgraphiaWordBankSessionInput = {
+      sessionId: 'word-bank-repeat-safe',
+      activityId: 'dysgraphia-word-bank',
+      promptId: 'school-day',
+      promptTitle: 'My school day',
+      selectedWordIds: ['today', 'i', 'read'],
+      selectedWords: ['Today', 'I', 'read'],
+      editsMade: 3,
+      checksMade: 1,
+      supportsUsed: ['fixed word bank', 'sentence check'],
+      confidence: 'practised',
+    };
+    const sensorySession: SensoryComfortSessionInput = {
+      sessionId: 'sensory-repeat-safe',
+      activityId: 'spd-sensory-checklist',
+      selections: [
+        { area: 'sight', comfort: 'comfortable' },
+        { area: 'sound', comfort: 'a-bit-much' },
+        { area: 'touch', comfort: 'need-change' },
+        { area: 'movement', comfort: 'comfortable' },
+      ],
+      supportChoiceId: 'touch-choice',
+      supportChoiceLabel: 'Change a texture or touch',
+      supportsUsed: ['sensory choice cards', 'child-chosen comfort support'],
+      confidence: 'need-more-time',
+    };
 
+    useChildProgressStore.getState().completeActivity('dysgraphia-word-bank', 'dysgraphia', 4, 10);
+    useChildProgressStore.getState().completeActivity('spd-sensory-checklist', 'spd', 2, 3);
     useChildProgressStore.getState().addDyscalculiaSession(mathSession);
     useChildProgressStore.getState().addDyscalculiaSession(mathSession);
     useChildProgressStore.getState().addDyspraxiaPlanningSession(planSession);
     useChildProgressStore.getState().addDyspraxiaPlanningSession(planSession);
+    useChildProgressStore.getState().addDysgraphiaWordBankSession(wordBankSession);
+    useChildProgressStore.getState().addDysgraphiaWordBankSession(wordBankSession);
+    useChildProgressStore.getState().addSensoryComfortSession(sensorySession);
+    useChildProgressStore.getState().addSensoryComfortSession(sensorySession);
 
     expect(useChildProgressStore.getState().dyscalculiaSessions).toHaveLength(1);
     expect(useChildProgressStore.getState().dyspraxiaPlanningSessions).toHaveLength(1);
+    expect(useChildProgressStore.getState().dysgraphiaWordBankSessions).toHaveLength(1);
+    expect(useChildProgressStore.getState().sensoryComfortSessions).toHaveLength(1);
     expect(useChildProgressStore.getState().getNeuroMetricValue('dyscalculia')).toBe(1);
     expect(useChildProgressStore.getState().getNeuroMetricValue('dyspraxia')).toBe(1);
+    expect(useChildProgressStore.getState().getNeuroMetricValue('dysgraphia')).toBe(1);
+    expect(useChildProgressStore.getState().getNeuroMetricValue('spd')).toBe(1);
   });
 });
 
@@ -370,12 +410,40 @@ describe('childProgressStore account isolation', () => {
       supportsUsed: ['large move controls'],
       confidence: 'practised',
     });
+    useChildProgressStore.getState().addDysgraphiaWordBankSession({
+      sessionId: 'child-a-words',
+      activityId: 'dysgraphia-word-bank',
+      promptId: 'school-day',
+      promptTitle: 'My school day',
+      selectedWordIds: ['today', 'read'],
+      selectedWords: ['Today', 'read'],
+      editsMade: 2,
+      checksMade: 0,
+      supportsUsed: ['fixed word bank'],
+      confidence: 'practised',
+    });
+    useChildProgressStore.getState().addSensoryComfortSession({
+      sessionId: 'child-a-sensory',
+      activityId: 'spd-sensory-checklist',
+      selections: [
+        { area: 'sight', comfort: 'comfortable' },
+        { area: 'sound', comfort: 'a-bit-much' },
+        { area: 'touch', comfort: 'comfortable' },
+        { area: 'movement', comfort: 'comfortable' },
+      ],
+      supportChoiceId: 'quieter-space',
+      supportChoiceLabel: 'A quieter sound space',
+      supportsUsed: ['sensory choice cards'],
+      confidence: 'ready-to-continue',
+    });
 
     await openChild('child-b');
     expect(useChildProgressStore.getState().ownerId).toBe('child-b');
     expect(useChildProgressStore.getState().completions).toEqual([]);
     expect(useChildProgressStore.getState().dyscalculiaSessions).toEqual([]);
     expect(useChildProgressStore.getState().dyspraxiaPlanningSessions).toEqual([]);
+    expect(useChildProgressStore.getState().dysgraphiaWordBankSessions).toEqual([]);
+    expect(useChildProgressStore.getState().sensoryComfortSessions).toEqual([]);
     useChildProgressStore.getState().setTodayMood('calm');
 
     await openChild('child-a');
@@ -389,12 +457,20 @@ describe('childProgressStore account isolation', () => {
     expect(useChildProgressStore.getState().dyspraxiaPlanningSessions).toEqual([
       expect.objectContaining({ planId: 'school-bag' }),
     ]);
+    expect(useChildProgressStore.getState().dysgraphiaWordBankSessions).toEqual([
+      expect.objectContaining({ promptId: 'school-day' }),
+    ]);
+    expect(useChildProgressStore.getState().sensoryComfortSessions).toEqual([
+      expect.objectContaining({ supportChoiceId: 'quieter-space' }),
+    ]);
 
     await openChild('child-b');
     expect(useChildProgressStore.getState().todayMood).toBe('calm');
     expect(useChildProgressStore.getState().completions).toEqual([]);
     expect(useChildProgressStore.getState().dyscalculiaSessions).toEqual([]);
     expect(useChildProgressStore.getState().dyspraxiaPlanningSessions).toEqual([]);
+    expect(useChildProgressStore.getState().dysgraphiaWordBankSessions).toEqual([]);
+    expect(useChildProgressStore.getState().sensoryComfortSessions).toEqual([]);
   });
 
   it('ignores legacy global progress whose owner cannot be proven', async () => {
@@ -448,6 +524,8 @@ describe('childProgressStore account isolation', () => {
       starsTotal: 3,
       dyscalculiaSessions: [],
       dyspraxiaPlanningSessions: [],
+      dysgraphiaWordBankSessions: [],
+      sensoryComfortSessions: [],
     }));
     expect(useChildProgressStore.getState().completions).toHaveLength(1);
   });

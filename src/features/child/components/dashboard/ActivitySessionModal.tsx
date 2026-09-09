@@ -8,8 +8,10 @@ import type {
   DyslexiaPhonicsSessionInput,
   DyslexiaReaderPreferencesInput,
   DyslexiaReadingSessionInput,
+  DysgraphiaWordBankSessionInput,
   DyscalculiaSessionInput,
   DyspraxiaPlanningSessionInput,
+  SensoryComfortSessionInput,
 } from 'features/child/store/childProgressStore';
 import AdhdEnergyCheckInActivity from './AdhdEnergyCheckInActivity';
 import AdhdMovementBurstActivity from './AdhdMovementBurstActivity';
@@ -19,6 +21,8 @@ import DyslexiaPhonicsTraceActivity from './DyslexiaPhonicsTraceActivity';
 import DyslexiaReadAloudActivity from './DyslexiaReadAloudActivity';
 import DyscalculiaNumberLineActivity from './DyscalculiaNumberLineActivity';
 import DyspraxiaStepPlannerActivity from './DyspraxiaStepPlannerActivity';
+import DysgraphiaWordBankActivity from './DysgraphiaWordBankActivity';
+import SensoryComfortCheckInActivity from './SensoryComfortCheckInActivity';
 
 export interface ActivitySessionResult {
   adhdSupportSignal?: AdhdSupportSignalInput;
@@ -29,6 +33,8 @@ export interface ActivitySessionResult {
   dyslexiaPhonicsSession?: DyslexiaPhonicsSessionInput;
   dyscalculiaSession?: DyscalculiaSessionInput;
   dyspraxiaPlanningSession?: DyspraxiaPlanningSessionInput;
+  dysgraphiaWordBankSession?: DysgraphiaWordBankSessionInput;
+  sensoryComfortSession?: SensoryComfortSessionInput;
 }
 
 const ADHD_ENERGY_OPTIONS = [
@@ -774,6 +780,22 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       );
     }
 
+    if (activity.id === 'dysgraphia-word-bank') {
+      return (
+        <DysgraphiaWordBankActivity
+          onComplete={(session) => onComplete({ dysgraphiaWordBankSession: session })}
+        />
+      );
+    }
+
+    if (activity.id === 'spd-sensory-checklist') {
+      return (
+        <SensoryComfortCheckInActivity
+          onComplete={(session) => onComplete({ sensoryComfortSession: session })}
+        />
+      );
+    }
+
     return (
       <div className="rounded-2xl bg-adapt-mist/60 p-4 dark:bg-gray-800/60">
         <p className="text-xs font-semibold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
@@ -825,7 +847,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
           {activityBody}
 
-          {!['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check', 'dyslexia-read-aloud', 'dyslexia-overlay-read', 'dyslexia-phonics-trace', 'dyscalculia-number-line', 'dyspraxia-sequence-steps'].includes(activity.id) ? (
+          {!['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check', 'dyslexia-read-aloud', 'dyslexia-overlay-read', 'dyslexia-phonics-trace', 'dyscalculia-number-line', 'dyspraxia-sequence-steps', 'dysgraphia-word-bank', 'spd-sensory-checklist'].includes(activity.id) ? (
             <button
               type="button"
               onClick={handleCompleteClick}

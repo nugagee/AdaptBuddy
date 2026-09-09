@@ -27,6 +27,24 @@ describe('neuroDashboardContent availability', () => {
     )).toBe(false);
   });
 
+  it('offers one real in-place Dysgraphia sentence activity for daily practice', () => {
+    expect(getDailyActivitiesForNeuro('dysgraphia', 1).map((activity) => activity.id)).toEqual([
+      'dysgraphia-word-bank',
+    ]);
+    expect(getAllActivitiesForNeuro('dysgraphia').filter(
+      (activity) => isTrackableDailyActivity(activity),
+    ).map((activity) => activity.id)).toEqual(['dysgraphia-word-bank']);
+  });
+
+  it('offers the child-led sensory check-in without counting routed sound pages as completed work', () => {
+    expect(getDailyActivitiesForNeuro('spd', 1).map((activity) => activity.id)).toEqual([
+      'spd-sensory-checklist',
+    ]);
+    expect(getAllActivitiesForNeuro('spd').filter(
+      (activity) => isTrackableDailyActivity(activity),
+    ).map((activity) => activity.id)).toEqual(['spd-sensory-checklist']);
+  });
+
   it('does not turn a planned-only profile into a fake ready activity', () => {
     expect(getDailyActivitiesForNeuro('visual-stress', 3)).toEqual([]);
     expect(getAllActivitiesForNeuro('visual-stress').every(

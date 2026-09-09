@@ -133,9 +133,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
   saving = false,
 }) => {
   const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>(
-    initialSelected.filter((id) => ACTIVE_NEURO_IDS.has(id)).length
-      ? initialSelected.filter((id) => ACTIVE_NEURO_IDS.has(id))
-      : ['autism'],
+    initialSelected.filter((id) => ACTIVE_NEURO_IDS.has(id)),
   );
   const reducedMotion = useUiStore((s) => s.reducedMotion);
 
@@ -352,7 +350,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
         </section>
 
         <p className="mt-8 text-center text-xs text-slate-400 dark:text-gray-500">
-          Private & safe · Built for every brain · You can change this anytime in Settings
+          Support choices, not a diagnosis · You can change this anytime in Settings
         </p>
       </div>
 
@@ -392,4 +390,3 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
 };
 
 export default NeuroSelector;
-

@@ -119,7 +119,7 @@ const mergeDraftValue = (base: unknown, draft: unknown, latest: unknown): unknow
   if (isPlainRecord(base) && isPlainRecord(draft) && isPlainRecord(latest)) {
     const keys = new Set([...Object.keys(base), ...Object.keys(draft), ...Object.keys(latest)]);
     return Object.fromEntries(
-      [...keys].map((key) => [key, mergeDraftValue(base[key], draft[key], latest[key])]),
+      Array.from(keys).map((key) => [key, mergeDraftValue(base[key], draft[key], latest[key])]),
     );
   }
 

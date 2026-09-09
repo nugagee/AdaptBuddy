@@ -363,7 +363,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
               {selectedProfileIds.length ? 'Ready when you are' : 'Pick at least one profile to continue'}
             </p>
             <p className="text-xs text-slate-500 dark:text-gray-400">
-              We&apos;ll save these support profiles to your account
+              We&apos;ll use these choices to shape your support space
             </p>
           </div>
 
@@ -392,3 +392,4 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
 };
 
 export default NeuroSelector;
+

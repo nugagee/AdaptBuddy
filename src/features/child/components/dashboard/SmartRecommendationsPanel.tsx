@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Bot, Clock3, Sparkles, Star } from 'lucide-react';
+import { ArrowRight, Bot, Clock3, Sparkles } from 'lucide-react';
 import { RecommendationEngine } from 'services/ai/recommendationEngine';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
 import { adaptRecommendationsForEnergy } from 'features/child/utils/adhdEnergyPacing';
@@ -40,10 +40,10 @@ const SmartRecommendationsPanel: React.FC<SmartRecommendationsPanelProps> = ({
           </div>
           <div>
             <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100 sm:text-xl">
-              AdaptAI Recommendations
+              Activity suggestions
             </h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
-              {energyPacing ? `${energyPacing.energyLabel} pace` : 'Mood-aware picks'} · Your top style:{' '}
+              {energyPacing ? `${energyPacing.energyLabel} pace` : 'Mood-aware picks'} · Suggested format:{' '}
               <span className="font-semibold capitalize text-adapt-indigo dark:text-adapt-cyan">
                 {topStyle}
               </span>
@@ -63,10 +63,6 @@ const SmartRecommendationsPanel: React.FC<SmartRecommendationsPanelProps> = ({
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-bold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
                     #{idx + 1} match
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs text-amber-600">
-                    <Star className="h-3 w-3 fill-amber-400" aria-hidden />
-                    {Math.round(rec.aiConfidence * 100)}% fit
                   </span>
                   <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-gray-400">
                     <Clock3 className="h-3 w-3" aria-hidden />
@@ -101,7 +97,7 @@ const SmartRecommendationsPanel: React.FC<SmartRecommendationsPanelProps> = ({
         <div className="rounded-2xl border border-dashed border-adapt-teal/40 bg-adapt-teal/5 p-4 dark:border-adapt-cyan/30 dark:bg-adapt-cyan/5">
           <p className="flex items-center gap-2 text-sm text-slate-600 dark:text-gray-400">
             <Sparkles className="h-4 w-4 text-adapt-teal" aria-hidden />
-            Built on UDL principles — adapts to your choices and support profile today.
+            Suggestions use simple rules based on your choices and support profile. Choose what works for you.
           </p>
         </div>
       </div>

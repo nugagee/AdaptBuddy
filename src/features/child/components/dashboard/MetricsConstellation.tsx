@@ -35,13 +35,15 @@ const MetricOrb: React.FC<{ metric: NeuroMetricDefinition; value: number }> = ({
         <Icon className="h-6 w-6 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
       </div>
       <p className="text-center text-xs font-semibold text-adapt-navy dark:text-gray-100">
-        {option?.name.split(' ').slice(1).join(' ') ?? metric.neuroId}
+        {option?.name ?? metric.neuroId}
       </p>
       <p className="mt-1 text-lg font-bold text-adapt-indigo dark:text-adapt-cyan">
         {value}
         <span className="text-xs font-normal text-slate-400">/{metric.dailyTarget}</span>
       </p>
-      <p className="text-[10px] text-slate-500">{metric.label}</p>
+      <p className="text-center text-[10px] text-slate-500">
+        {metric.label} · {metric.unit}
+      </p>
     </div>
   );
 };
@@ -66,7 +68,7 @@ const MetricsConstellation: React.FC<MetricsConstellationProps> = ({ neuroTypes 
           Progress Constellation
         </h2>
         <p className="text-sm text-slate-500 dark:text-gray-400">
-          Each orb tracks daily growth tied to your neuro profile
+          Each orb shows today&apos;s activity in your selected support spaces
         </p>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">

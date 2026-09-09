@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Star, X, Zap } from 'lucide-react';
 import type { NeuroActivity } from 'features/child/data/neuroDashboardContent';
 import type {
@@ -8,6 +8,8 @@ import type {
   DyslexiaPhonicsSessionInput,
   DyslexiaReaderPreferencesInput,
   DyslexiaReadingSessionInput,
+  DyscalculiaSessionInput,
+  DyspraxiaPlanningSessionInput,
 } from 'features/child/store/childProgressStore';
 import AdhdEnergyCheckInActivity from './AdhdEnergyCheckInActivity';
 import AdhdMovementBurstActivity from './AdhdMovementBurstActivity';
@@ -15,6 +17,8 @@ import AdhdQuestChainActivity from './AdhdQuestChainActivity';
 import DyslexiaOverlayReaderActivity from './DyslexiaOverlayReaderActivity';
 import DyslexiaPhonicsTraceActivity from './DyslexiaPhonicsTraceActivity';
 import DyslexiaReadAloudActivity from './DyslexiaReadAloudActivity';
+import DyscalculiaNumberLineActivity from './DyscalculiaNumberLineActivity';
+import DyspraxiaStepPlannerActivity from './DyspraxiaStepPlannerActivity';
 
 export interface ActivitySessionResult {
   adhdSupportSignal?: AdhdSupportSignalInput;
@@ -23,6 +27,8 @@ export interface ActivitySessionResult {
   dyslexiaReadingSession?: DyslexiaReadingSessionInput;
   dyslexiaReaderPreferences?: DyslexiaReaderPreferencesInput;
   dyslexiaPhonicsSession?: DyslexiaPhonicsSessionInput;
+  dyscalculiaSession?: DyscalculiaSessionInput;
+  dyspraxiaPlanningSession?: DyspraxiaPlanningSessionInput;
 }
 
 const ADHD_ENERGY_OPTIONS = [
@@ -149,6 +155,8 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
   onComplete,
 }) => {
   const Icon = activity.icon;
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const [dayCards, setDayCards] = useState(['Hello check-in', 'Calm tool', 'Learning task', 'Reward choice']);
   const [storyScenario, setStoryScenario] = useState('A plan changes');
   const [selectedFeeling, setSelectedFeeling] = useState('unsure');
@@ -176,6 +184,43 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
   const adhdTaskSteps = useMemo(() => buildAdhdTaskSteps(adhdTaskText), [adhdTaskText]);
   const selectedAdhdBreak =
     ADHD_BREAK_OPTIONS.find((option) => option.id === adhdBreakState) ?? ADHD_BREAK_OPTIONS[0];
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    dialogRef.current
+      ?.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      ?.focus();
+
+    return () => previousFocusRef.current?.focus();
+  }, []);
+
+  const handleDialogKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const focusable = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
+    ).filter((element) => !element.hasAttribute('aria-hidden'));
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, [onClose]);
 
   const handleCompleteClick = useCallback(() => {
     if (activity.id === 'adhd-focus-coach') {
@@ -713,6 +758,22 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       );
     }
 
+    if (activity.id === 'dyscalculia-number-line') {
+      return (
+        <DyscalculiaNumberLineActivity
+          onComplete={(session) => onComplete({ dyscalculiaSession: session })}
+        />
+      );
+    }
+
+    if (activity.id === 'dyspraxia-sequence-steps') {
+      return (
+        <DyspraxiaStepPlannerActivity
+          onComplete={(session) => onComplete({ dyspraxiaPlanningSession: session })}
+        />
+      );
+    }
+
     return (
       <div className="rounded-2xl bg-adapt-mist/60 p-4 dark:bg-gray-800/60">
         <p className="text-xs font-semibold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
@@ -729,7 +790,14 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-gray-900">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="activity-session-title"
+        onKeyDown={handleDialogKeyDown}
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-gray-900"
+      >
         <div className="bg-gradient-to-r from-adapt-indigo/10 to-adapt-teal/10 p-6 dark:from-adapt-indigo/20 dark:to-adapt-teal/20">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -737,14 +805,14 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
                 <Icon className="h-6 w-6 text-adapt-indigo" aria-hidden />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-adapt-navy dark:text-gray-100">{activity.title}</h2>
+                <h2 id="activity-session-title" className="text-xl font-bold text-adapt-navy dark:text-gray-100">{activity.title}</h2>
                 <p className="text-sm text-slate-500">{activity.durationMinutes} min · +{activity.starsReward} stars</p>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/80 dark:bg-gray-800"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/80 dark:bg-gray-800"
               aria-label="Close activity"
             >
               <X className="h-5 w-5" aria-hidden />
@@ -757,9 +825,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
           {activityBody}
 
-          <p className="text-xs text-slate-400 italic">{activity.inspiration}</p>
-
-          {!['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check', 'dyslexia-read-aloud', 'dyslexia-overlay-read', 'dyslexia-phonics-trace'].includes(activity.id) ? (
+          {!['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check', 'dyslexia-read-aloud', 'dyslexia-overlay-read', 'dyslexia-phonics-trace', 'dyscalculia-number-line', 'dyspraxia-sequence-steps'].includes(activity.id) ? (
             <button
               type="button"
               onClick={handleCompleteClick}

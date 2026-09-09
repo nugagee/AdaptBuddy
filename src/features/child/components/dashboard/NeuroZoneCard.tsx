@@ -1,8 +1,9 @@
 import React from 'react';
-import { Check, Clock, Play, Sparkles, Star } from 'lucide-react';
+import { Check, Clock, Construction, Play, Star } from 'lucide-react';
 import { NEURO_OPTION_MAP } from 'constants/neuroOptions';
 import {
   NEURO_ZONE_META,
+  isTrackableDailyActivity,
   type NeuroActivity,
 } from 'features/child/data/neuroDashboardContent';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
@@ -33,7 +34,9 @@ const NeuroZoneCard: React.FC<NeuroZoneCardProps> = ({ neuroId, activities, onSt
   if (!option || !meta) return null;
 
   const Icon = option.icon;
-  const doneCount = activities.filter((a) => isCompleted(a.id)).length;
+  const readyActivities = activities.filter((activity) => activity.availability !== 'planned');
+  const trackedActivities = readyActivities.filter(isTrackableDailyActivity);
+  const doneCount = trackedActivities.filter((activity) => isCompleted(activity.id)).length;
 
   return (
     <article
@@ -52,21 +55,26 @@ const NeuroZoneCard: React.FC<NeuroZoneCardProps> = ({ neuroId, activities, onSt
           </div>
           <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">{meta.tagline}</p>
           <p className="mt-2 text-xs font-medium text-slate-500">
-            {meta.dailyGoalLabel} · {doneCount}/{activities.length} done · {metricValue} reps today
+            {meta.dailyGoalLabel} · {readyActivities.length} tools ready · {trackedActivities.length > 0
+              ? `${doneCount}/${trackedActivities.length} tracked activities done`
+              : 'no tracked mission in this space today'} · {metricValue} today
           </p>
         </div>
       </header>
 
       <ul className="space-y-3 p-5 sm:p-6">
         {activities.map((activity) => {
-          const done = isCompleted(activity.id);
+          const planned = activity.availability === 'planned';
+          const done = !planned && isCompleted(activity.id);
           const ActivityIcon = activity.icon;
 
           return (
             <li key={activity.id}>
               <div
                 className={`group rounded-2xl border-2 p-4 transition ${
-                  done
+                  planned
+                    ? 'border-dashed border-slate-200 bg-white/55 dark:border-gray-700 dark:bg-gray-900/50'
+                    : done
                     ? 'border-emerald-300/60 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/30'
                     : 'border-white/80 bg-white/85 hover:border-adapt-indigo/30 hover:shadow-md dark:border-gray-700 dark:bg-gray-900/85 dark:hover:border-adapt-cyan/30'
                 }`}
@@ -74,10 +82,16 @@ const NeuroZoneCard: React.FC<NeuroZoneCardProps> = ({ neuroId, activities, onSt
                 <div className="flex gap-3 sm:gap-4">
                   <div
                     className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                      done ? 'bg-emerald-200/80 dark:bg-emerald-900/50' : 'bg-adapt-indigo/10'
+                      planned
+                        ? 'bg-slate-100 dark:bg-gray-800'
+                        : done
+                          ? 'bg-emerald-200/80 dark:bg-emerald-900/50'
+                          : 'bg-adapt-indigo/10'
                     }`}
                   >
-                    {done ? (
+                    {planned ? (
+                      <Construction className="h-5 w-5 text-slate-500" aria-hidden />
+                    ) : done ? (
                       <Check className="h-5 w-5 text-emerald-600" aria-hidden />
                     ) : (
                       <ActivityIcon className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
@@ -87,25 +101,39 @@ const NeuroZoneCard: React.FC<NeuroZoneCardProps> = ({ neuroId, activities, onSt
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="font-bold text-adapt-navy dark:text-gray-100">{activity.title}</h4>
-                      <span className="inline-flex items-center gap-1 text-xs text-slate-500">
-                        <Clock className="h-3 w-3" aria-hidden />
-                        {activity.durationMinutes} min
-                      </span>
-                      <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-600">
-                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" aria-hidden />
-                        +{activity.starsReward}
-                      </span>
+                      {planned ? (
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:bg-gray-800 dark:text-gray-300">
+                          Coming next
+                        </span>
+                      ) : (
+                        <>
+                          <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                            <Clock className="h-3 w-3" aria-hidden />
+                            {activity.durationMinutes} min
+                          </span>
+                          <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-600">
+                            <Star className="h-3 w-3 fill-amber-400 text-amber-400" aria-hidden />
+                            +{activity.starsReward}
+                          </span>
+                        </>
+                      )}
                     </div>
                     <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">{activity.description}</p>
-                    <p className="mt-2 flex items-center gap-1 text-[10px] text-slate-400 dark:text-gray-500">
-                      <Sparkles className="h-3 w-3" aria-hidden />
-                      {activity.inspiration}
-                    </p>
+                    {planned && activity.availabilityNote ? (
+                      <p className="mt-2 text-xs font-medium text-slate-500 dark:text-gray-400">
+                        {activity.availabilityNote}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 
                 <div className="mt-4 flex justify-end">
-                  {done ? (
+                  {planned ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 dark:bg-gray-800 dark:text-gray-300">
+                      <Construction className="h-4 w-4" aria-hidden />
+                      Not available yet
+                    </span>
+                  ) : done ? (
                     <span className="dash-activity-done inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
                       <Check className="h-4 w-4" aria-hidden />
                       Completed!

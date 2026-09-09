@@ -4,7 +4,7 @@ import { Camera, Check, Copy, KeyRound, Loader2, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import FeedbackPulsePanel from 'components/feedback/FeedbackPulsePanel';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
-import { NEURO_OPTION_MAP } from 'constants/neuroOptions';
+import { ACTIVE_NEURO_IDS, NEURO_OPTION_MAP, NEURO_OPTIONS } from 'constants/neuroOptions';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
 import {
@@ -12,6 +12,7 @@ import {
   uploadProfileAvatar,
 } from 'services/supabase/profileService';
 import type { Profile } from 'services/supabase/client';
+import { toggleSupportPreference } from 'features/child/utils/supportPreferenceSelection';
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -66,6 +67,7 @@ const SettingsPage: React.FC = () => {
   const chosenNeuroOptions = selectedNeuro
     .map((id) => NEURO_OPTION_MAP[id])
     .filter(Boolean);
+  const availableNeuroOptions = NEURO_OPTIONS.filter((option) => ACTIVE_NEURO_IDS.has(option.id));
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -321,10 +323,56 @@ const SettingsPage: React.FC = () => {
           </section>
 
           <section className="rounded-3xl border border-white/70 bg-white/80 p-6 shadow-soft backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/70">
-            <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">My learning space</h2>
+            <h2 id="support-preferences-heading" className="text-lg font-bold text-adapt-navy dark:text-gray-100">
+              Support tools I want available
+            </h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
-              This is the profile your space is built around.
+              Choose any spaces that feel helpful. These choices personalise activities; they are not a diagnosis.
             </p>
+
+            <div
+              className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2"
+              role="group"
+              aria-labelledby="support-preferences-heading"
+            >
+              {availableNeuroOptions.map((option) => {
+                const Icon = option.icon;
+                const isSelected = selectedNeuro.includes(option.id);
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => {
+                      setSelectedNeuro((current) => toggleSupportPreference(current, option.id));
+                      setSuccess('');
+                      setError('');
+                    }}
+                    className={`min-h-14 rounded-2xl border-2 p-3 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-adapt-indigo/30 ${
+                      isSelected
+                        ? `${option.colorClass} border-adapt-indigo ring-2 ring-adapt-indigo/20`
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-adapt-indigo/40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-3">
+                      {Icon && <Icon className="h-5 w-5 shrink-0" aria-hidden />}
+                      <span className="font-bold">{option.name}</span>
+                      {isSelected && <Check className="ml-auto h-5 w-5 shrink-0" aria-hidden />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedNeuro.length === 0 && (
+              <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                Choose at least one support space before saving.
+              </p>
+            )}
+
+            <h3 className="mt-6 text-sm font-black uppercase tracking-[0.14em] text-slate-500 dark:text-gray-400">
+              Selected spaces
+            </h3>
             <div className="mt-4 space-y-3">
               {chosenNeuroOptions.map((option) => {
                 const Icon = option.icon;
@@ -352,7 +400,7 @@ const SettingsPage: React.FC = () => {
               })}
               {chosenNeuroOptions.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                  Your space has not been created yet.
+                  No support spaces selected yet.
                 </div>
               )}
             </div>

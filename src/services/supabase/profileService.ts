@@ -1,6 +1,9 @@
 import { getSupabaseClient, type Profile } from './client';
 import { buildFallbackProfileFromUser } from './authService';
 import { toProfileErrorMessage } from './profileErrors';
+import { buildCompanionOnboardingUpdate } from './profileUpdatePayloads';
+
+export { buildCompanionOnboardingUpdate } from './profileUpdatePayloads';
 
 export interface ProfileUpdatePayload {
   first_name?: string;
@@ -103,11 +106,7 @@ export async function completeCompanionOnboarding(
 ): Promise<Profile> {
   return updateUserProfile(
     userId,
-    {
-      neuro_types: ['autism'],
-      onboarding_completed: true,
-      companion_onboarding_completed: true,
-    },
+    buildCompanionOnboardingUpdate(),
     existingProfile,
   );
 }

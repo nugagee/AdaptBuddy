@@ -7,13 +7,17 @@ import {
   formatSessionDuration,
   getVisitComparison,
 } from 'features/child/utils/childSessionTime';
+import {
+  getDailyMissionCompletions,
+  getDailyMissionProgress,
+} from 'features/child/utils/dailyMissionProgress';
 
 interface DailyOrbitProgressProps {
-  totalActivities: number;
+  activityIds: string[];
   onMoodCheck: () => void;
 }
 
-const DailyOrbitProgress: React.FC<DailyOrbitProgressProps> = ({ totalActivities, onMoodCheck }) => {
+const DailyOrbitProgress: React.FC<DailyOrbitProgressProps> = ({ activityIds, onMoodCheck }) => {
   const completions = useChildProgressStore((s) => s.completions);
   const focusMinutes = useChildProgressStore((s) => s.focusMinutesToday);
   const todayMood = useChildProgressStore((s) => s.todayMood);
@@ -32,9 +36,11 @@ const DailyOrbitProgress: React.FC<DailyOrbitProgressProps> = ({ totalActivities
   const todayCompletions = isReady
     ? completions.filter((c) => c.completedAt.startsWith(today))
     : [];
+  const missionCompletions = getDailyMissionCompletions(todayCompletions, activityIds, today);
   const starsToday = todayCompletions.reduce((sum, c) => sum + c.starsEarned, 0);
-  const completed = todayCompletions.length;
-  const progressPct = totalActivities > 0 ? Math.round((completed / totalActivities) * 100) : 0;
+  const completed = missionCompletions.length;
+  const totalActivities = activityIds.length;
+  const progressPct = getDailyMissionProgress(completed, totalActivities);
 
   const moodEmoji = isReady && todayMood
     ? { happy: '😊', okay: '😐', sad: '😔', angry: '😠', tired: '😴' }[todayMood] ?? '💭'
@@ -48,7 +54,9 @@ const DailyOrbitProgress: React.FC<DailyOrbitProgressProps> = ({ totalActivities
             Today&apos;s Orbit
           </h2>
           <p className="text-sm text-slate-500 dark:text-gray-400">
-            {completed} of {totalActivities} missions complete
+            {totalActivities > 0
+              ? `${completed} of ${totalActivities} missions complete`
+              : 'No tracked missions today — choose any ready support tool'}
           </p>
         </div>
         <button
@@ -136,7 +144,7 @@ const DailyOrbitProgress: React.FC<DailyOrbitProgressProps> = ({ totalActivities
             )}
           </div>
           <p className="text-xl font-bold text-adapt-navy dark:text-gray-100">
-            {completed}/{totalActivities}
+            {totalActivities > 0 ? `${completed}/${totalActivities}` : '—'}
           </p>
           <p className="text-xs text-slate-500">Missions</p>
         </div>

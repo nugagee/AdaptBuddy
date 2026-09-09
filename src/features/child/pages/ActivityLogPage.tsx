@@ -394,8 +394,7 @@ const ActivityLogPage: React.FC = () => {
             <ul className="mt-5 space-y-2">
               {practiceHistory.map((item) => {
                 const activity = NEURO_ACTIVITIES.find((entry) => entry.id === item.activityId);
-                const zoneName =
-                  NEURO_OPTION_MAP[item.neuroId]?.name?.replace(/^[^\s]+\s/, '') || item.neuroId;
+                const zoneName = NEURO_OPTION_MAP[item.neuroId]?.name || item.neuroId;
                 return (
                   <li
                     key={`${item.activityId}-${item.completedAt}`}

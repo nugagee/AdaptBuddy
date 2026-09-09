@@ -17,13 +17,15 @@ import AdhdSupportSignalsPanel from 'features/child/components/dashboard/AdhdSup
 import AdhdEnergyPacingPanel from 'features/child/components/dashboard/AdhdEnergyPacingPanel';
 import AchievementBadgesPanel from 'features/child/components/dashboard/AchievementBadgesPanel';
 import DyslexiaReadingProgressPanel from 'features/child/components/dashboard/DyslexiaReadingProgressPanel';
+import DyscalculiaProgressPanel from 'features/child/components/dashboard/DyscalculiaProgressPanel';
+import DyspraxiaProgressPanel from 'features/child/components/dashboard/DyspraxiaProgressPanel';
 import ChildClassroomPanel from 'features/child/components/dashboard/ChildClassroomPanel';
 import TeacherAssignmentsPanel from 'features/child/components/dashboard/TeacherAssignmentsPanel';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import AuthSuccessBanner from 'components/auth/AuthSuccessBanner';
 import {
   getActivitiesForNeuros,
-  getDailyActivitiesForNeuro,
+  getAllActivitiesForNeuro,
   type NeuroActivity,
 } from 'features/child/data/neuroDashboardContent';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
@@ -33,6 +35,10 @@ import {
 } from 'features/child/store/childProgressReadAccess';
 import { syncAdhdSupportSignal } from 'features/child/services/adhdSupportSignalService';
 import { adaptAdhdActivitiesForEnergy } from 'features/child/utils/adhdEnergyPacing';
+import {
+  getDailyMissionCompletions,
+  getDailyMissionProgress,
+} from 'features/child/utils/dailyMissionProgress';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
 import '../components/dashboard/child-dashboard.css';
@@ -75,14 +81,19 @@ const ChildDashboardPage: React.FC = () => {
     () => adaptAdhdActivitiesForEnergy(getActivitiesForNeuros(neuroTypes), todayEnergyPacing),
     [neuroTypes, todayEnergyPacing],
   );
+  const dailyActivityIds = useMemo(
+    () => dailyActivities.map((activity) => activity.id),
+    [dailyActivities],
+  );
   const welcomeMessage = (location.state as { message?: string } | null)?.message;
 
   const today = new Date().toISOString().slice(0, 10);
-  const todayCompletedCount = completions.filter((c) => c.completedAt.startsWith(today)).length;
-  const todayProgress =
-    dailyActivities.length > 0
-      ? Math.min(100, Math.round((todayCompletedCount / dailyActivities.length) * 100))
-      : 0;
+  const todayCompletedCount = getDailyMissionCompletions(
+    completions,
+    dailyActivityIds,
+    today,
+  ).length;
+  const todayProgress = getDailyMissionProgress(todayCompletedCount, dailyActivities.length);
 
   useEffect(() => {
     journalOwnerIdRef.current = null;
@@ -146,6 +157,7 @@ const ChildDashboardPage: React.FC = () => {
 
   const handleStartActivity = useCallback(
     (activity: NeuroActivity) => {
+      if (activity.availability === 'planned') return;
       if (activity.action === 'journal') {
         openJournal();
         return;
@@ -223,6 +235,12 @@ const ChildDashboardPage: React.FC = () => {
     if (result?.dyslexiaPhonicsSession) {
       progress.addDyslexiaPhonicsSession(result.dyslexiaPhonicsSession);
     }
+    if (result?.dyscalculiaSession) {
+      progress.addDyscalculiaSession(result.dyscalculiaSession);
+    }
+    if (result?.dyspraxiaPlanningSession) {
+      progress.addDyspraxiaPlanningSession(result.dyspraxiaPlanningSession);
+    }
     showCelebrationForOwner(
       expectedOwnerId,
       result?.achievementBadge
@@ -268,13 +286,6 @@ const ChildDashboardPage: React.FC = () => {
 
     progress.setTodayMood(mood);
   }, []);
-
-  const handleRecommendation = useCallback(
-    (_id: string, title: string) => {
-      showCelebrationForOwner(childId, `"${title}" is queued for your next session!`, 3000);
-    },
-    [childId, showCelebrationForOwner],
-  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/30 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
@@ -349,7 +360,9 @@ const ChildDashboardPage: React.FC = () => {
         )}
 
         {neuroTypes.includes('dyslexia') && <DyslexiaReadingProgressPanel />}
-        <DailyOrbitProgress totalActivities={dailyActivities.length} onMoodCheck={openJournal} />
+        {neuroTypes.includes('dyscalculia') && <DyscalculiaProgressPanel />}
+        {neuroTypes.includes('dyspraxia') && <DyspraxiaProgressPanel />}
+        <DailyOrbitProgress activityIds={dailyActivityIds} onMoodCheck={openJournal} />
 
         <details className="child-dashboard-drawer">
           <summary><BookOpen className="h-5 w-5" aria-hidden /> Classroom and assignments</summary>
@@ -372,7 +385,7 @@ const ChildDashboardPage: React.FC = () => {
                 key={neuroId}
                 neuroId={neuroId}
                 activities={adaptAdhdActivitiesForEnergy(
-                  getDailyActivitiesForNeuro(neuroId),
+                  getAllActivitiesForNeuro(neuroId),
                   todayEnergyPacing,
                 )}
                 onStartActivity={handleStartActivity}
@@ -380,7 +393,10 @@ const ChildDashboardPage: React.FC = () => {
             ))}
             <MetricsConstellation neuroTypes={neuroTypes} />
             <AccessibilityDock neuroTypes={neuroTypes} />
-            <SmartRecommendationsPanel neuroTypes={neuroTypes} onTryRecommendation={handleRecommendation} />
+            <SmartRecommendationsPanel
+              neuroTypes={neuroTypes}
+              onTryRecommendation={handleStartActivity}
+            />
           </div>
         </details>
       </main>

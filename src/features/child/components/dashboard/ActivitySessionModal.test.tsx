@@ -3,6 +3,10 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { NEURO_ACTIVITIES } from 'features/child/data/neuroDashboardContent';
 import ActivitySessionModal, { type ActivitySessionResult } from './ActivitySessionModal';
 
+jest.mock('features/child/store/childProgressReadAccess', () => ({
+  useChildProgressReadAccess: () => ({ childId: 'test-child', isReady: true }),
+}));
+
 const getActivity = (activityId: string) => {
   const activity = NEURO_ACTIVITIES.find((candidate) => candidate.id === activityId);
   if (!activity) throw new Error(`Missing test activity: ${activityId}`);
@@ -199,7 +203,7 @@ describe('ActivitySessionModal ADHD results', () => {
     });
   });
 
-  it('hands Colored Overlay Reader progress and preferences back to the dashboard', () => {
+  it('hands Colored Overlay Reader progress and preferences back to the dashboard', async () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
     render(
       <ActivitySessionModal
@@ -209,7 +213,7 @@ describe('ActivitySessionModal ADHD results', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Blue' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Blue' }));
     fireEvent.click(screen.getByRole('button', { name: 'I read this line' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save partial overlay reading' }));
 
@@ -253,9 +257,68 @@ describe('ActivitySessionModal ADHD results', () => {
     });
   });
 
-  it('does not invent a support signal for a generic activity', () => {
+  it('hands meaningful Number Line practice back to the dashboard without a bypass button', () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
-    completeActivity('dyscalculia-number-line', onComplete);
-    expect(onComplete).toHaveBeenCalledWith();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('dyscalculia-number-line')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /choose 7 as answer/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'I practised' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save practice' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      dyscalculiaSession: expect.objectContaining({
+        activityId: 'dyscalculia-number-line',
+        sessionId: expect.any(String),
+        questionsAttempted: 1,
+        questionsCorrect: 1,
+      }),
+    });
+  });
+
+  it('hands a checked Step Planner draft back without a generic completion bypass', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('dyspraxia-sequence-steps')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Check my order' }));
+    fireEvent.click(screen.getByRole('button', { name: 'I have practised' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save this plan' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      dyspraxiaPlanningSession: expect.objectContaining({
+        activityId: 'dyspraxia-sequence-steps',
+        sessionId: expect.any(String),
+        checksMade: 1,
+        confidence: 'practised',
+      }),
+    });
+  });
+
+  it('closes the accessible dialog with Escape', () => {
+    const onClose = jest.fn();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('dyscalculia-number-line')}
+        onClose={onClose}
+        onComplete={jest.fn()}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

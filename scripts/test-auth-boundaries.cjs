@@ -30,7 +30,15 @@ function loadTs(relativePath, dependencies) {
 }
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
-const deferred = () => { let resolve; const promise=new Promise(r=>{resolve=r;}); return {promise,resolve}; };
+const deferred = () => {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+};
 const session = id => ({ user: {id}, access_token: `test-${id}` });
 function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session:session('A'),user:{id:'A'}},error:null})}={}) {
   let callback; let signOuts=0; const pending = new Map();
@@ -49,7 +57,14 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
     'services/supabase/sessionUtils':{toAuthSessionState:s=>({token:s.access_token})},
   });
   const cleanup=store.getState().initialize();
-  return {store,cleanup,event:(type,id)=>callback(type,id ? session(id) : null),resolve:(id,profile={id,role:'child'})=>pending.get(id).resolve(profile),signOuts:()=>signOuts};
+  return {
+    store,
+    cleanup,
+    event: (type, id) => callback(type, id ? session(id) : null),
+    resolve: (id, profile = { id, role: 'child' }) => pending.get(id).resolve(profile),
+    reject: (id, error = new Error('Synthetic profile failure')) => pending.get(id).reject(error),
+    signOuts: () => signOuts,
+  };
 }
 (async()=>{
   let checks=0;
@@ -72,6 +87,22 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
     const f=fixture();await tick();f.event('SIGNED_IN','A');await tick();f.resolve('A');await tick();
     const refresh=f.store.getState().refreshProfile();f.event('SIGNED_OUT');f.resolve('A');await refresh;
     assert.equal(f.store.getState().profile,null);f.cleanup();checks++;
+  }
+  {
+    const f=fixture();await tick();f.event('SIGNED_IN','A');await tick();f.resolve('A');await tick();
+    const staleRefresh=f.store.getState().refreshProfile();await tick();
+    f.event('SIGNED_IN','B');await tick();f.resolve('B');await tick();
+    f.reject('A');
+    assert.equal(await staleRefresh,null);
+    assert.equal(f.store.getState().profile.id,'B');f.cleanup();checks++;
+  }
+  {
+    const f=fixture();await tick();f.event('SIGNED_IN','A');await tick();f.resolve('A');await tick();
+    f.event('TOKEN_REFRESHED','A');await tick();
+    assert.equal(f.store.getState().user.id,'A');
+    assert.equal(f.store.getState().profile.id,'A');
+    f.resolve('A');await tick();
+    assert.equal(f.store.getState().user.id,'A');f.cleanup();checks++;
   }
   {
     const initial=deferred();const f=fixture({initial:initial.promise});

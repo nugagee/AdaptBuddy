@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { AlertCircle, CheckCircle2, ClipboardList, Footprints, Lightbulb } from 'lucide-react';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 
 const formatSignalTime = (isoDate: string): string =>
   new Intl.DateTimeFormat(undefined, {
@@ -10,11 +11,13 @@ const formatSignalTime = (isoDate: string): string =>
 
 const AdhdSupportSignalsPanel: React.FC = () => {
   const signals = useChildProgressStore((s) => s.adhdSupportSignals);
+  const { isReady } = useChildProgressReadAccess();
 
   const todaySignals = useMemo(() => {
+    if (!isReady) return [];
     const today = new Date().toISOString().slice(0, 10);
     return signals.filter((signal) => signal.createdAt.startsWith(today));
-  }, [signals]);
+  }, [isReady, signals]);
 
   const latestSignal = todaySignals[0];
   const checkInCount = todaySignals.filter((signal) => signal.needsCheckIn).length;

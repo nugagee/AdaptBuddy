@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import {
   Download,
   Eraser,
@@ -43,6 +43,7 @@ type SpeechRecognitionLike = {
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
+  abort?: () => void;
 };
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
@@ -55,11 +56,22 @@ type SpeechWindow = Window & {
 interface WritingPadProps {
   onSave?: (content: string) => void;
   initialContent?: string;
+  initialContentOwnerId?: string;
 }
 
-const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) => {
-  const { profile } = useAuth();
-  const [content, setContent] = useState(initialContent);
+const WritingPad: React.FC<WritingPadProps> = ({
+  onSave,
+  initialContent = '',
+  initialContentOwnerId,
+}) => {
+  const { user, profile, isGuest } = useAuth();
+  const authenticatedChildId =
+    !isGuest && user?.id && profile?.role === 'child' && profile.id === user.id ? user.id : '';
+  const ownedInitialContent =
+    authenticatedChildId && initialContentOwnerId === authenticatedChildId ? initialContent : '';
+  const [content, setContent] = useState(() =>
+    authenticatedChildId ? ownedInitialContent || loadSavedWriting(authenticatedChildId) : '',
+  );
   const [isRecording, setIsRecording] = useState(false);
   const [recordingStatus, setRecordingStatus] = useState('');
   const [lineSpacing, setLineSpacing] = useState<LineSpacing>('medium');
@@ -85,12 +97,6 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
     return 'Good evening';
   })();
 
-  useEffect(() => {
-    if (initialContent) return;
-    const saved = loadSavedWriting();
-    if (saved) setContent(saved);
-  }, [initialContent]);
-
   const getSpeechRecognition = () => {
     if (typeof window === 'undefined') return undefined;
     const speechWindow = window as SpeechWindow;
@@ -98,12 +104,61 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
   };
 
   const stopRecording = useCallback(() => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      // Some prefixed implementations can throw while already stopping.
+    }
     setIsRecording(false);
   }, []);
 
+  const releaseRecognition = useCallback(() => {
+    const recognition = recognitionRef.current;
+    recognitionRef.current = null;
+    if (!recognition) return;
+
+    recognition.onresult = null;
+    recognition.onerror = null;
+    recognition.onend = null;
+    try {
+      if (recognition.abort) recognition.abort();
+      else recognition.stop();
+    } catch {
+      // The resource is already detached, so cleanup remains fail-closed.
+    }
+  }, []);
+
+  const cancelSpeechSynthesis = useCallback(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    releaseRecognition();
+    recordingBaseContentRef.current = '';
+    cancelSpeechSynthesis();
+    setIsRecording(false);
+    setRecordingStatus('');
+    setShowClearConfirm(false);
+    setSaveFlash(false);
+    setLastSaved(null);
+    setContent(
+      authenticatedChildId ? ownedInitialContent || loadSavedWriting(authenticatedChildId) : '',
+    );
+
+    return () => {
+      releaseRecognition();
+      cancelSpeechSynthesis();
+    };
+  }, [authenticatedChildId, cancelSpeechSynthesis, ownedInitialContent, releaseRecognition]);
+
   const startRecording = useCallback(() => {
+    if (!authenticatedChildId) {
+      setRecordingStatus('Sign in with a child account before using voice typing.');
+      return;
+    }
+
     const SpeechRecognition = getSpeechRecognition();
 
     if (!SpeechRecognition) {
@@ -111,7 +166,7 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
       return;
     }
 
-    stopRecording();
+    releaseRecognition();
 
     const recognition = new SpeechRecognition();
     recordingBaseContentRef.current = content.trimEnd();
@@ -119,6 +174,8 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
     recognition.interimResults = true;
     recognition.lang = 'en-GB';
     recognition.onresult = (event) => {
+      if (recognitionRef.current !== recognition) return;
+
       let transcript = '';
       for (let index = 0; index < event.results.length; index += 1) {
         transcript += event.results[index][0].transcript;
@@ -129,10 +186,14 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
       setRecordingStatus('Listening… speak at your own pace.');
     };
     recognition.onerror = () => {
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
       setRecordingStatus('Voice typing could not hear clearly. Try again, or type your words.');
       setIsRecording(false);
     };
     recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
       setIsRecording(false);
       setRecordingStatus((current) =>
         current.startsWith('Listening') ? 'Voice typing paused.' : current,
@@ -147,28 +208,37 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
       setRecordingStatus('Listening… speak at your own pace.');
       textareaRef.current?.focus();
     } catch {
+      releaseRecognition();
       setRecordingStatus('Voice typing is already starting. Try again in a moment.');
     }
-  }, [content, stopRecording]);
+  }, [authenticatedChildId, content, releaseRecognition]);
 
   const toggleRecording = () => {
     if (isRecording) stopRecording();
     else startRecording();
   };
 
-  useEffect(() => () => stopRecording(), [stopRecording]);
-
   const speakContent = () => {
-    if (!content.trim() || !('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
+    if (
+      !content.trim()
+      || typeof window === 'undefined'
+      || !('speechSynthesis' in window)
+      || typeof SpeechSynthesisUtterance === 'undefined'
+    ) return;
+    cancelSpeechSynthesis();
     const utterance = new SpeechSynthesisUtterance(content);
     utterance.rate = 0.9;
     window.speechSynthesis.speak(utterance);
   };
 
   const handleSave = () => {
+    if (!authenticatedChildId) return;
+
+    if (!persistWriting(authenticatedChildId, content)) {
+      setRecordingStatus('This draft could not be saved on this device. Download a copy instead.');
+      return;
+    }
     onSave?.(content);
-    persistWriting(content);
     setLastSaved(new Date());
     setSaveFlash(true);
     window.setTimeout(() => setSaveFlash(false), 800);
@@ -176,7 +246,7 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
 
   const clearContent = () => {
     setContent('');
-    persistWriting('');
+    persistWriting(authenticatedChildId, '');
     setShowClearConfirm(false);
     setRecordingStatus('');
     textareaRef.current?.focus();
@@ -267,6 +337,7 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
           <button
             type="button"
             onClick={toggleRecording}
+            disabled={!authenticatedChildId}
             className={`${toolbarBtn} ${
               isRecording
                 ? 'bg-red-500 text-white shadow-md writing-mic-pulse'
@@ -294,6 +365,7 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
           <button
             type="button"
             onClick={handleSave}
+            disabled={!authenticatedChildId}
             className={`${toolbarBtn} bg-adapt-navy text-white shadow-soft hover:bg-adapt-purple dark:bg-adapt-indigo dark:hover:bg-adapt-purple ${
               saveFlash ? 'writing-save-flash' : ''
             }`}
@@ -459,7 +531,10 @@ const WritingPad: React.FC<WritingPadProps> = ({ onSave, initialContent = '' }) 
           <textarea
             ref={textareaRef}
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={(e) => {
+              if (authenticatedChildId) setContent(e.target.value);
+            }}
+            readOnly={!authenticatedChildId}
             placeholder="Start writing here… take your time, one word at a time."
             className={`relative z-10 min-h-[min(70vh,560px)] w-full resize-y bg-transparent p-6 text-lg text-adapt-navy outline-none placeholder:text-slate-400 dark:text-gray-100 dark:placeholder:text-gray-500 sm:p-8 ${
               useDyslexicFont ? 'font-dyslexic' : 'font-sans'

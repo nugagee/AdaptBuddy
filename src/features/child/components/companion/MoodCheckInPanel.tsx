@@ -1,10 +1,14 @@
 import SupportRequestAction from 'components/support/SupportRequestAction';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Heart, Loader2 } from 'lucide-react';
 import { buildCompanionContext, isOpenAiConfigured, respondToMoodCheckIn } from 'services/ai';
-import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
-import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import {
+  selectAutismProfileForChild,
+  useAutismProfileStore,
+} from 'features/child/store/autismProfileStore';
+import { getReadyChildProgressForOwner } from 'features/child/store/childProgressReadAccess';
 import { useAuth } from 'hooks/useAuth';
+import { useAuthStore } from 'store/authStore';
 import { saveMoodCheckIn } from 'services/supabase/autismProfileService';
 
 const MOODS = [
@@ -17,9 +21,10 @@ const MOODS = [
 ];
 
 const MoodCheckInPanel: React.FC = () => {
-  const { profile: authProfile, user } = useAuth();
-  const autismProfile = useAutismProfileStore((s) => s.profile);
-  const setTodayMood = useChildProgressStore((s) => s.setTodayMood);
+  const { profile: authProfile, user, isGuest } = useAuth();
+  const autismProfile = useAutismProfileStore((state) =>
+    selectAutismProfileForChild(state, user?.id),
+  );
 
   const [mood, setMood] = useState('');
   const [note, setNote] = useState('');
@@ -31,6 +36,21 @@ const MoodCheckInPanel: React.FC = () => {
   const [adultActionRequired, setAdultActionRequired] = useState(false);
   const [urgent, setUrgent] = useState(false);
   const [checkInAttempt, setCheckInAttempt] = useState(0);
+  const requestVersionRef = useRef(0);
+
+  useEffect(() => {
+    requestVersionRef.current += 1;
+    setMood('');
+    setNote('');
+    setLoading(false);
+    setError('');
+    setResponse('');
+    setSuggestion('');
+    setSaved(false);
+    setAdultActionRequired(false);
+    setUrgent(false);
+    setCheckInAttempt(0);
+  }, [authProfile?.id, authProfile?.role, isGuest, user?.id]);
 
   const ctx = buildCompanionContext(
     autismProfile,
@@ -40,6 +60,10 @@ const MoodCheckInPanel: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!mood || loading) return;
+    const requestVersion = ++requestVersionRef.current;
+    const requestUserId = user?.id ?? null;
+    const requestRole = authProfile?.role ?? null;
+    const requestIsGuest = isGuest;
     setCheckInAttempt(attempt => attempt + 1);
     setAdultActionRequired(false);
     setResponse('');
@@ -48,19 +72,40 @@ const MoodCheckInPanel: React.FC = () => {
     setSaved(false);
     try {
       const result = await respondToMoodCheckIn(mood, note, ctx);
+      const currentAuth = useAuthStore.getState();
+      if (
+        requestVersionRef.current !== requestVersion
+        || (currentAuth.user?.id ?? null) !== requestUserId
+        || (currentAuth.profile?.role ?? null) !== requestRole
+        || currentAuth.isGuest !== requestIsGuest
+      ) {
+        return;
+      }
       setResponse(result.response);
       setSuggestion(result.suggestion ?? '');
       setAdultActionRequired(result.adultActionRequired === true);
       setUrgent(result.riskLevel === 'urgent');
-      setTodayMood(mood);
-      if (user?.id) {
-        await saveMoodCheckIn(user.id, mood, note, result.response);
+      const progressState = getReadyChildProgressForOwner(requestUserId);
+      if (progressState && requestUserId && !requestIsGuest && requestRole === 'child') {
+        progressState.setTodayMood(mood);
+        await saveMoodCheckIn(requestUserId, mood, note, result.response);
+        const latestAuth = useAuthStore.getState();
+        if (
+          requestVersionRef.current !== requestVersion
+          || (latestAuth.user?.id ?? null) !== requestUserId
+          || (latestAuth.profile?.role ?? null) !== requestRole
+          || latestAuth.isGuest !== requestIsGuest
+        ) {
+          return;
+        }
+        setSaved(true);
       }
-      setSaved(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not save your check-in.');
+      if (requestVersionRef.current === requestVersion) {
+        setError(err instanceof Error ? err.message : 'Could not save your check-in.');
+      }
     } finally {
-      setLoading(false);
+      if (requestVersionRef.current === requestVersion) setLoading(false);
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BookOpen, Hand, Heart, Mic2, Settings2, Sparkles } from 'lucide-react';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
@@ -27,6 +27,10 @@ import {
   type NeuroActivity,
 } from 'features/child/data/neuroDashboardContent';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import {
+  getReadyChildProgressForOwner,
+  useChildProgressReadAccess,
+} from 'features/child/store/childProgressReadAccess';
 import { syncAdhdSupportSignal } from 'features/child/services/adhdSupportSignalService';
 import { adaptAdhdActivitiesForEnergy } from 'features/child/utils/adhdEnergyPacing';
 import { useAuth } from 'hooks/useAuth';
@@ -36,26 +40,29 @@ import '../components/dashboard/child-dashboard.css';
 const ChildDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile } = useAuth();
+  const { profile, user, isGuest } = useAuth();
+  const authenticatedChildId =
+    !isGuest && user?.id && profile?.role === 'child' && profile.id === user.id
+      ? user.id
+      : null;
 
   const [showJournal, setShowJournal] = useState(false);
   const [activeActivity, setActiveActivity] = useState<NeuroActivity | null>(null);
   const [showFocusTimer, setShowFocusTimer] = useState(false);
   const [celebration, setCelebration] = useState<string | null>(null);
+  const journalOwnerIdRef = useRef<string | null>(null);
+  const activityOwnerIdRef = useRef<string | null>(null);
+  const focusOwnerIdRef = useRef<string | null>(null);
+  const celebrationTimeoutRef = useRef<number | null>(null);
 
-  const completeActivity = useChildProgressStore((s) => s.completeActivity);
-  const addAdhdSupportSignal = useChildProgressStore((s) => s.addAdhdSupportSignal);
-  const unlockAchievementBadge = useChildProgressStore((s) => s.unlockAchievementBadge);
-  const setAdhdEnergyPacing = useChildProgressStore((s) => s.setAdhdEnergyPacing);
-  const adhdEnergyPacing = useChildProgressStore((s) => s.adhdEnergyPacing);
-  const addDyslexiaReadingSession = useChildProgressStore((s) => s.addDyslexiaReadingSession);
-  const setDyslexiaReaderPreferences = useChildProgressStore((s) => s.setDyslexiaReaderPreferences);
-  const addDyslexiaPhonicsSession = useChildProgressStore((s) => s.addDyslexiaPhonicsSession);
-  const setTodayMood = useChildProgressStore((s) => s.setTodayMood);
-  const completions = useChildProgressStore((s) => s.completions);
+  const storedAdhdEnergyPacing = useChildProgressStore((s) => s.adhdEnergyPacing);
+  const storedCompletions = useChildProgressStore((s) => s.completions);
+  const { isReady: isProgressReady } = useChildProgressReadAccess();
+  const adhdEnergyPacing = isProgressReady ? storedAdhdEnergyPacing : null;
+  const completions = isProgressReady ? storedCompletions : [];
 
   const firstName = profile?.first_name || 'Friend';
-  const childId = profile?.id ?? 'guest-child';
+  const childId = authenticatedChildId ?? profile?.id ?? 'guest-child';
   const neuroTypes = useMemo(
     () => (profile?.neuro_types?.length ? profile.neuro_types : ['autism']),
     [profile?.neuro_types],
@@ -77,13 +84,77 @@ const ChildDashboardPage: React.FC = () => {
       ? Math.min(100, Math.round((todayCompletedCount / dailyActivities.length) * 100))
       : 0;
 
+  useEffect(() => {
+    journalOwnerIdRef.current = null;
+    activityOwnerIdRef.current = null;
+    focusOwnerIdRef.current = null;
+    setShowJournal(false);
+    setActiveActivity(null);
+    setShowFocusTimer(false);
+    setCelebration(null);
+    if (celebrationTimeoutRef.current !== null) {
+      window.clearTimeout(celebrationTimeoutRef.current);
+      celebrationTimeoutRef.current = null;
+    }
+
+    return () => {
+      if (celebrationTimeoutRef.current !== null) {
+        window.clearTimeout(celebrationTimeoutRef.current);
+        celebrationTimeoutRef.current = null;
+      }
+    };
+  }, [childId]);
+
+  const showCelebrationForOwner = useCallback((
+    expectedOwnerId: string | null,
+    message: string,
+    durationMs: number,
+  ) => {
+    if (!getReadyChildProgressForOwner(expectedOwnerId)) return;
+    if (celebrationTimeoutRef.current !== null) {
+      window.clearTimeout(celebrationTimeoutRef.current);
+    }
+    setCelebration(message);
+    const timeout = window.setTimeout(() => {
+      if (getReadyChildProgressForOwner(expectedOwnerId)) setCelebration(null);
+      if (celebrationTimeoutRef.current === timeout) celebrationTimeoutRef.current = null;
+    }, durationMs);
+    celebrationTimeoutRef.current = timeout;
+  }, []);
+
+  const openJournal = useCallback(() => {
+    const expectedOwnerId = childId;
+    if (!getReadyChildProgressForOwner(expectedOwnerId)) return;
+
+    journalOwnerIdRef.current = expectedOwnerId;
+    setShowJournal(true);
+  }, [childId]);
+
+  const closeActivity = useCallback((expectedOwnerId: string) => {
+    if (activityOwnerIdRef.current !== expectedOwnerId) return;
+
+    activityOwnerIdRef.current = null;
+    setActiveActivity(null);
+  }, []);
+
+  const closeFocusTimer = useCallback((expectedOwnerId: string) => {
+    if (focusOwnerIdRef.current !== expectedOwnerId) return;
+
+    focusOwnerIdRef.current = null;
+    setShowFocusTimer(false);
+  }, []);
+
   const handleStartActivity = useCallback(
     (activity: NeuroActivity) => {
       if (activity.action === 'journal') {
-        setShowJournal(true);
+        openJournal();
         return;
       }
       if (activity.action === 'focus-timer') {
+        const expectedOwnerId = childId;
+        if (!getReadyChildProgressForOwner(expectedOwnerId)) return;
+
+        focusOwnerIdRef.current = expectedOwnerId;
         setShowFocusTimer(true);
         return;
       }
@@ -99,76 +170,110 @@ const ChildDashboardPage: React.FC = () => {
         navigate(ROUTES.WRITING_PAD);
         return;
       }
+
+      const expectedOwnerId = childId;
+      if (!getReadyChildProgressForOwner(expectedOwnerId)) return;
+
+      activityOwnerIdRef.current = expectedOwnerId;
       setActiveActivity(activity);
     },
-    [navigate],
+    [childId, navigate, openJournal],
   );
 
-  const handleActivityComplete = useCallback((result?: ActivitySessionResult) => {
-    if (!activeActivity) return;
-    completeActivity(
-      activeActivity.id,
-      activeActivity.neuroId,
-      activeActivity.starsReward,
-      activeActivity.durationMinutes,
+  const handleActivityComplete = useCallback((
+    expectedOwnerId: string,
+    activity: NeuroActivity,
+    result?: ActivitySessionResult,
+  ) => {
+    const progress = getReadyChildProgressForOwner(expectedOwnerId);
+    if (activityOwnerIdRef.current !== expectedOwnerId || !progress) {
+      closeActivity(expectedOwnerId);
+      return;
+    }
+
+    progress.completeActivity(
+      activity.id,
+      activity.neuroId,
+      activity.starsReward,
+      activity.durationMinutes,
     );
-    if (activeActivity.neuroId === 'adhd' && result?.adhdSupportSignal) {
-      addAdhdSupportSignal(activeActivity.id, result.adhdSupportSignal);
+    if (activity.neuroId === 'adhd' && result?.adhdSupportSignal) {
+      progress.addAdhdSupportSignal(activity.id, result.adhdSupportSignal);
       void syncAdhdSupportSignal({
-        childId,
-        activityId: activeActivity.id,
-        activityTitle: activeActivity.title,
+        childId: expectedOwnerId,
+        activityId: activity.id,
+        activityTitle: activity.title,
         signal: result.adhdSupportSignal,
       }).catch((syncError) => {
         console.warn('ADHD support signal saved locally only:', syncError);
       });
     }
     if (result?.achievementBadge) {
-      unlockAchievementBadge(result.achievementBadge);
+      progress.unlockAchievementBadge(result.achievementBadge);
     }
     if (result?.adhdEnergyPacing) {
-      setAdhdEnergyPacing(result.adhdEnergyPacing);
+      progress.setAdhdEnergyPacing(result.adhdEnergyPacing);
     }
     if (result?.dyslexiaReadingSession) {
-      addDyslexiaReadingSession(result.dyslexiaReadingSession);
+      progress.addDyslexiaReadingSession(result.dyslexiaReadingSession);
     }
     if (result?.dyslexiaReaderPreferences) {
-      setDyslexiaReaderPreferences(result.dyslexiaReaderPreferences);
+      progress.setDyslexiaReaderPreferences(result.dyslexiaReaderPreferences);
     }
     if (result?.dyslexiaPhonicsSession) {
-      addDyslexiaPhonicsSession(result.dyslexiaPhonicsSession);
+      progress.addDyslexiaPhonicsSession(result.dyslexiaPhonicsSession);
     }
-    setCelebration(
+    showCelebrationForOwner(
+      expectedOwnerId,
       result?.achievementBadge
-        ? `${result.achievementBadge.emoji} ${result.achievementBadge.title} badge unlocked! +${activeActivity.starsReward} stars`
-        : `+${activeActivity.starsReward} stars! Great job on "${activeActivity.title}"`,
+        ? `${result.achievementBadge.emoji} ${result.achievementBadge.title} badge unlocked! +${activity.starsReward} stars`
+        : `+${activity.starsReward} stars! Great job on "${activity.title}"`,
+      4000,
     );
-    setActiveActivity(null);
-    window.setTimeout(() => setCelebration(null), 4000);
-  }, [activeActivity, addAdhdSupportSignal, addDyslexiaPhonicsSession, addDyslexiaReadingSession, childId, completeActivity, setAdhdEnergyPacing, setDyslexiaReaderPreferences, unlockAchievementBadge]);
+    closeActivity(expectedOwnerId);
+  }, [closeActivity, showCelebrationForOwner]);
 
-  const handleFocusComplete = useCallback(() => {
-    const focusDuration = dailyActivities.find((activity) => activity.id === 'adhd-focus-sprint')?.durationMinutes ?? 12;
-    completeActivity('adhd-focus-sprint', 'adhd', 5, focusDuration);
-    setShowFocusTimer(false);
-    setCelebration('Focus sprint complete! +5 stars');
-    window.setTimeout(() => setCelebration(null), 4000);
-  }, [completeActivity, dailyActivities]);
-
-  const handleJournalClose = useCallback(() => {
-    setShowJournal(false);
-    const moodActivity = dailyActivities.find((a) => a.action === 'journal');
-    if (moodActivity && !useChildProgressStore.getState().isActivityCompletedToday(moodActivity.id)) {
-      completeActivity(moodActivity.id, moodActivity.neuroId, moodActivity.starsReward, moodActivity.durationMinutes);
+  const handleFocusComplete = useCallback((
+    expectedOwnerId: string,
+    sessionDurationMinutes: number,
+  ) => {
+    const progress = getReadyChildProgressForOwner(expectedOwnerId);
+    if (focusOwnerIdRef.current !== expectedOwnerId || !progress) {
+      closeFocusTimer(expectedOwnerId);
+      return;
     }
-  }, [dailyActivities, completeActivity]);
+
+    progress.completeActivity('adhd-focus-sprint', 'adhd', 5, sessionDurationMinutes);
+    closeFocusTimer(expectedOwnerId);
+    showCelebrationForOwner(expectedOwnerId, 'Focus sprint complete! +5 stars', 4000);
+  }, [closeFocusTimer, showCelebrationForOwner]);
+
+  const handleJournalClose = useCallback((expectedOwnerId: string) => {
+    if (journalOwnerIdRef.current !== expectedOwnerId) return;
+
+    const progress = getReadyChildProgressForOwner(expectedOwnerId);
+    journalOwnerIdRef.current = null;
+    setShowJournal(false);
+    if (!progress) return;
+
+    const moodActivity = dailyActivities.find((a) => a.action === 'journal');
+    if (moodActivity && !progress.isActivityCompletedToday(moodActivity.id)) {
+      progress.completeActivity(moodActivity.id, moodActivity.neuroId, moodActivity.starsReward, moodActivity.durationMinutes);
+    }
+  }, [dailyActivities]);
+
+  const handleJournalSave = useCallback((expectedOwnerId: string, mood: string) => {
+    const progress = getReadyChildProgressForOwner(expectedOwnerId);
+    if (journalOwnerIdRef.current !== expectedOwnerId || !progress) return;
+
+    progress.setTodayMood(mood);
+  }, []);
 
   const handleRecommendation = useCallback(
     (_id: string, title: string) => {
-      setCelebration(`"${title}" is queued for your next session!`);
-      window.setTimeout(() => setCelebration(null), 3000);
+      showCelebrationForOwner(childId, `"${title}" is queued for your next session!`, 3000);
     },
-    [],
+    [childId, showCelebrationForOwner],
   );
 
   return (
@@ -203,7 +308,7 @@ const ChildDashboardPage: React.FC = () => {
               <Sparkles className="h-7 w-7" aria-hidden />
               <span><strong>Talk to Buddy</strong><small>Ask for help with words or a next step</small></span>
             </button>
-            <button type="button" onClick={() => setShowJournal(true)} className="child-launch-action child-launch-action--mood">
+            <button type="button" onClick={openJournal} className="child-launch-action child-launch-action--mood">
               <Heart className="h-7 w-7" aria-hidden />
               <span><strong>How I feel</strong><small>Choose a feeling or share in your own way</small></span>
             </button>
@@ -227,8 +332,11 @@ const ChildDashboardPage: React.FC = () => {
           mode="child"
           compact
           onActivityComplete={(activity) => {
-            setCelebration(`${activity.emoji} ${activity.label} complete! Great transition.`);
-            window.setTimeout(() => setCelebration(null), 3500);
+            showCelebrationForOwner(
+              childId,
+              `${activity.emoji} ${activity.label} complete! Great transition.`,
+              3500,
+            );
           }}
         />
 
@@ -241,7 +349,7 @@ const ChildDashboardPage: React.FC = () => {
         )}
 
         {neuroTypes.includes('dyslexia') && <DyslexiaReadingProgressPanel />}
-        <DailyOrbitProgress totalActivities={dailyActivities.length} onMoodCheck={() => setShowJournal(true)} />
+        <DailyOrbitProgress totalActivities={dailyActivities.length} onMoodCheck={openJournal} />
 
         <details className="child-dashboard-drawer">
           <summary><BookOpen className="h-5 w-5" aria-hidden /> Classroom and assignments</summary>
@@ -250,8 +358,7 @@ const ChildDashboardPage: React.FC = () => {
             <TeacherAssignmentsPanel
               childId={childId}
               onCelebrate={(message) => {
-                setCelebration(message);
-                window.setTimeout(() => setCelebration(null), 3500);
+                showCelebrationForOwner(childId, message, 3500);
               }}
             />
           </div>
@@ -278,25 +385,31 @@ const ChildDashboardPage: React.FC = () => {
         </details>
       </main>
 
-      {showJournal && (
+      {showJournal && journalOwnerIdRef.current && (
         <FeelingsJournal
+          ownerId={journalOwnerIdRef.current}
           onClose={handleJournalClose}
-          onSave={(mood) => setTodayMood(mood)}
+          onSave={handleJournalSave}
         />
       )}
 
-      {activeActivity && (
+      {activeActivity && activityOwnerIdRef.current && (
         <ActivitySessionModal
           activity={activeActivity}
-          onClose={() => setActiveActivity(null)}
-          onComplete={handleActivityComplete}
+          onClose={closeActivity.bind(null, activityOwnerIdRef.current)}
+          onComplete={handleActivityComplete.bind(
+            null,
+            activityOwnerIdRef.current,
+            activeActivity,
+          )}
         />
       )}
 
-      {showFocusTimer && (
+      {showFocusTimer && focusOwnerIdRef.current && (
         <FocusTimerModal
+          ownerId={focusOwnerIdRef.current}
           durationMinutes={dailyActivities.find((activity) => activity.id === 'adhd-focus-sprint')?.durationMinutes ?? 12}
-          onClose={() => setShowFocusTimer(false)}
+          onClose={closeFocusTimer}
           onComplete={handleFocusComplete}
         />
       )}

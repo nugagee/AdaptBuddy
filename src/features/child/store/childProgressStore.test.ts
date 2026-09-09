@@ -1,5 +1,11 @@
 import type { AdhdSupportSignalInput } from './childProgressStore';
-import { useChildProgressStore } from './childProgressStore';
+import {
+  beginChildProgressScope,
+  getChildProgressStorageKey,
+  hydrateChildProgressScope,
+  unbindChildProgressScope,
+  useChildProgressStore,
+} from './childProgressStore';
 
 const makeSignal = (
   overrides: Partial<AdhdSupportSignalInput> = {},
@@ -14,6 +20,8 @@ const makeSignal = (
 
 const resetProgressStore = () => {
   useChildProgressStore.setState({
+    ownerId: null,
+    hydrationStatus: 'idle',
     completions: [],
     metricValues: [],
     adhdSupportSignals: [],
@@ -219,5 +227,97 @@ describe('childProgressStore ADHD support signals', () => {
         createdAt: '2026-09-01T09:30:00.000Z',
       }),
     ]);
+  });
+});
+
+describe('childProgressStore account isolation', () => {
+  beforeEach(() => {
+    unbindChildProgressScope();
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    unbindChildProgressScope();
+  });
+
+  const openChild = async (childId: string) => {
+    const token = beginChildProgressScope(childId);
+    expect(await hydrateChildProgressScope(token)).toBe('ready');
+  };
+
+  it('restores only the progress owned by the active child', async () => {
+    await openChild('child-a');
+    useChildProgressStore.getState().completeActivity('reading', 'dyslexia', 3, 5);
+
+    await openChild('child-b');
+    expect(useChildProgressStore.getState().ownerId).toBe('child-b');
+    expect(useChildProgressStore.getState().completions).toEqual([]);
+    useChildProgressStore.getState().setTodayMood('calm');
+
+    await openChild('child-a');
+    expect(useChildProgressStore.getState().todayMood).toBeNull();
+    expect(useChildProgressStore.getState().completions).toEqual([
+      expect.objectContaining({ activityId: 'reading', neuroId: 'dyslexia' }),
+    ]);
+
+    await openChild('child-b');
+    expect(useChildProgressStore.getState().todayMood).toBe('calm');
+    expect(useChildProgressStore.getState().completions).toEqual([]);
+  });
+
+  it('ignores legacy global progress whose owner cannot be proven', async () => {
+    window.localStorage.setItem(
+      'adaptbuddy-child-progress',
+      JSON.stringify({ state: { starsTotal: 99 }, version: 0 }),
+    );
+
+    await openChild('child-b');
+
+    expect(useChildProgressStore.getState().starsTotal).toBe(0);
+    expect(window.localStorage.getItem('adaptbuddy-child-progress')).not.toBeNull();
+  });
+
+  it('rejects a targeted record carrying a different owner id', async () => {
+    await openChild('child-a');
+    useChildProgressStore.getState().setTodayMood('worried');
+    const childARaw = window.localStorage.getItem(getChildProgressStorageKey('child-a'))!;
+    window.localStorage.setItem(getChildProgressStorageKey('child-b'), childARaw);
+
+    const token = beginChildProgressScope('child-b');
+    expect(await hydrateChildProgressScope(token)).toBe('error');
+
+    expect(useChildProgressStore.getState()).toEqual(
+      expect.objectContaining({
+        ownerId: 'child-b',
+        hydrationStatus: 'error',
+        starsTotal: 0,
+        todayMood: null,
+      }),
+    );
+    expect(window.localStorage.getItem(getChildProgressStorageKey('child-b'))).toContain(
+      'child-a',
+    );
+  });
+
+  it('preserves corrupt scoped data and fails closed', async () => {
+    const storageKey = getChildProgressStorageKey('child-a');
+    window.localStorage.setItem(storageKey, '{not valid JSON');
+    const token = beginChildProgressScope('child-a');
+
+    expect(await hydrateChildProgressScope(token)).toBe('error');
+    expect(useChildProgressStore.getState().hydrationStatus).toBe('error');
+    expect(window.localStorage.getItem(storageKey)).toBe('{not valid JSON');
+  });
+
+  it('does not let stale hydration make a newer account scope writable', async () => {
+    const childAToken = beginChildProgressScope('child-a');
+    const childBToken = beginChildProgressScope('child-b');
+
+    expect(await hydrateChildProgressScope(childAToken)).toBe('stale');
+    expect(useChildProgressStore.getState().hydrationStatus).toBe('loading');
+    expect(await hydrateChildProgressScope(childBToken)).toBe('ready');
+    expect(useChildProgressStore.getState()).toEqual(
+      expect.objectContaining({ ownerId: 'child-b', hydrationStatus: 'ready' }),
+    );
   });
 });

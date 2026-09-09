@@ -1,9 +1,12 @@
 import React from 'react';
 import { BatteryCharging, Coffee, TimerReset } from 'lucide-react';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 
 const AdhdEnergyPacingPanel: React.FC = () => {
-  const pacing = useChildProgressStore((state) => state.getTodayAdhdEnergyPacing());
+  const storedPacing = useChildProgressStore((state) => state.getTodayAdhdEnergyPacing());
+  const { isReady } = useChildProgressReadAccess();
+  const pacing = isReady ? storedPacing : null;
 
   if (!pacing) {
     return (

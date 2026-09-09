@@ -14,14 +14,15 @@ import {
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import { NEURO_ACTIVITIES } from 'features/child/data/neuroDashboardContent';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 import { ClassLiveSessionService } from 'features/classroom/services/classLiveSessionService';
+import { useAuth } from 'hooks/useAuth';
 import {
   ACTIVITY_MODE_LABELS,
   MOOD_PULSE_OPTIONS,
   type ChildClassSessionHistoryItem,
 } from 'features/classroom/types/classLiveSession.types';
 import { NEURO_OPTION_MAP } from 'constants/neuroOptions';
-import { useAuth } from 'hooks/useAuth';
 
 const formatDuration = (totalSeconds: number): string => {
   const seconds = Math.max(0, Math.floor(totalSeconds));
@@ -67,22 +68,43 @@ const statusBadge = (status: ChildClassSessionHistoryItem['participantStatus']) 
 };
 
 const ActivityLogPage: React.FC = () => {
-  const { profile } = useAuth();
-  const childId = profile?.id ?? 'guest-child';
+  const { profile, user, isGuest } = useAuth();
+  const { childId: progressChildId, isReady } = useChildProgressReadAccess();
   const completions = useChildProgressStore((state) => state.completions);
+  const guestHistoryChildId =
+    isGuest
+    && !user
+    && profile?.role === 'child'
+    && profile.id === 'guest-child'
+      ? profile.id
+      : null;
+  const historyChildId = progressChildId ?? guestHistoryChildId;
 
   const [history, setHistory] = useState<ChildClassSessionHistoryItem[]>([]);
+  const [historyOwnerId, setHistoryOwnerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+
+    setHistory([]);
+    setHistoryOwnerId(historyChildId);
+    setExpandedId(null);
+    setError(null);
+
+    if (!historyChildId) {
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const load = async () => {
       setLoading(true);
-      setError(null);
       try {
-        const rows = await ClassLiveSessionService.listChildSessionHistory(childId);
+        const rows = await ClassLiveSessionService.listChildSessionHistory(historyChildId);
         if (!cancelled) setHistory(rows);
       } catch (loadError) {
         if (!cancelled) {
@@ -96,29 +118,40 @@ const ActivityLogPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [childId]);
+  }, [historyChildId]);
+
+  const historyBelongsToChild = Boolean(
+    historyChildId
+    && historyOwnerId === historyChildId,
+  );
+  const visibleHistory = historyBelongsToChild ? history : [];
+  const visibleLoading = Boolean(
+    historyChildId
+    && (!historyBelongsToChild || loading),
+  );
+  const visibleError = historyBelongsToChild ? error : null;
 
   const summary = useMemo(() => {
-    const totalSeconds = history.reduce((sum, item) => sum + item.durationSeconds, 0);
+    const totalSeconds = visibleHistory.reduce((sum, item) => sum + item.durationSeconds, 0);
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const thisWeek = history.filter(
+    const thisWeek = visibleHistory.filter(
       (item) => new Date(item.endedAt || item.leftAt || item.joinedAt).getTime() >= weekAgo,
     ).length;
-    const lastMood = history.find((item) => item.moodPulse)?.moodPulse ?? null;
+    const lastMood = visibleHistory.find((item) => item.moodPulse)?.moodPulse ?? null;
     return {
-      classCount: history.length,
+      classCount: visibleHistory.length,
       totalSeconds,
       thisWeek,
       lastMood: moodLabel(lastMood),
     };
-  }, [history]);
+  }, [visibleHistory]);
 
   const practiceHistory = useMemo(
     () =>
-      [...completions]
+      [...(isReady ? completions : [])]
         .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
         .slice(0, 12),
-    [completions],
+    [completions, isReady],
   );
 
   return (
@@ -190,20 +223,20 @@ const ActivityLogPage: React.FC = () => {
             <h2 className="text-lg font-extrabold text-adapt-navy dark:text-gray-100">Past classes</h2>
           </div>
 
-          {loading && (
+          {visibleLoading && (
             <div className="mt-8 flex items-center justify-center gap-3 py-10 text-slate-500 dark:text-gray-400">
               <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
               <p className="text-sm font-semibold">Loading your classroom history…</p>
             </div>
           )}
 
-          {!loading && error && (
+          {!visibleLoading && visibleError && (
             <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:bg-red-950/30 dark:text-red-200">
-              {error}
+              {visibleError}
             </p>
           )}
 
-          {!loading && !error && history.length === 0 && (
+          {!visibleLoading && !visibleError && visibleHistory.length === 0 && (
             <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center dark:border-gray-700 dark:bg-gray-950">
               <BookOpen className="mx-auto h-8 w-8 text-slate-400" aria-hidden />
               <p className="mt-3 font-bold text-adapt-navy dark:text-gray-100">No past classes yet</p>
@@ -213,9 +246,9 @@ const ActivityLogPage: React.FC = () => {
             </div>
           )}
 
-          {!loading && !error && history.length > 0 && (
+          {!visibleLoading && !visibleError && visibleHistory.length > 0 && (
             <ul className="mt-5 space-y-3">
-              {history.map((item) => {
+              {visibleHistory.map((item) => {
                 const mood = moodLabel(item.moodPulse);
                 const isOpen = expandedId === item.sessionId;
                 return (

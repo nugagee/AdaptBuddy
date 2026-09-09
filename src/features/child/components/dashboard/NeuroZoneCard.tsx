@@ -6,6 +6,7 @@ import {
   type NeuroActivity,
 } from 'features/child/data/neuroDashboardContent';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 
 interface NeuroZoneCardProps {
   neuroId: string;
@@ -18,12 +19,16 @@ const NeuroZoneCard: React.FC<NeuroZoneCardProps> = ({ neuroId, activities, onSt
   const meta = NEURO_ZONE_META[neuroId];
   const completions = useChildProgressStore((s) => s.completions);
   const metricValues = useChildProgressStore((s) => s.metricValues);
+  const { isReady } = useChildProgressReadAccess();
 
   const today = new Date().toISOString().slice(0, 10);
   const isCompleted = (activityId: string) =>
-    completions.some((c) => c.activityId === activityId && c.completedAt.startsWith(today));
+    isReady
+    && completions.some((c) => c.activityId === activityId && c.completedAt.startsWith(today));
   const metricValue =
-    metricValues.find((m) => m.neuroId === neuroId && m.date === today)?.value ?? 0;
+    (isReady
+      ? metricValues.find((m) => m.neuroId === neuroId && m.date === today)?.value
+      : undefined) ?? 0;
 
   if (!option || !meta) return null;
 

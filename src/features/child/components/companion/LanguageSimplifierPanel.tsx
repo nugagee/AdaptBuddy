@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import { Loader2, Sparkles, Wand2 } from 'lucide-react';
 import { buildCompanionContext, isOpenAiConfigured, simplifyLanguage } from 'services/ai';
-import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
+import {
+  selectAutismProfileForChild,
+  useAutismProfileStore,
+} from 'features/child/store/autismProfileStore';
 import { useAuth } from 'hooks/useAuth';
 
 const LanguageSimplifierPanel: React.FC = () => {
-  const { profile: authProfile } = useAuth();
-  const autismProfile = useAutismProfileStore((s) => s.profile);
+  const { profile: authProfile, user } = useAuth();
+  const autismProfile = useAutismProfileStore((state) =>
+    selectAutismProfileForChild(state, user?.id),
+  );
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

@@ -6,7 +6,10 @@ import LanguageSimplifierPanel from 'features/child/components/companion/Languag
 import MoodCheckInPanel from 'features/child/components/companion/MoodCheckInPanel';
 import SocialStoryGeneratorPanel from 'features/child/components/companion/SocialStoryGeneratorPanel';
 import BuddyConversationPanel from 'features/child/components/companion/BuddyConversationPanel';
-import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
+import {
+  selectAutismProfileForChild,
+  useAutismProfileStore,
+} from 'features/child/store/autismProfileStore';
 import { useAuth } from 'hooks/useAuth';
 
 type BuddyTab = 'talk' | 'simplify' | 'mood' | 'story';
@@ -40,10 +43,12 @@ const tabs: { id: BuddyTab; label: string; icon: React.ElementType; description:
 
 const CompanionBuddyPage: React.FC = () => {
   const location = useLocation();
-  const { profile } = useAuth();
-  const autismProfile = useAutismProfileStore((s) => s.profile);
+  const { profile, user } = useAuth();
+  const autismProfile = useAutismProfileStore((state) =>
+    selectAutismProfileForChild(state, user?.id),
+  );
   const [tab, setTab] = useState<BuddyTab>('talk');
-  const name = autismProfile.aboutMe?.preferredName || profile?.first_name || 'friend';
+  const name = autismProfile?.aboutMe?.preferredName || profile?.first_name || 'friend';
 
   const active = tabs.find((t) => t.id === tab)!;
 
@@ -51,7 +56,10 @@ const CompanionBuddyPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/30 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
       <ChildDashboardNavbar />
 
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <main
+        key={user?.id ?? 'no-child'}
+        className="mx-auto max-w-3xl px-4 py-8 sm:px-6"
+      >
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-adapt-indigo/15 text-adapt-indigo dark:bg-adapt-cyan/15 dark:text-adapt-cyan">
             <Sparkles className="h-7 w-7" aria-hidden />

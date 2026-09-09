@@ -5,6 +5,7 @@ import {
   type NeuroMetricDefinition,
 } from 'features/child/data/neuroDashboardContent';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 
 interface MetricsConstellationProps {
   neuroTypes: string[];
@@ -48,10 +49,13 @@ const MetricOrb: React.FC<{ metric: NeuroMetricDefinition; value: number }> = ({
 const MetricsConstellation: React.FC<MetricsConstellationProps> = ({ neuroTypes }) => {
   const metrics = getMetricsForNeuros(neuroTypes);
   const metricValues = useChildProgressStore((s) => s.metricValues);
+  const { isReady } = useChildProgressReadAccess();
   const today = new Date().toISOString().slice(0, 10);
 
   const getValue = (neuroId: string) =>
-    metricValues.find((m) => m.neuroId === neuroId && m.date === today)?.value ?? 0;
+    (isReady
+      ? metricValues.find((m) => m.neuroId === neuroId && m.date === today)?.value
+      : undefined) ?? 0;
 
   if (metrics.length === 0) return null;
 

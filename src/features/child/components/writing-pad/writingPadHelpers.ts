@@ -1,7 +1,7 @@
 export type LineSpacing = 'wide' | 'medium' | 'narrow';
 export type OverlayColor = 'none' | 'yellow' | 'blue' | 'green';
 
-export const WRITING_PAD_STORAGE_KEY = 'adaptbuddy-writing-pad-save';
+export const WRITING_PAD_STORAGE_KEY_PREFIX = 'adaptbuddy-writing-pad-save:v2';
 
 export const LINE_SPACING_OPTIONS: { value: LineSpacing; label: string }[] = [
   { value: 'wide', label: 'Wide' },
@@ -45,22 +45,32 @@ export function countWords(text: string): number {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
-export function loadSavedWriting(): string {
+export function getWritingPadStorageKey(childId: string | null | undefined): string | null {
+  const normalizedChildId = childId?.trim();
+  if (!normalizedChildId) return null;
+
+  return `${WRITING_PAD_STORAGE_KEY_PREFIX}:${encodeURIComponent(normalizedChildId)}`;
+}
+
+export function loadSavedWriting(childId: string | null | undefined): string {
+  const storageKey = getWritingPadStorageKey(childId);
+  if (!storageKey) return '';
+
   try {
-    return (
-      localStorage.getItem(WRITING_PAD_STORAGE_KEY) ??
-      localStorage.getItem('writingPad_lastSave') ??
-      ''
-    );
+    return localStorage.getItem(storageKey) ?? '';
   } catch {
     return '';
   }
 }
 
-export function persistWriting(content: string): void {
+export function persistWriting(childId: string | null | undefined, content: string): boolean {
+  const storageKey = getWritingPadStorageKey(childId);
+  if (!storageKey) return false;
+
   try {
-    localStorage.setItem(WRITING_PAD_STORAGE_KEY, content);
+    localStorage.setItem(storageKey, content);
+    return true;
   } catch {
-    /* ignore */
+    return false;
   }
 }

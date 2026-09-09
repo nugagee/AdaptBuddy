@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Heart, Loader2, Sparkles, Users, X } from 'lucide-react';
 import {
@@ -15,8 +15,12 @@ import {
 } from 'features/child/constants/companionOnboarding';
 import type { CompanionOnboardingAnswers } from 'features/child/types/companionOnboarding';
 import type { CalmingTool, LearningFormat, SensorySensitivity } from 'features/child/types/autismProfile';
-import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
+import {
+  updateAutismProfileForChild,
+  useAutismProfileStore,
+} from 'features/child/store/autismProfileStore';
 import { useAuth } from 'hooks/useAuth';
+import { useAuthStore } from 'store/authStore';
 import { ROUTES } from 'constants/routes';
 import { completeCompanionOnboarding } from 'services/supabase/profileService';
 import { saveAutismProfile } from 'services/supabase/autismProfileService';
@@ -29,10 +33,46 @@ const chipClass = (selected: boolean) =>
       : 'border-white/60 bg-white/50 text-slate-600 hover:border-adapt-indigo/40 dark:border-white/10 dark:bg-gray-800/40 dark:text-gray-300'
   }`;
 
+interface OnboardingOwner {
+  draftOwnerId: string;
+  childId: string;
+  authenticated: boolean;
+}
+
+interface OwnedOnboardingAnswers {
+  ownerId: string | null;
+  value: CompanionOnboardingAnswers;
+}
+
+const getCurrentOnboardingOwner = (): OnboardingOwner | null => {
+  const { user, profile, isGuest } = useAuthStore.getState();
+  if (profile?.role !== 'child') return null;
+
+  if (isGuest) {
+    return {
+      draftOwnerId: `guest:${profile.id}`,
+      childId: profile.id,
+      authenticated: false,
+    };
+  }
+
+  if (!user?.id || profile.id !== user.id) return null;
+  return {
+    draftOwnerId: user.id,
+    childId: user.id,
+    authenticated: true,
+  };
+};
+
+const isCurrentAuthenticatedChild = (childId: string): boolean => {
+  const owner = getCurrentOnboardingOwner();
+  return Boolean(owner?.authenticated && owner.childId === childId);
+};
+
 const CompanionOnboardingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { profile, user, isGuest, setProfile } = useAuth();
-  const updateAutismProfile = useAutismProfileStore((s) => s.updateProfile);
+  const { profile, setProfile } = useAuth();
+  const currentAnswersOwnerId = getCurrentOnboardingOwner()?.draftOwnerId ?? null;
 
   useEffect(() => {
     if (!profile) return;
@@ -49,43 +89,113 @@ const CompanionOnboardingPage: React.FC = () => {
   const needsParentCopilot = childAge != null && childAge <= PARENT_COPILOT_MAX_AGE;
 
   const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState<CompanionOnboardingAnswers>(() =>
-    emptyOnboardingAnswers(profile?.first_name || ''),
-  );
+  const [ownedAnswers, setOwnedAnswers] = useState<OwnedOnboardingAnswers>(() => ({
+    ownerId: currentAnswersOwnerId,
+    value: emptyOnboardingAnswers(profile?.first_name || ''),
+  }));
   const [tagInput, setTagInput] = useState('');
   const [happyInput, setHappyInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const authOwnerEpochRef = useRef(0);
+  const saveAttemptRef = useRef(0);
+
+  const answers = ownedAnswers.ownerId === currentAnswersOwnerId
+    ? ownedAnswers.value
+    : emptyOnboardingAnswers(profile?.first_name || '');
+
+  useEffect(() => {
+    let previousOwnerId = getCurrentOnboardingOwner()?.draftOwnerId ?? null;
+    const unsubscribe = useAuthStore.subscribe(() => {
+      const nextOwnerId = getCurrentOnboardingOwner()?.draftOwnerId ?? null;
+      if (nextOwnerId === previousOwnerId) return;
+      previousOwnerId = nextOwnerId;
+      authOwnerEpochRef.current += 1;
+      saveAttemptRef.current += 1;
+    });
+
+    return () => {
+      authOwnerEpochRef.current += 1;
+      saveAttemptRef.current += 1;
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (ownedAnswers.ownerId === currentAnswersOwnerId) return;
+
+    setOwnedAnswers({
+      ownerId: currentAnswersOwnerId,
+      value: emptyOnboardingAnswers(profile?.first_name || ''),
+    });
+    setStep(0);
+    setTagInput('');
+    setHappyInput('');
+    setSaving(false);
+    setError('');
+  }, [currentAnswersOwnerId, ownedAnswers.ownerId, profile?.first_name]);
 
   const currentStep = ONBOARDING_STEPS[step];
   const progress = ((step + 1) / ONBOARDING_STEPS.length) * 100;
 
   const set = <K extends keyof CompanionOnboardingAnswers>(key: K, value: CompanionOnboardingAnswers[K]) => {
-    setAnswers((prev) => ({ ...prev, [key]: value }));
+    setOwnedAnswers((previous) => {
+      const current = previous.ownerId === currentAnswersOwnerId
+        ? previous.value
+        : emptyOnboardingAnswers(profile?.first_name || '');
+      return {
+        ownerId: currentAnswersOwnerId,
+        value: { ...current, [key]: value },
+      };
+    });
   };
 
   const toggleList = (key: keyof CompanionOnboardingAnswers, value: string) => {
-    setAnswers((prev) => {
-      const list = prev[key] as string[];
+    setOwnedAnswers((previous) => {
+      const current = previous.ownerId === currentAnswersOwnerId
+        ? previous.value
+        : emptyOnboardingAnswers(profile?.first_name || '');
+      const list = current[key] as string[];
       const next = list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
-      return { ...prev, [key]: next };
+      return {
+        ownerId: currentAnswersOwnerId,
+        value: { ...current, [key]: next },
+      };
     });
   };
 
   const addTag = (field: 'favouriteThings' | 'happyTriggers', value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
-    setAnswers((prev) => ({
-      ...prev,
-      [field]: prev[field].includes(trimmed) ? prev[field] : [...prev[field], trimmed],
-    }));
+    setOwnedAnswers((previous) => {
+      const current = previous.ownerId === currentAnswersOwnerId
+        ? previous.value
+        : emptyOnboardingAnswers(profile?.first_name || '');
+      return {
+        ownerId: currentAnswersOwnerId,
+        value: {
+          ...current,
+          [field]: current[field].includes(trimmed)
+            ? current[field]
+            : [...current[field], trimmed],
+        },
+      };
+    });
   };
 
   const removeTag = (field: 'favouriteThings' | 'happyTriggers', value: string) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [field]: prev[field].filter((item) => item !== value),
-    }));
+    setOwnedAnswers((previous) => {
+      const current = previous.ownerId === currentAnswersOwnerId
+        ? previous.value
+        : emptyOnboardingAnswers(profile?.first_name || '');
+      return {
+        ownerId: currentAnswersOwnerId,
+        value: {
+          ...current,
+          [field]: current[field].filter((item) => item !== value),
+        },
+      };
+    });
   };
 
   const canContinue = useMemo(() => {
@@ -100,25 +210,88 @@ const CompanionOnboardingPage: React.FC = () => {
   }, [currentStep.id, answers]);
 
   const finishOnboarding = async () => {
+    const initiatingOwner = getCurrentOnboardingOwner();
+    if (!initiatingOwner || ownedAnswers.ownerId !== initiatingOwner.draftOwnerId) {
+      setError('The child account changed. Please review these choices before continuing.');
+      return;
+    }
+
+    const initiatingAuthEpoch = authOwnerEpochRef.current;
+    const saveAttempt = ++saveAttemptRef.current;
+    const isSameOwnerAttempt = () => {
+      const currentOwner = getCurrentOnboardingOwner();
+      return (
+        saveAttemptRef.current === saveAttempt
+        && authOwnerEpochRef.current === initiatingAuthEpoch
+        && currentOwner?.draftOwnerId === initiatingOwner.draftOwnerId
+        && currentOwner.childId === initiatingOwner.childId
+        && currentOwner.authenticated === initiatingOwner.authenticated
+      );
+    };
+    const isCurrentAttempt = () =>
+      initiatingOwner.authenticated
+      && isSameOwnerAttempt()
+      && isCurrentAuthenticatedChild(initiatingOwner.childId);
+
     setSaving(true);
     setError('');
 
-    const childId = user?.id ?? profile?.id ?? 'guest-child';
-    const autismProfile = buildAutismProfileFromOnboarding(childId, {
+    const autismProfile = buildAutismProfileFromOnboarding(initiatingOwner.childId, {
       ...answers,
       onboardedWithParent: needsParentCopilot,
     });
 
-    updateAutismProfile(autismProfile);
+    if (!initiatingOwner.authenticated) {
+      const currentAuth = useAuthStore.getState();
+      const autismStore = useAutismProfileStore.getState();
+      if (
+        !isSameOwnerAttempt()
+        || !currentAuth.isGuest
+        || currentAuth.profile?.id !== initiatingOwner.childId
+        || currentAuth.profile.role !== 'child'
+        || autismStore.ownerId !== initiatingOwner.childId
+        || autismStore.hydrationStatus !== 'ready'
+        || autismStore.profile.childId !== initiatingOwner.childId
+      ) {
+        setError('The guest child profile changed. Please review these choices before continuing.');
+        setSaving(false);
+        return;
+      }
 
-    if (isGuest && profile) {
+      // Guest support choices are session-only. StoreInitializer creates this
+      // usable guest scope without binding its persistence adapter.
+      if (!updateAutismProfileForChild(
+        initiatingOwner.childId,
+        autismProfile,
+        autismStore.profile,
+      )) {
+        setError('The guest child profile changed. Please review these choices before continuing.');
+        setSaving(false);
+        return;
+      }
+
+      const appliedAutismStore = useAutismProfileStore.getState();
+      if (
+        !isSameOwnerAttempt()
+        || appliedAutismStore.ownerId !== initiatingOwner.childId
+        || appliedAutismStore.hydrationStatus !== 'ready'
+        || appliedAutismStore.profile.childId !== initiatingOwner.childId
+        || appliedAutismStore.profile.updatedAt !== autismProfile.updatedAt
+      ) {
+        setSaving(false);
+        return;
+      }
+
       setProfile({
-        ...profile,
-        neuro_types: profile.neuro_types.length > 0 ? profile.neuro_types : ['autism'],
+        ...currentAuth.profile,
+        neuro_types: currentAuth.profile.neuro_types.length > 0
+          ? currentAuth.profile.neuro_types
+          : ['autism'],
         onboarding_completed: true,
         companion_onboarding_completed: true,
         updated_at: new Date().toISOString(),
       });
+      if (!isSameOwnerAttempt()) return;
       navigate(ROUTES.CHILD_DASHBOARD, {
         replace: true,
         state: { message: 'AdaptBuddy saved your support choices. Welcome!' },
@@ -127,24 +300,57 @@ const CompanionOnboardingPage: React.FC = () => {
       return;
     }
 
-    if (!user?.id) {
+    if (!initiatingOwner.authenticated || !profile) {
       setError('Please sign in to continue.');
       setSaving(false);
       return;
     }
 
+    const currentAuth = useAuthStore.getState();
+    const autismStore = useAutismProfileStore.getState();
+    if (
+      initiatingOwner.childId !== ownedAnswers.ownerId ||
+      initiatingOwner.childId !== currentAuth.user?.id ||
+      currentAuth.isGuest ||
+      currentAuth.profile?.role !== 'child' ||
+      initiatingOwner.childId !== autismStore.ownerId ||
+      autismStore.hydrationStatus !== 'ready' ||
+      !isCurrentAttempt()
+    ) {
+      setError('Your support profile is still loading. Please wait a moment and try again.');
+      setSaving(false);
+      return;
+    }
+
+    if (!updateAutismProfileForChild(initiatingOwner.childId, autismProfile)) {
+      setError('Your support profile could not be updated safely. Please try again.');
+      setSaving(false);
+      return;
+    }
+
     try {
-      await saveAutismProfile(user.id, autismProfile);
-      const updated = await completeCompanionOnboarding(user.id, profile);
+      await saveAutismProfile(initiatingOwner.childId, autismProfile);
+      if (!isCurrentAttempt()) return;
+
+      const currentProfile = useAuthStore.getState().profile;
+      const updated = await completeCompanionOnboarding(
+        initiatingOwner.childId,
+        currentProfile,
+      );
+      if (!isCurrentAttempt() || updated.id !== initiatingOwner.childId) return;
+
       setProfile(updated);
+      if (!isCurrentAttempt()) return;
       navigate(ROUTES.CHILD_DASHBOARD, {
         replace: true,
         state: { message: 'AdaptBuddy saved your support choices. Welcome!' },
       });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not save your profile. Please try again.');
+      if (isCurrentAttempt()) {
+        setError(err instanceof Error ? err.message : 'Could not save your profile. Please try again.');
+      }
     } finally {
-      setSaving(false);
+      if (isCurrentAttempt()) setSaving(false);
     }
   };
 

@@ -2,7 +2,10 @@ import SupportRequestAction from 'components/support/SupportRequestAction';
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Loader2, Send, ShieldCheck, UserRound } from 'lucide-react';
 import { buildCompanionContext, sendBuddyMessage } from 'services/ai';
-import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
+import {
+  selectAutismProfileForChild,
+  useAutismProfileStore,
+} from 'features/child/store/autismProfileStore';
 import { useAuth } from 'hooks/useAuth';
 import type { BuddyChatMessage } from 'features/child/types/companionOnboarding';
 
@@ -24,8 +27,10 @@ interface BuddyConversationPanelProps {
 }
 
 const BuddyConversationPanel: React.FC<BuddyConversationPanelProps> = ({ initialMessage }) => {
-  const { profile: authProfile } = useAuth();
-  const autismProfile = useAutismProfileStore((state) => state.profile);
+  const { profile: authProfile, user } = useAuth();
+  const autismProfile = useAutismProfileStore((state) =>
+    selectAutismProfileForChild(state, user?.id),
+  );
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<BuddyChatMessage[]>([
     {

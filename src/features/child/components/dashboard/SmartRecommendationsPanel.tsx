@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight, Bot, Clock3, Sparkles, Star } from 'lucide-react';
 import { RecommendationEngine } from 'services/ai/recommendationEngine';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 import { adaptRecommendationsForEnergy } from 'features/child/utils/adhdEnergyPacing';
 
 interface SmartRecommendationsPanelProps {
@@ -16,16 +17,20 @@ const SmartRecommendationsPanel: React.FC<SmartRecommendationsPanelProps> = ({
   const todayMood = useChildProgressStore((s) => s.todayMood);
   const energyPacing = useChildProgressStore((s) => s.getTodayAdhdEnergyPacing());
   const completions = useChildProgressStore((s) => s.completions);
+  const { isReady } = useChildProgressReadAccess();
 
   const today = new Date().toISOString().slice(0, 10);
-  const todayCompletions = completions.filter((c) => c.completedAt.startsWith(today));
+  const todayCompletions = isReady
+    ? completions.filter((c) => c.completedAt.startsWith(today))
+    : [];
   const completedIds = todayCompletions.map((c) => c.activityId);
 
-  const mood = energyPacing?.recommendationMood ?? todayMood ?? 'calm';
+  const visibleEnergyPacing = isReady ? energyPacing : null;
+  const mood = visibleEnergyPacing?.recommendationMood ?? (isReady ? todayMood : null) ?? 'calm';
   const performance = Math.min(1, todayCompletions.length / 6);
   const recommendations = adaptRecommendationsForEnergy(
     RecommendationEngine.recommend(neuroTypes, performance, mood, completedIds),
-    energyPacing,
+    visibleEnergyPacing,
   );
 
   const styleProfile = RecommendationEngine.getLearningStyleProfile(neuroTypes);
@@ -43,7 +48,7 @@ const SmartRecommendationsPanel: React.FC<SmartRecommendationsPanelProps> = ({
               AdaptAI Recommendations
             </h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
-              {energyPacing ? `${energyPacing.energyLabel} pace` : 'Mood-aware picks'} · Your top style:{' '}
+              {visibleEnergyPacing ? `${visibleEnergyPacing.energyLabel} pace` : 'Mood-aware picks'} · Your top style:{' '}
               <span className="font-semibold capitalize text-adapt-indigo dark:text-adapt-cyan">
                 {topStyle}
               </span>

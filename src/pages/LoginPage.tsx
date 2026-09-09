@@ -98,8 +98,8 @@ const LoginPage: React.FC = () => {
               Welcome back to a calmer space.
             </h1>
             <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-gray-300 sepia:text-amber-900/80">
-              Use the email and password form to sign in to your AdaptBuddy account.
-              You can explore a demo below; demos cannot request AI or save classroom changes.
+              Explore what AdaptBuddy can do with a child, parent or teacher guest demo.
+              To use it with your own account and saved work, create an account and sign in.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               {demoRoles.map(({ role, label }) => (

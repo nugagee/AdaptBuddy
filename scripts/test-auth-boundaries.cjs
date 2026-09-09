@@ -1,4 +1,4 @@
-// Isolated review probes against the unchanged PR source. No network or live data.
+// Runtime auth and privacy regression probes. No network or live data.
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
@@ -33,7 +33,7 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 const deferred = () => { let resolve; const promise=new Promise(r=>{resolve=r;}); return {promise,resolve}; };
 const session = id => ({ user: {id}, access_token: `test-${id}` });
 function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session:session('A'),user:{id:'A'}},error:null})}={}) {
-  let callback; let signOuts=0; const pending = new Map();
+  let callback; let signOuts=0; let childResets=0; let adultClears=0; const pending = new Map();
   const client={ auth: {
     getSession: async()=>({data:{session:await initial}}),
     onAuthStateChange: cb=>{callback=cb;return {data:{subscription:{unsubscribe(){}}}};},
@@ -43,13 +43,13 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
   const {useAuthStore:store}=loadTs('src/store/authStore.ts', {
     zustand:{create},
     'services/supabase/client':{getProfile:id=>{const p=deferred();pending.set(id,p);return p.promise;},getSupabaseClient:()=>client,isSupabaseConfigured:true},
-    'features/child/store/childSessionStore':{useChildSessionStore:{getState:()=>({resetSession(){}})}},
-    'features/child/store/trustedAdultStore':{useTrustedAdultStore:{getState:()=>({clearTrustedAdults(){}})}},
+    'features/child/store/childSessionStore':{useChildSessionStore:{getState:()=>({resetSession(){childResets++;}})}},
+    'features/child/store/trustedAdultStore':{useTrustedAdultStore:{getState:()=>({clearTrustedAdults(){adultClears++;}})}},
     'services/supabase/authService':{},
     'services/supabase/sessionUtils':{toAuthSessionState:s=>({token:s.access_token})},
   });
   const cleanup=store.getState().initialize();
-  return {store,cleanup,event:(type,id)=>callback(type,id ? session(id) : null),resolve:(id,profile={id,role:'child'})=>pending.get(id).resolve(profile),signOuts:()=>signOuts};
+  return {store,cleanup,event:(type,id)=>callback(type,id ? session(id) : null),resolve:(id,profile={id,role:'child'})=>pending.get(id).resolve(profile),signOuts:()=>signOuts,cacheClears:()=>[childResets,adultClears]};
 }
 (async()=>{
   let checks=0;
@@ -154,5 +154,60 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
   await moodService.saveMoodCheckIn('child','sad',' private mood ','private response');
   assert.equal(moodWrites.length,1);assert.equal(moodWrites[0].table,'mood_check_ins');
   assert.equal(moodWrites[0].row.is_shared,false);assert.equal(moodWrites[0].row.note,'private mood');checks++;
+  // A refocus/token refresh for the same account must recheck the profile without
+  // dropping authenticated routes and destroying an unsaved assignment draft.
+  for (const event of ['SIGNED_IN', 'TOKEN_REFRESHED']) {
+    const f=fixture();await tick();f.event('SIGNED_IN','A');await tick();
+    f.resolve('A',{id:'A',role:'teacher',status:'active',is_authorized:true});await tick();
+    const cacheClears=f.cacheClears();
+    const states=[];const unsubscribe=f.store.subscribe(state=>states.push(state));
+    f.event(event,'A');await tick();
+    assert.equal(f.store.getState().user?.id,'A',`${event} must preserve the verified account while rechecking`);
+    assert.equal(f.store.getState().loading,false);
+    f.resolve('A',{id:'A',role:'teacher',status:'active',is_authorized:true});await tick();
+    assert.ok(states.every(state=>state.user?.id==='A' && state.profile?.id==='A' && !state.loading));
+    assert.deepEqual(f.cacheClears(),cacheClears);
+    unsubscribe();f.cleanup();checks++;
+  }
+  // Failed or mismatched background verification must still close the session.
+  for (const profile of [null,{id:'B',role:'teacher'}]) {
+    const f=fixture();await tick();f.event('SIGNED_IN','A');await tick();f.resolve('A');await tick();
+    f.event('TOKEN_REFRESHED','A');await tick();f.resolve('A',profile);await tick();
+    assert.equal(f.store.getState().user,null);assert.equal(f.store.getState().profile,null);
+    assert.equal(f.signOuts(),1);f.cleanup();checks++;
+  }
+  // A pending refresh must never restore the account after logout or guest entry.
+  for (const end of ['event','action','guest','cleanup']) {
+    const f=fixture();await tick();f.event('SIGNED_IN','A');await tick();f.resolve('A');await tick();
+    f.event('TOKEN_REFRESHED','A');await tick();
+    if(end==='event')f.event('SIGNED_OUT');
+    if(end==='action')await f.store.getState().signOut();
+    if(end==='guest')await f.store.getState().setGuestMode();
+    if(end==='cleanup')f.cleanup();
+    const stateAtEnd=f.store.getState();
+    f.resolve('A');await tick();
+    if(end==='cleanup')assert.equal(f.store.getState(),stateAtEnd);
+    else assert.equal(f.store.getState().user,null);
+    assert.equal(f.store.getState().isGuest,end==='guest');f.cleanup();checks++;
+  }
+  // Revalidation still applies changed roles/status; it cannot retain old access.
+  for (const profile of [{id:'A',role:'child',status:'active',is_authorized:true},{id:'A',role:'teacher',status:'suspended',is_authorized:false}]) {
+    const f=fixture();await tick();f.event('SIGNED_IN','A');await tick();
+    f.resolve('A',{id:'A',role:'teacher',status:'active',is_authorized:true});await tick();
+    const cacheClears=f.cacheClears();
+    f.event('SIGNED_IN','A');await tick();f.resolve('A',profile);await tick();
+    assert.equal(f.store.getState().profile.role,profile.role);
+    assert.equal(f.store.getState().profile.status,profile.status);
+    assert.equal(f.store.getState().profile.is_authorized,profile.is_authorized);
+    assert.deepEqual(f.cacheClears(),cacheClears.map(count=>count+1));f.cleanup();checks++;
+  }
+  {
+    const f=fixture();await tick();f.event('SIGNED_IN','A');await tick();f.resolve('A');await tick();
+    f.event('TOKEN_REFRESHED','A');await tick();f.event('SIGNED_IN','B');await tick();
+    assert.equal(f.store.getState().user,null);
+    f.resolve('B');await tick();f.resolve('A');await tick();
+    assert.equal(f.store.getState().user.id,'B');assert.equal(f.store.getState().profile.id,'B');
+    assert.equal(f.signOuts(),0);f.cleanup();checks++;
+  }
   console.log(`Auth and privacy boundaries: ${checks} runtime checks passed.`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

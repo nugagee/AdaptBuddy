@@ -248,9 +248,25 @@ const loadRequiredProfile = async (userId: string, version: number): Promise<Pro
 };
 
 const applyAuthSession = async (session: Session) => {
-  const version = prepareAuthenticatedTransition();
+  const current = useAuthStore.getState();
+  // Supabase can emit SIGNED_IN again when a tab regains focus. Revalidate the
+  // same account in place so protected routes keep their unsaved form state.
+  // Account switches and guest transitions still clear all previous identity.
+  const sameAccount = !current.loading && !current.isGuest && !hasStoredGuestMode()
+    && current.user?.id === session.user.id && current.profile?.id === session.user.id;
+  const version = sameAccount ? ++authTransitionVersion : prepareAuthenticatedTransition();
   const profile = await loadRequiredProfile(session.user.id, version);
   assertCurrentTransition(version);
+  if (sameAccount && (
+    profile.role !== current.profile?.role
+    || profile.status !== current.profile?.status
+    || profile.is_authorized !== current.profile?.is_authorized
+    || session.user.email !== current.user?.email
+    || session.user.email_confirmed_at !== current.user?.email_confirmed_at
+  )) {
+    useChildSessionStore.getState().resetSession();
+    useTrustedAdultStore.getState().clearTrustedAdults();
+  }
   useAuthStore.setState({
     user: session.user,
     profile,

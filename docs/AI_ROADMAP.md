@@ -4,13 +4,13 @@
 
 AdaptBuddy has a live OpenAI-powered Buddy and deterministic personalisation and pattern rules. The keyword emotion helper is not a trained NLP model. Fixed catalog weights are not confidence probabilities. Predictive safeguarding, verified proactive notifications and a privacy-preserving classroom heatmap remain development plans.
 
-The Assignment AI Assistant is implemented on `codex/assignment-ai-assistant`, pending a provider-connected preview review and release. It has not been enabled on the live site. The supplied “Code Proof of AI Automation” screenshot is not evidence of the deployed implementation.
+The Assignment AI Assistant is implemented on `codex/assignment-ai-assistant`. Seven synthetic tasks completed with real OpenAI responses in the protected preview. A local fix for an unsaved-draft reset found during that review still needs a refreshed preview check before release. Assignment AI has not been enabled on the live site. The supplied “Code Proof of AI Automation” screenshot is not evidence of the deployed implementation.
 
 ## Build order and completion criteria
 
 | Stage | Deliverable | Human decision and boundary | Status |
 | --- | --- | --- | --- |
-| 1. Assignment AI Assistant | On-demand selection of up to three existing support tools from teacher-reviewed assignment text | Teacher adds each desired tool to the draft; the normal Publish action remains separate. No student records are retrieved for AI. | Implementation and automated checks complete; preview/provider review and release pending. |
+| 1. Assignment AI Assistant | On-demand selection of up to three existing support tools from teacher-reviewed assignment text | Teacher adds each desired tool to the draft; the normal Publish action remains separate. No student records are retrieved for AI. | Seven real-provider preview cases complete; draft-reset fix passes local checks and awaits a preview recheck before release. |
 | 2. Check-in suggestions | Explainable rules using explicitly shared support requests and task signals, with a visible reason and time window | Responsible adult reviews the suggestion. A missing signal never means a child is safe. No automated emotion/diagnosis or risk prediction. | Planned. Define consent, response ownership, notification delivery, acknowledgements, retries and escalation first. |
 | 3. Classroom support overview | Aggregated trends from authorised, purpose-specific classroom data | No private diary/chat text or individual diagnostic labels. Agree minimum group size, suppress small groups and prevent filters/differences from revealing individuals. | Planned. Complete school access, withdrawal, retention and DPIA work first. |
 | 4. Predictive Support Signals | A separately evaluated research model, initially in shadow mode | Define measurable outcomes, collect suitable authorised history, assess bias, calibrate results and compare with simple rules. Human review remains required. Never decide that a child is safe, unsafe or lying. | Research stage; not enabled or presented as working. |
@@ -30,6 +30,7 @@ These are engineering release criteria, not a claim that school safeguarding or 
 - Each Add button updates only the support-tool choices in the draft. Publishing still uses the existing assignment service and access policies. There are no new database migrations and no AI-created records or messages.
 - Guests cannot request AI. An unavailable service leaves manual assignment creation available and never substitutes a mock “AI” response.
 - Preview review exposed confusing sign-in entry points: demo buttons are now explicitly labelled, the guest AI panel links to real sign-in, and the legacy Teacher Portal routes to the shared Supabase login instead of simulating authentication.
+- Product intent: child, parent and teacher guest demos remain available for visitors to explore AdaptBuddy. Real account use requires registration and sign-in, with access determined by the verified profile and permissions. The sign-in copy states this distinction across all three roles.
 
 ## Cost and rollout controls
 
@@ -37,7 +38,7 @@ These are engineering release criteria, not a claim that school safeguarding or 
 
 Requests occur only after a button click. Limits are 160 title characters, 1,600 instruction characters (also enforced after Unicode normalisation), three suggestions and 180 output tokens. Each fetch has a timeout. A per-account, per-instance limit allows five requests per minute and does not trust a caller-supplied IP as the identity.
 
-The in-memory limiter is **not a distributed quota or spending ceiling**; instances can each accept requests and counters reset on restart. Before wider rollout, configure/check provider-side spending controls and add a shared durable quota if a firm application-wide limit is needed. No paid provider test, plan upgrade or production environment change was performed during implementation.
+The in-memory limiter is **not a distributed quota or spending ceiling**; instances can each accept requests and counters reset on restart. Before wider rollout, configure/check provider-side spending controls and add a shared durable quota if a firm application-wide limit is needed. Implementation checks used provider mocks; the subsequent protected-preview review completed seven synthetic cases with real OpenAI responses. No plan upgrade or production AI enablement was performed.
 
 `store: false` is sent to the Responses API. This is not a blanket promise about provider retention; review the selected organisation/project data controls before enabling the feature.
 
@@ -61,3 +62,4 @@ The in-memory limiter is **not a distributed quota or spending ceiling**; instan
 - All 22 app suites / 91 tests passed, including component/service checks for privacy confirmation, explicit teacher selection, normal publishing, stale-result cancellation, guest denial, payload allowlisting and failure handling.
 - TypeScript and production build completed successfully. The full app suite initially had one timeout in the existing dashboard offline-sync test while running alongside the build; its isolated rerun and the complete suite rerun both passed without test changes.
 - Existing Buddy and authentication/safeguarding prebuild checks remain enabled; the new API suite is also required by prebuild.
+- After the real-provider review and local session-refresh fix: 28 auth/privacy runtime checks, 29 Assignment AI API checks, all 23 app suites / 92 tests, TypeScript and the production build passed. The new login/draft-preservation fixes still need to be deployed to Preview and checked there. See `docs/reviews/ASSIGNMENT_AI_PREVIEW_2026-09-09.md` for the observed provider outputs and remaining release work.

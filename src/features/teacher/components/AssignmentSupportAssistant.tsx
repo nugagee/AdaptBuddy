@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, Sparkles } from 'lucide-react';
 import supportCatalog from 'features/teacher/data/assignmentSupportCatalog.json';
+import { ROUTES } from 'constants/routes';
 import { suggestAssignmentSupport, type AssignmentSupportInput } from '../services/assignmentSupportService';
 
 interface Props {
@@ -62,7 +63,10 @@ const AssignmentSupportAssistant: React.FC<Props> = ({ assignment, selectedTools
         Only the title, instructions and task type are sent to OpenAI. Remove names, contact details and private student information first. AI suggestions can be unsuitable; review them for your learners.
       </p>
       {isGuest ? (
-        <p className="mt-3 text-sm font-semibold">Sign in with a teacher account to use Assignment AI. Guest mode does not make AI requests.</p>
+        <div className="mt-3 text-sm font-semibold">
+          <p>Sign in with a teacher account to use Assignment AI. Guest mode does not make AI requests.</p>
+          <a href={ROUTES.LOGIN} className="mt-2 inline-block underline underline-offset-4">Sign in to your account</a>
+        </div>
       ) : (
         <>
           <label className="mt-3 flex items-start gap-2 text-sm text-slate-700 dark:text-gray-200">

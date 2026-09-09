@@ -29,6 +29,7 @@ These are engineering release criteria, not a claim that school safeguarding or 
 - Suggestions are temporary UI state. Changing the task/class or leaving the form cancels the pending browser request and discards stale suggestions. It does not guarantee that an already-started provider request incurs no cost.
 - Each Add button updates only the support-tool choices in the draft. Publishing still uses the existing assignment service and access policies. There are no new database migrations and no AI-created records or messages.
 - Guests cannot request AI. An unavailable service leaves manual assignment creation available and never substitutes a mock “AI” response.
+- Preview review exposed confusing sign-in entry points: demo buttons are now explicitly labelled, the guest AI panel links to real sign-in, and the legacy Teacher Portal routes to the shared Supabase login instead of simulating authentication.
 
 ## Cost and rollout controls
 

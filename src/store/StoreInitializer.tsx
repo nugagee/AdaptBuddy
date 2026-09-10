@@ -1,8 +1,37 @@
 import { useEffect } from 'react';
 import { useAuthStore } from 'store/authStore';
 import { useUiStore } from 'store/uiStore';
-import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
+import {
+  beginAutismProfileScope,
+  hydrateAutismProfileScope,
+  unbindAutismProfileScope,
+  updateAutismProfileForChild,
+  shouldApplyRemoteAutismProfile,
+  useAutismProfileStore,
+} from 'features/child/store/autismProfileStore';
+import {
+  beginChildProgressScope,
+  hydrateChildProgressScope,
+  unbindChildProgressScope,
+  useChildProgressStore,
+} from 'features/child/store/childProgressStore';
+import { resolveChildScopeId } from 'features/child/store/childProgressReadAccess';
 import { fetchAutismProfile } from 'services/supabase/autismProfileService';
+
+const getCurrentChildScopeId = (): string | null => {
+  const { user, profile, isGuest } = useAuthStore.getState();
+  return resolveChildScopeId({
+    userId: user?.id ?? null,
+    profileId: profile?.id ?? null,
+    profileRole: profile?.role ?? null,
+    isGuest,
+  });
+};
+
+const unbindChildStores = () => {
+  unbindAutismProfileScope();
+  unbindChildProgressScope();
+};
 
 /**
  * Boots Zustand stores that need side effects (Supabase session, DOM theme sync).
@@ -41,31 +70,101 @@ const StoreInitializer = () => {
   }, []);
 
   useEffect(() => {
-    const syncAutismProfile = async (userId: string | undefined, role: string | undefined) => {
-      if (!userId || role !== 'child') return;
-      try {
-        const remote = await fetchAutismProfile(userId);
-        if (remote) {
-          useAutismProfileStore.getState().updateProfile(remote);
-        } else {
-          useAutismProfileStore.getState().updateProfile({
-            ...useAutismProfileStore.getState().profile,
-            childId: userId,
-          });
-        }
-      } catch {
-        // Local persisted profile remains available offline
+    let activeChildId: string | null = null;
+    let scopeEpoch = 0;
+    let disposed = false;
+
+    const isCurrentScope = (childId: string, epoch: number) =>
+      !disposed &&
+      scopeEpoch === epoch &&
+      activeChildId === childId &&
+      getCurrentChildScopeId() === childId;
+
+    const bindCurrentChild = () => {
+      const childId = getCurrentChildScopeId();
+      if (childId === activeChildId) return;
+
+      const epoch = ++scopeEpoch;
+      activeChildId = childId;
+
+      // Reset synchronously before starting another hydration so no state from
+      // the previous account can render or be written under the next account.
+      unbindChildStores();
+      if (!childId) return;
+
+      const isGuestScope = useAuthStore.getState().isGuest;
+      if (isGuestScope) {
+        // Guest mode is an in-memory demo. It gets a usable isolated scope,
+        // but the persistence adapters remain unbound so no guest activity is
+        // saved alongside a registered child's records.
+        const autism = useAutismProfileStore.getState();
+        autism.resetForChild(childId);
+        autism.markReady(childId);
+        const progress = useChildProgressStore.getState();
+        progress.resetForChild(childId);
+        progress.markReady(childId);
+        return;
       }
+
+      const autismToken = beginAutismProfileScope(childId);
+      const progressToken = beginChildProgressScope(childId);
+
+      // Progress and the support passport hydrate independently. One corrupt
+      // local record must not block the other feature from becoming usable.
+      void hydrateChildProgressScope(progressToken).catch(() => undefined);
+
+      void (async () => {
+        try {
+          const autismResult = await hydrateAutismProfileScope(autismToken);
+
+          if (
+            autismResult !== 'ready'
+            || !isCurrentScope(childId, epoch)
+          ) {
+            return;
+          }
+
+          // Keep the exact hydrated profile reference. If the child saves or
+          // onboarding updates their profile while this request is pending,
+          // the fetched copy is stale and must not replace the newer edit.
+          const profileBeforeFetch = useAutismProfileStore.getState().profile;
+          const remote = await fetchAutismProfile(childId);
+          if (!isCurrentScope(childId, epoch)) return;
+
+          const autismStore = useAutismProfileStore.getState();
+          if (
+            autismStore.ownerId !== childId ||
+            autismStore.hydrationStatus !== 'ready'
+          ) {
+            return;
+          }
+
+          if (remote && shouldApplyRemoteAutismProfile(profileBeforeFetch, remote)) {
+            updateAutismProfileForChild(childId, remote, profileBeforeFetch);
+          } else if (autismStore.profile.childId !== childId) {
+            updateAutismProfileForChild(childId, autismStore.profile);
+          }
+        } catch {
+          // Local persisted state remains available when the remote profile is
+          // offline. Hydration failures remain fail-closed in the error state.
+        }
+      })();
     };
 
-    void syncAutismProfile(
-      useAuthStore.getState().user?.id,
-      useAuthStore.getState().profile?.role,
-    );
+    // Clear any scope left behind by a previous initializer instance (for
+    // example during StrictMode remounting), then bind the current auth state.
+    unbindChildStores();
+    bindCurrentChild();
 
-    return useAuthStore.subscribe((state) => {
-      void syncAutismProfile(state.user?.id, state.profile?.role);
-    });
+    const unsubscribeAuth = useAuthStore.subscribe(bindCurrentChild);
+
+    return () => {
+      disposed = true;
+      ++scopeEpoch;
+      activeChildId = null;
+      unsubscribeAuth();
+      unbindChildStores();
+    };
   }, []);
 
   return null;

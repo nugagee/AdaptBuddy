@@ -61,10 +61,9 @@ const NeuroSelectorPage: React.FC = () => {
         state: { message: 'Great choice! Let AdaptBuddy get to know you.' },
       });
     } catch (err: unknown) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Could not save your selections. Please try again.';
+      const message = err instanceof Error
+        ? err.message
+        : 'Could not save your selections. Please try again.';
       setError(message);
     } finally {
       setSaving(false);
@@ -74,12 +73,15 @@ const NeuroSelectorPage: React.FC = () => {
   return (
     <>
       {error && (
-        <div className="fixed top-4 left-1/2 z-50 w-[min(100%-2rem,28rem)] -translate-x-1/2 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg dark:bg-red-950/90 dark:text-red-300">
+        <div
+          role="alert"
+          className="fixed left-1/2 top-4 z-50 w-[min(100%-2rem,28rem)] -translate-x-1/2 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg dark:bg-red-950/90 dark:text-red-300"
+        >
           {error}
         </div>
       )}
       <NeuroSelector
-        initialSelected={profile?.neuro_types?.length ? profile.neuro_types : ['autism']}
+        initialSelected={profile?.neuro_types ?? []}
         userName={profile?.first_name || user?.user_metadata?.first_name || 'friend'}
         onContinue={handleContinue}
         saving={saving}

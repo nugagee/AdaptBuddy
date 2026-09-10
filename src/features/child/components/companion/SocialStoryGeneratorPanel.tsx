@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BookOpen, Loader2, Plus } from 'lucide-react';
 import { buildCompanionContext, generateSocialStory, isOpenAiConfigured } from 'services/ai';
-import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
+import {
+  selectAutismProfileForChild,
+  useAutismProfileStore,
+} from 'features/child/store/autismProfileStore';
 import { useAuth } from 'hooks/useAuth';
+import { useAuthStore } from 'store/authStore';
+import { resolveChildScopeId } from 'features/child/store/childProgressReadAccess';
 
 const SCENARIO_SUGGESTIONS = [
   'Going to a birthday party',
@@ -13,10 +18,35 @@ const SCENARIO_SUGGESTIONS = [
   'When the plan changes',
 ];
 
+const isCurrentReadyChildScope = (childId: string): boolean => {
+  const currentAuth = useAuthStore.getState();
+  const currentAutism = useAutismProfileStore.getState();
+  const currentChildScopeId = resolveChildScopeId({
+    userId: currentAuth.user?.id ?? null,
+    profileId: currentAuth.profile?.id ?? null,
+    profileRole: currentAuth.profile?.role ?? null,
+    isGuest: currentAuth.isGuest,
+  });
+
+  return (
+    currentChildScopeId === childId
+    && currentAutism.ownerId === childId
+    && currentAutism.profile.childId === childId
+    && currentAutism.hydrationStatus === 'ready'
+  );
+};
+
 const SocialStoryGeneratorPanel: React.FC = () => {
-  const { profile: authProfile } = useAuth();
-  const autismProfile = useAutismProfileStore((s) => s.profile);
-  const addSocialStory = useAutismProfileStore((s) => s.addSocialStory);
+  const { profile: authProfile, user, isGuest } = useAuth();
+  const authenticatedChildId = resolveChildScopeId({
+    userId: user?.id ?? null,
+    profileId: authProfile?.id ?? null,
+    profileRole: authProfile?.role ?? null,
+    isGuest,
+  });
+  const autismProfile = useAutismProfileStore((state) =>
+    selectAutismProfileForChild(state, authenticatedChildId),
+  );
 
   const [scenario, setScenario] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,33 +54,77 @@ const SocialStoryGeneratorPanel: React.FC = () => {
   const [title, setTitle] = useState('');
   const [panels, setPanels] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
+  const [generatedOwnerId, setGeneratedOwnerId] = useState<string | null>(null);
+  const generationRequestRef = useRef(0);
 
-  const ctx = buildCompanionContext(
-    autismProfile,
-    authProfile?.first_name || 'friend',
-    authProfile?.age ?? null,
-  );
+  useEffect(() => {
+    generationRequestRef.current += 1;
+    setScenario('');
+    setLoading(false);
+    setError('');
+    setTitle('');
+    setPanels([]);
+    setSaved(false);
+    setGeneratedOwnerId(null);
+  }, [authenticatedChildId]);
 
   const handleGenerate = async () => {
+    const requestUserId = authenticatedChildId;
+    if (!requestUserId || !autismProfile || !isCurrentReadyChildScope(requestUserId)) {
+      setError('Your child profile is still getting ready. Please try again in a moment.');
+      return;
+    }
+
+    const requestId = ++generationRequestRef.current;
+    const requestContext = buildCompanionContext(
+      autismProfile,
+      authProfile?.first_name || 'friend',
+      authProfile?.age ?? null,
+    );
+
     setLoading(true);
     setError('');
     setSaved(false);
     setTitle('');
     setPanels([]);
+    setGeneratedOwnerId(null);
     try {
-      const story = await generateSocialStory(scenario, ctx);
+      const story = await generateSocialStory(scenario, requestContext);
+      if (
+        generationRequestRef.current !== requestId
+        || !isCurrentReadyChildScope(requestUserId)
+      ) {
+        return;
+      }
+
       setTitle(story.title);
       setPanels(story.panels);
+      setGeneratedOwnerId(requestUserId);
     } catch (err: unknown) {
+      if (
+        generationRequestRef.current !== requestId
+        || !isCurrentReadyChildScope(requestUserId)
+      ) {
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Could not generate your story.');
     } finally {
-      setLoading(false);
+      if (generationRequestRef.current === requestId) setLoading(false);
     }
   };
 
   const handleSave = () => {
-    if (!title || panels.length === 0) return;
-    addSocialStory({ title, panels });
+    if (
+      !title
+      || panels.length === 0
+      || !generatedOwnerId
+      || generatedOwnerId !== authenticatedChildId
+      || !isCurrentReadyChildScope(generatedOwnerId)
+    ) {
+      return;
+    }
+
+    useAutismProfileStore.getState().addSocialStory({ title, panels });
     setSaved(true);
   };
 
@@ -91,7 +165,7 @@ const SocialStoryGeneratorPanel: React.FC = () => {
       <button
         type="button"
         onClick={() => void handleGenerate()}
-        disabled={loading || !scenario.trim()}
+        disabled={loading || !scenario.trim() || !authenticatedChildId || !autismProfile}
         className="inline-flex items-center gap-2 rounded-2xl bg-adapt-indigo px-5 py-3 text-sm font-semibold text-white disabled:opacity-50 dark:bg-adapt-cyan dark:text-gray-900"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}

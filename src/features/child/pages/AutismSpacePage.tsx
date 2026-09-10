@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   BookOpen,
@@ -29,7 +29,10 @@ import { ROUTES } from 'constants/routes';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
-import { useTrustedAdultStore } from 'features/child/store/trustedAdultStore';
+import {
+  isConnectedTrustedAdult,
+  useTrustedAdultStore,
+} from 'features/child/store/trustedAdultStore';
 import type {
   AutismProfile,
   CalmingTool,
@@ -40,7 +43,10 @@ import type {
   WarningTime,
 } from 'features/child/types/autismProfile';
 import { useUiStore } from 'store/uiStore';
+import { useAuthStore } from 'store/authStore';
 import { useAuth } from 'hooks/useAuth';
+import { resolveChildScopeId } from 'features/child/store/childProgressReadAccess';
+import { saveAutismProfile } from 'services/supabase/autismProfileService';
 
 type AutismTab = 'profile' | 'schedule' | 'transition' | 'calm' | 'story' | 'communication';
 
@@ -100,10 +106,75 @@ const moveItem = (items: ScheduleItem[], index: number, direction: -1 | 1) => {
   return next;
 };
 
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const mergeDraftValue = (base: unknown, draft: unknown, latest: unknown): unknown => {
+  if (Object.is(base, draft)) return latest;
+
+  if (Array.isArray(base) && Array.isArray(draft)) {
+    return JSON.stringify(base) === JSON.stringify(draft) ? latest : draft;
+  }
+
+  if (isPlainRecord(base) && isPlainRecord(draft) && isPlainRecord(latest)) {
+    const keys = new Set([...Object.keys(base), ...Object.keys(draft), ...Object.keys(latest)]);
+    return Object.fromEntries(
+      Array.from(keys).map((key) => [key, mergeDraftValue(base[key], draft[key], latest[key])]),
+    );
+  }
+
+  return draft;
+};
+
+const mergeProfileDraftOntoLatest = (
+  base: AutismProfile,
+  draft: AutismProfile,
+  latest: AutismProfile,
+): AutismProfile => mergeDraftValue(base, draft, latest) as AutismProfile;
+
+const canMutateAutismState = (
+  initiatingOwnerId: string | null,
+  initiatingGeneration: number,
+  currentGeneration: number,
+): initiatingOwnerId is string => {
+  if (!initiatingOwnerId || initiatingGeneration !== currentGeneration) return false;
+
+  const auth = useAuthStore.getState();
+  const activeChildScopeId = resolveChildScopeId({
+    userId: auth.user?.id ?? null,
+    profileId: auth.profile?.id ?? null,
+    profileRole: auth.profile?.role ?? null,
+    isGuest: auth.isGuest,
+  });
+  const autismState = useAutismProfileStore.getState();
+
+  return (
+    activeChildScopeId === initiatingOwnerId
+    && autismState.ownerId === initiatingOwnerId
+    && autismState.hydrationStatus === 'ready'
+    && autismState.profile.childId === initiatingOwnerId
+  );
+};
+
 const AutismSpacePage: React.FC = () => {
+  const initialAutismState = useAutismProfileStore.getState();
+  const initialAuth = useAuthStore.getState();
+  const initialChildScopeId = resolveChildScopeId({
+    userId: initialAuth.user?.id ?? null,
+    profileId: initialAuth.profile?.id ?? null,
+    profileRole: initialAuth.profile?.role ?? null,
+    isGuest: initialAuth.isGuest,
+  });
+  const initialDraftOwnerId = (
+    initialChildScopeId
+    && initialAutismState.ownerId === initialChildScopeId
+    && initialAutismState.hydrationStatus === 'ready'
+    && initialAutismState.profile.childId === initialChildScopeId
+  ) ? initialChildScopeId : null;
+
   const [activeTab, setActiveTab] = useState<AutismTab>('profile');
   const [profileDraft, setProfileDraft] = useState<AutismProfile>(
-    useAutismProfileStore.getState().profile,
+    initialAutismState.profile,
   );
   const [newScheduleLabel, setNewScheduleLabel] = useState('');
   const [timerMinutes, setTimerMinutes] = useState<WarningTime>(profileDraft.routine.warningTime);
@@ -114,9 +185,27 @@ const AutismSpacePage: React.FC = () => {
   const [worryNote, setWorryNote] = useState('');
   const [newPhrase, setNewPhrase] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
+  const [draftOwnerId, setDraftOwnerId] = useState<string | null>(initialDraftOwnerId);
+  const [draftGeneration, setDraftGeneration] = useState(0);
+  const [profileDraftRevision, setProfileDraftRevision] = useState(
+    initialAutismState.profile.updatedAt,
+  );
+  const profileDraftBaseRef = useRef(initialAutismState.profile);
+  const timerDirtyRef = useRef(false);
+  const draftGenerationRef = useRef(0);
+  const savedMessageTimeoutRef = useRef<number | null>(null);
+  const printTimeoutRef = useRef<number | null>(null);
 
   const navigate = useNavigate();
-  const { profile: authProfile } = useAuth();
+  const { user: authUser, profile: authProfile, isGuest } = useAuth();
+  const activeChildScopeId = resolveChildScopeId({
+    userId: authUser?.id ?? null,
+    profileId: authProfile?.id ?? null,
+    profileRole: authProfile?.role ?? null,
+    isGuest,
+  });
+  const autismOwnerId = useAutismProfileStore((s) => s.ownerId);
+  const autismHydrationStatus = useAutismProfileStore((s) => s.hydrationStatus);
   const profile = useAutismProfileStore((s) => s.profile);
   const schedule = useAutismProfileStore((s) => s.schedule);
   const socialStories = useAutismProfileStore((s) => s.socialStories);
@@ -124,16 +213,30 @@ const AutismSpacePage: React.FC = () => {
   const updateSchedule = useAutismProfileStore((s) => s.updateSchedule);
   const toggleScheduleDone = useAutismProfileStore((s) => s.toggleScheduleDone);
   const addSocialStory = useAutismProfileStore((s) => s.addSocialStory);
+  const trustedAdultOwnerChildId = useTrustedAdultStore((s) => s.ownerChildId);
   const trustedAdults = useTrustedAdultStore((s) => s.trustedAdults);
   const selectedTrustedAdultId = useTrustedAdultStore((s) => s.selectedTrustedAdultId);
   const setReducedMotion = useUiStore((s) => s.setReducedMotion);
   const setTheme = useUiStore((s) => s.setTheme);
 
   const activeTrustedAdult = useMemo(
-    () => trustedAdults.find((adult) => adult.id === selectedTrustedAdultId) ?? trustedAdults[0],
-    [selectedTrustedAdultId, trustedAdults],
+    () => {
+      if (trustedAdultOwnerChildId !== draftOwnerId || !draftOwnerId) return undefined;
+      const connectedAdults = trustedAdults.filter(isConnectedTrustedAdult);
+      return connectedAdults.find((adult) => adult.id === selectedTrustedAdultId)
+        ?? connectedAdults[0];
+    },
+    [draftOwnerId, selectedTrustedAdultId, trustedAdultOwnerChildId, trustedAdults],
   );
-  const childId = authProfile?.id ?? profile.childId ?? 'guest-child';
+  const autismSpaceReady = Boolean(
+    activeChildScopeId
+    && autismOwnerId === activeChildScopeId
+    && autismHydrationStatus === 'ready'
+    && profile.childId === activeChildScopeId
+    && draftOwnerId === activeChildScopeId
+    && draftGeneration === draftGenerationRef.current
+  );
+  const childId = autismSpaceReady && draftOwnerId ? draftOwnerId : 'guest-child';
   const timerDisplay = `${Math.floor(timerSecondsLeft / 60)}:${String(timerSecondsLeft % 60).padStart(2, '0')}`;
   const childName = authProfile?.first_name ?? profileDraft.aboutMe?.preferredName ?? 'Learner';
   const selectedQuickButtons = profileDraft.communication.quickButtons.filter((button) => button.enabled);
@@ -141,8 +244,122 @@ const AutismSpacePage: React.FC = () => {
     items.length ? items.join(', ') : fallback;
 
   useEffect(() => {
+    const nextGeneration = draftGenerationRef.current + 1;
+    draftGenerationRef.current = nextGeneration;
+    const scopedProfile = useAutismProfileStore.getState().profile;
+    const readyOwnerId = (
+      activeChildScopeId
+      && autismOwnerId === activeChildScopeId
+      && autismHydrationStatus === 'ready'
+      && scopedProfile.childId === activeChildScopeId
+    ) ? activeChildScopeId : null;
+
+    // Every local draft belongs to exactly one hydrated child. Clear and
+    // reseed them together so an account switch cannot carry Child A's
+    // unfinished state into Child B's ready store.
+    setDraftOwnerId(readyOwnerId);
+    setDraftGeneration(nextGeneration);
+    setProfileDraft(scopedProfile);
+    setProfileDraftRevision(scopedProfile.updatedAt);
+    profileDraftBaseRef.current = scopedProfile;
+    timerDirtyRef.current = false;
+    setNewScheduleLabel('');
+    setTimerMinutes(scopedProfile.routine.warningTime);
+    setTimerSecondsLeft(scopedProfile.routine.warningTime * 60);
+    setTimerRunning(false);
+    setStoryTitle('');
+    setStoryPanels(['', '', '']);
+    setWorryNote('');
+    setNewPhrase('');
+    setSavedMessage('');
+
+    if (savedMessageTimeoutRef.current !== null) {
+      window.clearTimeout(savedMessageTimeoutRef.current);
+      savedMessageTimeoutRef.current = null;
+    }
+    if (printTimeoutRef.current !== null) {
+      window.clearTimeout(printTimeoutRef.current);
+      printTimeoutRef.current = null;
+    }
+
+    return () => {
+      // Invalidate callbacks that are already queued even if the account later
+      // switches back to the same child id (A -> B -> A).
+      draftGenerationRef.current += 1;
+      if (savedMessageTimeoutRef.current !== null) {
+        window.clearTimeout(savedMessageTimeoutRef.current);
+        savedMessageTimeoutRef.current = null;
+      }
+      if (printTimeoutRef.current !== null) {
+        window.clearTimeout(printTimeoutRef.current);
+        printTimeoutRef.current = null;
+      }
+    };
+  }, [activeChildScopeId, autismHydrationStatus, autismOwnerId]);
+
+  useEffect(() => {
+    if (
+      !activeChildScopeId
+      || activeChildScopeId !== draftOwnerId
+      || autismOwnerId !== draftOwnerId
+      || autismHydrationStatus !== 'ready'
+      || profile.childId !== draftOwnerId
+      || draftGeneration !== draftGenerationRef.current
+      || profileDraftBaseRef.current === profile
+    ) return;
+
+    // StoreInitializer may merge the server profile after local hydration is
+    // already marked ready. Apply only the child's unsaved field changes over
+    // that latest base, instead of either dropping the draft or overwriting the
+    // server profile with a stale pre-fetch copy.
+    const previousBase = profileDraftBaseRef.current;
+    const mergedProfileDraft = mergeProfileDraftOntoLatest(
+      previousBase,
+      profileDraft,
+      profile,
+    );
+    profileDraftBaseRef.current = profile;
+    setProfileDraft(mergedProfileDraft);
+    setProfileDraftRevision(profile.updatedAt);
+
+    if (!timerDirtyRef.current) {
+      setTimerMinutes(mergedProfileDraft.routine.warningTime);
+      setTimerSecondsLeft(mergedProfileDraft.routine.warningTime * 60);
+      setTimerRunning(false);
+    }
+  }, [
+    activeChildScopeId,
+    autismHydrationStatus,
+    autismOwnerId,
+    draftGeneration,
+    draftOwnerId,
+    profile,
+    profileDraft,
+  ]);
+
+  useEffect(() => {
     if (!timerRunning) return undefined;
+    const initiatingOwnerId = draftOwnerId;
+    const initiatingGeneration = draftGeneration;
+    if (!canMutateAutismState(
+      initiatingOwnerId,
+      initiatingGeneration,
+      draftGenerationRef.current,
+    )) {
+      setTimerRunning(false);
+      return undefined;
+    }
+
     const timer = window.setInterval(() => {
+      if (!canMutateAutismState(
+        initiatingOwnerId,
+        initiatingGeneration,
+        draftGenerationRef.current,
+      )) {
+        window.clearInterval(timer);
+        return;
+      }
+
       setTimerSecondsLeft((seconds) => {
         if (seconds <= 1) {
           window.clearInterval(timer);
@@ -154,35 +371,192 @@ const AutismSpacePage: React.FC = () => {
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [timerRunning]);
+  }, [draftGeneration, draftOwnerId, timerRunning]);
 
   const setWarningMinutes = (minutes: WarningTime) => {
+    if (!canMutateAutismState(
+      draftOwnerId,
+      draftGeneration,
+      draftGenerationRef.current,
+    )) return;
+    timerDirtyRef.current = true;
     setTimerMinutes(minutes);
     setTimerSecondsLeft(minutes * 60);
     setTimerRunning(false);
   };
 
-  const saveProfile = () => {
+  const setTimerRunningForDraftOwner = () => {
+    if (!canMutateAutismState(
+      draftOwnerId,
+      draftGeneration,
+      draftGenerationRef.current,
+    )) return;
+    timerDirtyRef.current = true;
+    setTimerRunning((running) => !running);
+  };
+
+  const toggleScheduleItemForDraftOwner = (itemId: string) => {
+    const initiatingOwnerId = draftOwnerId;
+    const initiatingGeneration = draftGeneration;
+    if (!canMutateAutismState(
+      initiatingOwnerId,
+      initiatingGeneration,
+      draftGenerationRef.current,
+    )) return;
+    toggleScheduleDone(itemId);
+  };
+
+  const moveScheduleItemForDraftOwner = (index: number, direction: -1 | 1) => {
+    const initiatingOwnerId = draftOwnerId;
+    const initiatingGeneration = draftGeneration;
+    if (!canMutateAutismState(
+      initiatingOwnerId,
+      initiatingGeneration,
+      draftGenerationRef.current,
+    )) return;
+    updateSchedule(moveItem(schedule, index, direction));
+  };
+
+  const showSavedMessage = (
+    message: string,
+    initiatingOwnerId: string,
+    initiatingGeneration: number,
+  ) => {
+    setSavedMessage(message);
+    if (savedMessageTimeoutRef.current !== null) {
+      window.clearTimeout(savedMessageTimeoutRef.current);
+    }
+    const savedMessageTimeout = window.setTimeout(() => {
+      if (canMutateAutismState(
+        initiatingOwnerId,
+        initiatingGeneration,
+        draftGenerationRef.current,
+      )) setSavedMessage('');
+      if (savedMessageTimeoutRef.current === savedMessageTimeout) {
+        savedMessageTimeoutRef.current = null;
+      }
+    }, 3000);
+    savedMessageTimeoutRef.current = savedMessageTimeout;
+  };
+
+  const commitProfileLocally = (): {
+    childId: string;
+    generation: number;
+    profile: AutismProfile;
+  } | null => {
+    const initiatingOwnerId = draftOwnerId;
+    const initiatingGeneration = draftGeneration;
+    if (!canMutateAutismState(
+      initiatingOwnerId,
+      initiatingGeneration,
+      draftGenerationRef.current,
+    )) return null;
+    const latestStoreProfile = useAutismProfileStore.getState().profile;
+    if (
+      latestStoreProfile !== profileDraftBaseRef.current
+      || latestStoreProfile.updatedAt !== profileDraftRevision
+    ) return null;
+
     const now = new Date().toISOString();
-    updateProfile({
+    const nextProfile: AutismProfile = {
       ...profileDraft,
+      childId: initiatingOwnerId,
       completedAt: profileDraft.completedAt ?? now,
       updatedAt: now,
-    });
+    };
+    updateProfile(nextProfile);
+    const committedProfile = useAutismProfileStore.getState().profile;
     setReducedMotion(profileDraft.sensory.reducedAnimations);
     if (profileDraft.sensory.calmingTools.includes('darkMode')) setTheme('dark');
-    setSavedMessage('Autism profile saved.');
-    window.setTimeout(() => setSavedMessage(''), 3000);
+    return {
+      childId: initiatingOwnerId,
+      generation: initiatingGeneration,
+      profile: committedProfile,
+    };
+  };
+
+  const syncCommittedProfile = async (commit: {
+    childId: string;
+    generation: number;
+    profile: AutismProfile;
+  }) => {
+    const currentAuth = useAuthStore.getState();
+    if (currentAuth.isGuest) {
+      showSavedMessage('Saved for this guest session.', commit.childId, commit.generation);
+      return;
+    }
+
+    try {
+      await saveAutismProfile(commit.childId, commit.profile);
+      if (
+        canMutateAutismState(
+          commit.childId,
+          commit.generation,
+          draftGenerationRef.current,
+        )
+        && useAutismProfileStore.getState().profile.updatedAt === commit.profile.updatedAt
+      ) {
+        showSavedMessage('Autism profile saved.', commit.childId, commit.generation);
+      }
+    } catch (error) {
+      if (canMutateAutismState(
+        commit.childId,
+        commit.generation,
+        draftGenerationRef.current,
+      )) {
+        console.warn('Autism profile saved locally but could not sync:', error);
+        showSavedMessage(
+          'Saved on this device. Online sync did not finish—please try again.',
+          commit.childId,
+          commit.generation,
+        );
+      }
+    }
+  };
+
+  const saveProfile = (): boolean => {
+    const commit = commitProfileLocally();
+    if (!commit) return false;
+    void syncCommittedProfile(commit);
+    return true;
   };
 
   const printPassport = () => {
-    saveProfile();
-    window.setTimeout(() => window.print(), 80);
+    const initiatingOwnerId = draftOwnerId;
+    const initiatingGeneration = draftGeneration;
+    if (
+      !saveProfile()
+      || !canMutateAutismState(
+        initiatingOwnerId,
+        initiatingGeneration,
+        draftGenerationRef.current,
+      )
+    ) return;
+
+    if (printTimeoutRef.current !== null) window.clearTimeout(printTimeoutRef.current);
+    const printTimeout = window.setTimeout(() => {
+      if (canMutateAutismState(
+        initiatingOwnerId,
+        initiatingGeneration,
+        draftGenerationRef.current,
+      )) window.print();
+      if (printTimeoutRef.current === printTimeout) printTimeoutRef.current = null;
+    }, 80);
+    printTimeoutRef.current = printTimeout;
   };
 
   const addScheduleItem = () => {
+    const initiatingOwnerId = draftOwnerId;
+    const initiatingGeneration = draftGeneration;
     const label = newScheduleLabel.trim();
-    if (!label) return;
+    if (
+      !label
+      || !canMutateAutismState(
+        initiatingOwnerId,
+        initiatingGeneration,
+        draftGenerationRef.current,
+      )
+    ) return;
     updateSchedule([
       ...schedule,
       { id: `schedule-${Date.now()}`, label, icon: 'Task', done: false },
@@ -204,9 +578,19 @@ const AutismSpacePage: React.FC = () => {
   };
 
   const saveStory = () => {
+    const initiatingOwnerId = draftOwnerId;
+    const initiatingGeneration = draftGeneration;
     const title = storyTitle.trim();
     const panels = storyPanels.map((panel) => panel.trim()).filter(Boolean);
-    if (!title || panels.length === 0) return;
+    if (
+      !title
+      || panels.length === 0
+      || !canMutateAutismState(
+        initiatingOwnerId,
+        initiatingGeneration,
+        draftGenerationRef.current,
+      )
+    ) return;
     addSocialStory({ title, panels });
     setStoryTitle('');
     setStoryPanels(['', '', '']);
@@ -566,17 +950,17 @@ const AutismSpacePage: React.FC = () => {
             <li key={item.id} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3 dark:border-gray-700 dark:bg-gray-800">
               <button
                 type="button"
-                onClick={() => toggleScheduleDone(item.id)}
+                onClick={() => toggleScheduleItemForDraftOwner(item.id)}
                 className={`flex h-9 w-9 items-center justify-center rounded-full ${item.done ? 'bg-emerald-500 text-white' : 'bg-white text-slate-500 dark:bg-gray-900'}`}
                 aria-label={`Mark ${item.label}`}
               >
                 <Check className="h-4 w-4" aria-hidden />
               </button>
               <span className="flex-1 font-semibold text-adapt-navy dark:text-gray-100">{item.label}</span>
-              <button type="button" onClick={() => updateSchedule(moveItem(schedule, index, -1))} className="rounded-full bg-white p-2 text-slate-500 dark:bg-gray-900" aria-label="Move up">
+              <button type="button" onClick={() => moveScheduleItemForDraftOwner(index, -1)} className="rounded-full bg-white p-2 text-slate-500 dark:bg-gray-900" aria-label="Move up">
                 <ChevronUp className="h-4 w-4" aria-hidden />
               </button>
-              <button type="button" onClick={() => updateSchedule(moveItem(schedule, index, 1))} className="rounded-full bg-white p-2 text-slate-500 dark:bg-gray-900" aria-label="Move down">
+              <button type="button" onClick={() => moveScheduleItemForDraftOwner(index, 1)} className="rounded-full bg-white p-2 text-slate-500 dark:bg-gray-900" aria-label="Move down">
                 <ChevronDown className="h-4 w-4" aria-hidden />
               </button>
             </li>
@@ -642,7 +1026,7 @@ const AutismSpacePage: React.FC = () => {
         </p>
         <button
           type="button"
-          onClick={() => setTimerRunning((running) => !running)}
+          onClick={setTimerRunningForDraftOwner}
           disabled={timerSecondsLeft === 0}
           className="mt-6 inline-flex items-center gap-2 rounded-full bg-adapt-navy px-6 py-3 text-sm font-bold text-white"
         >
@@ -982,7 +1366,7 @@ const AutismSpacePage: React.FC = () => {
           }
         `}
       </style>
-      {renderPrintablePassport()}
+      {autismSpaceReady && renderPrintablePassport()}
       <ChildDashboardNavbar />
       <main className="mx-auto max-w-6xl space-y-6 p-4 pb-16 sm:p-6">
         <header className="rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/80">
@@ -995,7 +1379,7 @@ const AutismSpacePage: React.FC = () => {
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-gray-400">
             Build a profile, plan routines, prepare transitions, communicate needs, and open a calm corner when things feel too much.
           </p>
-          {savedMessage && (
+          {autismSpaceReady && savedMessage && (
             <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700">
               <Check className="h-4 w-4" aria-hidden />
               {savedMessage}
@@ -1003,29 +1387,45 @@ const AutismSpacePage: React.FC = () => {
           )}
         </header>
 
-        <nav className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" aria-label="Autism tools">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`rounded-2xl border-2 p-3 text-sm font-bold transition ${
-                  active
-                    ? 'border-adapt-indigo bg-adapt-indigo text-white shadow-md'
-                    : 'border-slate-100 bg-white text-slate-600 hover:border-adapt-indigo/30 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300'
-                }`}
-              >
-                <Icon className="mx-auto mb-1 h-5 w-5" aria-hidden />
-                {tab.label}
-              </button>
-            );
-          })}
-        </nav>
+        {autismSpaceReady ? (
+          <>
+            <nav className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" aria-label="Autism tools">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`rounded-2xl border-2 p-3 text-sm font-bold transition ${
+                      active
+                        ? 'border-adapt-indigo bg-adapt-indigo text-white shadow-md'
+                        : 'border-slate-100 bg-white text-slate-600 hover:border-adapt-indigo/30 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300'
+                    }`}
+                  >
+                    <Icon className="mx-auto mb-1 h-5 w-5" aria-hidden />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </nav>
 
-        {content()}
+            {content()}
+          </>
+        ) : (
+          <section
+            className="rounded-3xl border border-slate-100 bg-white p-6 text-center shadow-soft dark:border-gray-800 dark:bg-gray-900"
+            role="status"
+            aria-live="polite"
+          >
+            <p className="font-bold text-adapt-navy dark:text-gray-100">
+              {autismHydrationStatus === 'error'
+                ? 'Your Autism Space could not be loaded safely. Please refresh and try again.'
+                : 'Preparing your Autism Space…'}
+            </p>
+          </section>
+        )}
       </main>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Eye, RotateCcw, Type } from 'lucide-react';
 import {
   DYSLEXIA_READING_PASSAGES,
@@ -9,6 +9,7 @@ import {
   type DyslexiaReadingSessionInput,
   useChildProgressStore,
 } from 'features/child/store/childProgressStore';
+import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 
 interface DyslexiaOverlayReaderActivityProps {
   onComplete: (
@@ -68,7 +69,11 @@ const countWords = (sentence: string) => sentence.trim().split(/\s+/).filter(Boo
 
 const DyslexiaOverlayReaderActivity: React.FC<DyslexiaOverlayReaderActivityProps> = ({ onComplete }) => {
   const savedPreferences = useChildProgressStore((state) => state.dyslexiaReaderPreferences);
-  const startingPreferences = savedPreferences ?? DEFAULT_PREFERENCES;
+  const { childId, isReady } = useChildProgressReadAccess();
+  const [sessionOwnerId, setSessionOwnerId] = useState<string | null>(
+    isReady ? childId : null,
+  );
+  const startingPreferences = isReady ? savedPreferences ?? DEFAULT_PREFERENCES : DEFAULT_PREFERENCES;
   const [passageId, setPassageId] = useState(DYSLEXIA_READING_PASSAGES[0].id);
   const [overlay, setOverlay] = useState<DyslexiaReaderPreferencesInput['overlay']>(startingPreferences.overlay);
   const [textSize, setTextSize] = useState<DyslexiaReaderPreferencesInput['textSize']>(startingPreferences.textSize);
@@ -80,6 +85,12 @@ const DyslexiaOverlayReaderActivity: React.FC<DyslexiaOverlayReaderActivityProps
   const [completedSentences, setCompletedSentences] = useState<number[]>([]);
   const [comfortRating, setComfortRating] = useState<DyslexiaReadingSessionInput['comfortRating']>('okay');
 
+  useEffect(() => {
+    if (sessionOwnerId || !isReady || !childId) return;
+
+    setSessionOwnerId(childId);
+  }, [childId, isReady, sessionOwnerId]);
+
   const passage = useMemo(
     () => DYSLEXIA_READING_PASSAGES.find((option) => option.id === passageId) ?? DYSLEXIA_READING_PASSAGES[0],
     [passageId],
@@ -89,6 +100,20 @@ const DyslexiaOverlayReaderActivity: React.FC<DyslexiaOverlayReaderActivityProps
   const spacingOption = SPACING_OPTIONS.find((option) => option.id === lineSpacing) ?? SPACING_OPTIONS[1];
   const widthOption = WIDTH_OPTIONS.find((option) => option.id === lineWidth) ?? WIDTH_OPTIONS[1];
   const progress = Math.round((completedSentences.length / passage.sentences.length) * 100);
+
+  const canRenderSession = Boolean(
+    isReady
+    && childId
+    && sessionOwnerId === childId,
+  );
+
+  if (!canRenderSession) {
+    return (
+      <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm font-semibold text-violet-800 dark:border-violet-900/50 dark:bg-violet-950/25 dark:text-violet-200">
+        Loading your reading setup...
+      </div>
+    );
+  }
 
   const getPreferences = (): DyslexiaReaderPreferencesInput => ({
     overlay,

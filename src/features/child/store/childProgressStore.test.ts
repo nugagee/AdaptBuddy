@@ -1,5 +1,17 @@
-import type { AdhdSupportSignalInput } from './childProgressStore';
-import { useChildProgressStore } from './childProgressStore';
+import type {
+  AdhdSupportSignalInput,
+  DysgraphiaWordBankSessionInput,
+  DyscalculiaSessionInput,
+  DyspraxiaPlanningSessionInput,
+  SensoryComfortSessionInput,
+} from './childProgressStore';
+import {
+  beginChildProgressScope,
+  getChildProgressStorageKey,
+  hydrateChildProgressScope,
+  unbindChildProgressScope,
+  useChildProgressStore,
+} from './childProgressStore';
 
 const makeSignal = (
   overrides: Partial<AdhdSupportSignalInput> = {},
@@ -14,6 +26,8 @@ const makeSignal = (
 
 const resetProgressStore = () => {
   useChildProgressStore.setState({
+    ownerId: null,
+    hydrationStatus: 'idle',
     completions: [],
     metricValues: [],
     adhdSupportSignals: [],
@@ -22,6 +36,10 @@ const resetProgressStore = () => {
     dyslexiaReadingSessions: [],
     dyslexiaReaderPreferences: null,
     dyslexiaPhonicsSessions: [],
+    dyscalculiaSessions: [],
+    dyspraxiaPlanningSessions: [],
+    dysgraphiaWordBankSessions: [],
+    sensoryComfortSessions: [],
     starsTotal: 0,
     streakDays: 0,
     lastActiveDate: '',
@@ -219,5 +237,340 @@ describe('childProgressStore ADHD support signals', () => {
         createdAt: '2026-09-01T09:30:00.000Z',
       }),
     ]);
+  });
+
+  it('records Dyscalculia attempts and counts only correct answers in the metric', () => {
+    useChildProgressStore.getState().completeActivity(
+      'dyscalculia-number-line',
+      'dyscalculia',
+      4,
+      12,
+    );
+    useChildProgressStore.getState().addDyscalculiaSession({
+      sessionId: 'math-session-1',
+      activityId: 'dyscalculia-number-line',
+      questionsAttempted: 3,
+      questionsCorrect: 2,
+      hintsUsed: 1,
+      numberRange: { min: 0, max: 20 },
+      operations: ['addition', 'subtraction'],
+      supportsUsed: ['visual number line', 'counters', 'step hint'],
+      confidence: 'practised',
+    });
+
+    expect(useChildProgressStore.getState().getTodayDyscalculiaSessions()).toEqual([
+      expect.objectContaining({
+        questionsAttempted: 3,
+        questionsCorrect: 2,
+        hintsUsed: 1,
+        createdAt: '2026-09-01T09:30:00.000Z',
+      }),
+    ]);
+    expect(useChildProgressStore.getState().getNeuroMetricValue('dyscalculia')).toBe(2);
+  });
+
+  it('records non-clinical Dyspraxia step-planning practice as one session', () => {
+    useChildProgressStore.getState().completeActivity(
+      'dyspraxia-sequence-steps',
+      'dyspraxia',
+      3,
+      8,
+    );
+    useChildProgressStore.getState().addDyspraxiaPlanningSession({
+      sessionId: 'plan-session-1',
+      activityId: 'dyspraxia-sequence-steps',
+      planId: 'school-bag',
+      planTitle: 'Pack my school bag',
+      orderedSteps: ['Find the bag', 'Put items inside', 'Zip the bag'],
+      movesMade: 2,
+      checksMade: 1,
+      supportsUsed: ['large buttons', 'one-step view'],
+      confidence: 'confident',
+    });
+
+    expect(useChildProgressStore.getState().getTodayDyspraxiaPlanningSessions()).toEqual([
+      expect.objectContaining({
+        planId: 'school-bag',
+        orderedSteps: ['Find the bag', 'Put items inside', 'Zip the bag'],
+        createdAt: '2026-09-01T09:30:00.000Z',
+      }),
+    ]);
+    expect(useChildProgressStore.getState().getNeuroMetricValue('dyspraxia')).toBe(1);
+  });
+
+  it('does not double-count a repeated structured result callback', () => {
+    const mathSession: DyscalculiaSessionInput = {
+      sessionId: 'math-repeat-safe',
+      activityId: 'dyscalculia-number-line',
+      questionsAttempted: 2,
+      questionsCorrect: 1,
+      hintsUsed: 0,
+      numberRange: { min: 0, max: 20 },
+      operations: ['addition'],
+      supportsUsed: ['visual number line'],
+      confidence: 'practised',
+    };
+    const planSession: DyspraxiaPlanningSessionInput = {
+      sessionId: 'plan-repeat-safe',
+      activityId: 'dyspraxia-sequence-steps',
+      planId: 'school-bag',
+      planTitle: 'Pack my school bag',
+      orderedSteps: ['Find the bag', 'Put items inside', 'Zip the bag'],
+      movesMade: 1,
+      checksMade: 0,
+      supportsUsed: ['large move controls'],
+      confidence: 'practised',
+    };
+    const wordBankSession: DysgraphiaWordBankSessionInput = {
+      sessionId: 'word-bank-repeat-safe',
+      activityId: 'dysgraphia-word-bank',
+      promptId: 'school-day',
+      promptTitle: 'My school day',
+      selectedWordIds: ['today', 'i', 'read'],
+      selectedWords: ['Today', 'I', 'read'],
+      editsMade: 3,
+      checksMade: 1,
+      supportsUsed: ['fixed word bank', 'sentence check'],
+      confidence: 'practised',
+    };
+    const sensorySession: SensoryComfortSessionInput = {
+      sessionId: 'sensory-repeat-safe',
+      activityId: 'spd-sensory-checklist',
+      selections: [
+        { area: 'sight', comfort: 'comfortable' },
+        { area: 'sound', comfort: 'a-bit-much' },
+        { area: 'touch', comfort: 'need-change' },
+        { area: 'movement', comfort: 'comfortable' },
+      ],
+      supportChoiceId: 'touch-choice',
+      supportChoiceLabel: 'Change a texture or touch',
+      supportsUsed: ['sensory choice cards', 'child-chosen comfort support'],
+      confidence: 'need-more-time',
+    };
+
+    useChildProgressStore.getState().completeActivity('dysgraphia-word-bank', 'dysgraphia', 4, 10);
+    useChildProgressStore.getState().completeActivity('spd-sensory-checklist', 'spd', 2, 3);
+    useChildProgressStore.getState().addDyscalculiaSession(mathSession);
+    useChildProgressStore.getState().addDyscalculiaSession(mathSession);
+    useChildProgressStore.getState().addDyspraxiaPlanningSession(planSession);
+    useChildProgressStore.getState().addDyspraxiaPlanningSession(planSession);
+    useChildProgressStore.getState().addDysgraphiaWordBankSession(wordBankSession);
+    useChildProgressStore.getState().addDysgraphiaWordBankSession(wordBankSession);
+    useChildProgressStore.getState().addSensoryComfortSession(sensorySession);
+    useChildProgressStore.getState().addSensoryComfortSession(sensorySession);
+
+    expect(useChildProgressStore.getState().dyscalculiaSessions).toHaveLength(1);
+    expect(useChildProgressStore.getState().dyspraxiaPlanningSessions).toHaveLength(1);
+    expect(useChildProgressStore.getState().dysgraphiaWordBankSessions).toHaveLength(1);
+    expect(useChildProgressStore.getState().sensoryComfortSessions).toHaveLength(1);
+    expect(useChildProgressStore.getState().getNeuroMetricValue('dyscalculia')).toBe(1);
+    expect(useChildProgressStore.getState().getNeuroMetricValue('dyspraxia')).toBe(1);
+    expect(useChildProgressStore.getState().getNeuroMetricValue('dysgraphia')).toBe(1);
+    expect(useChildProgressStore.getState().getNeuroMetricValue('spd')).toBe(1);
+  });
+});
+
+describe('childProgressStore account isolation', () => {
+  beforeEach(() => {
+    unbindChildProgressScope();
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    unbindChildProgressScope();
+  });
+
+  const openChild = async (childId: string) => {
+    const token = beginChildProgressScope(childId);
+    expect(await hydrateChildProgressScope(token)).toBe('ready');
+  };
+
+  it('restores only the progress owned by the active child', async () => {
+    await openChild('child-a');
+    useChildProgressStore.getState().completeActivity('reading', 'dyslexia', 3, 5);
+    useChildProgressStore.getState().addDyscalculiaSession({
+      sessionId: 'child-a-math',
+      activityId: 'dyscalculia-number-line',
+      questionsAttempted: 1,
+      questionsCorrect: 1,
+      hintsUsed: 0,
+      numberRange: { min: 0, max: 20 },
+      operations: ['addition'],
+      supportsUsed: ['visual number line'],
+      confidence: 'practised',
+    });
+    useChildProgressStore.getState().addDyspraxiaPlanningSession({
+      sessionId: 'child-a-plan',
+      activityId: 'dyspraxia-sequence-steps',
+      planId: 'school-bag',
+      planTitle: 'Pack my school bag',
+      orderedSteps: ['Find the bag', 'Put items inside', 'Zip the bag'],
+      movesMade: 1,
+      checksMade: 0,
+      supportsUsed: ['large move controls'],
+      confidence: 'practised',
+    });
+    useChildProgressStore.getState().addDysgraphiaWordBankSession({
+      sessionId: 'child-a-words',
+      activityId: 'dysgraphia-word-bank',
+      promptId: 'school-day',
+      promptTitle: 'My school day',
+      selectedWordIds: ['today', 'read'],
+      selectedWords: ['Today', 'read'],
+      editsMade: 2,
+      checksMade: 0,
+      supportsUsed: ['fixed word bank'],
+      confidence: 'practised',
+    });
+    useChildProgressStore.getState().addSensoryComfortSession({
+      sessionId: 'child-a-sensory',
+      activityId: 'spd-sensory-checklist',
+      selections: [
+        { area: 'sight', comfort: 'comfortable' },
+        { area: 'sound', comfort: 'a-bit-much' },
+        { area: 'touch', comfort: 'comfortable' },
+        { area: 'movement', comfort: 'comfortable' },
+      ],
+      supportChoiceId: 'quieter-space',
+      supportChoiceLabel: 'A quieter sound space',
+      supportsUsed: ['sensory choice cards'],
+      confidence: 'ready-to-continue',
+    });
+
+    await openChild('child-b');
+    expect(useChildProgressStore.getState().ownerId).toBe('child-b');
+    expect(useChildProgressStore.getState().completions).toEqual([]);
+    expect(useChildProgressStore.getState().dyscalculiaSessions).toEqual([]);
+    expect(useChildProgressStore.getState().dyspraxiaPlanningSessions).toEqual([]);
+    expect(useChildProgressStore.getState().dysgraphiaWordBankSessions).toEqual([]);
+    expect(useChildProgressStore.getState().sensoryComfortSessions).toEqual([]);
+    useChildProgressStore.getState().setTodayMood('calm');
+
+    await openChild('child-a');
+    expect(useChildProgressStore.getState().todayMood).toBeNull();
+    expect(useChildProgressStore.getState().completions).toEqual([
+      expect.objectContaining({ activityId: 'reading', neuroId: 'dyslexia' }),
+    ]);
+    expect(useChildProgressStore.getState().dyscalculiaSessions).toEqual([
+      expect.objectContaining({ questionsCorrect: 1 }),
+    ]);
+    expect(useChildProgressStore.getState().dyspraxiaPlanningSessions).toEqual([
+      expect.objectContaining({ planId: 'school-bag' }),
+    ]);
+    expect(useChildProgressStore.getState().dysgraphiaWordBankSessions).toEqual([
+      expect.objectContaining({ promptId: 'school-day' }),
+    ]);
+    expect(useChildProgressStore.getState().sensoryComfortSessions).toEqual([
+      expect.objectContaining({ supportChoiceId: 'quieter-space' }),
+    ]);
+
+    await openChild('child-b');
+    expect(useChildProgressStore.getState().todayMood).toBe('calm');
+    expect(useChildProgressStore.getState().completions).toEqual([]);
+    expect(useChildProgressStore.getState().dyscalculiaSessions).toEqual([]);
+    expect(useChildProgressStore.getState().dyspraxiaPlanningSessions).toEqual([]);
+    expect(useChildProgressStore.getState().dysgraphiaWordBankSessions).toEqual([]);
+    expect(useChildProgressStore.getState().sensoryComfortSessions).toEqual([]);
+  });
+
+  it('ignores legacy global progress whose owner cannot be proven', async () => {
+    window.localStorage.setItem(
+      'adaptbuddy-child-progress',
+      JSON.stringify({ state: { starsTotal: 99 }, version: 0 }),
+    );
+
+    await openChild('child-b');
+
+    expect(useChildProgressStore.getState().starsTotal).toBe(0);
+    expect(window.localStorage.getItem('adaptbuddy-child-progress')).not.toBeNull();
+  });
+
+  it('migrates an owner-scoped v2 record without losing existing progress', async () => {
+    const childId = 'child-v2';
+    window.localStorage.setItem(
+      getChildProgressStorageKey(childId),
+      JSON.stringify({
+        version: 2,
+        state: {
+          ownerId: childId,
+          completions: [{
+            activityId: 'reading',
+            neuroId: 'dyslexia',
+            completedAt: '2026-09-01T08:00:00.000Z',
+            starsEarned: 3,
+            durationMinutes: 5,
+          }],
+          metricValues: [],
+          adhdSupportSignals: [],
+          achievementBadges: [],
+          adhdEnergyPacing: null,
+          dyslexiaReadingSessions: [],
+          dyslexiaReaderPreferences: null,
+          dyslexiaPhonicsSessions: [],
+          starsTotal: 3,
+          streakDays: 1,
+          lastActiveDate: '2026-09-01',
+          todayMood: null,
+          focusMinutesToday: 0,
+        },
+      }),
+    );
+
+    await openChild(childId);
+
+    expect(useChildProgressStore.getState()).toEqual(expect.objectContaining({
+      ownerId: childId,
+      hydrationStatus: 'ready',
+      starsTotal: 3,
+      dyscalculiaSessions: [],
+      dyspraxiaPlanningSessions: [],
+      dysgraphiaWordBankSessions: [],
+      sensoryComfortSessions: [],
+    }));
+    expect(useChildProgressStore.getState().completions).toHaveLength(1);
+  });
+
+  it('rejects a targeted record carrying a different owner id', async () => {
+    await openChild('child-a');
+    useChildProgressStore.getState().setTodayMood('worried');
+    const childARaw = window.localStorage.getItem(getChildProgressStorageKey('child-a'))!;
+    window.localStorage.setItem(getChildProgressStorageKey('child-b'), childARaw);
+
+    const token = beginChildProgressScope('child-b');
+    expect(await hydrateChildProgressScope(token)).toBe('error');
+
+    expect(useChildProgressStore.getState()).toEqual(
+      expect.objectContaining({
+        ownerId: 'child-b',
+        hydrationStatus: 'error',
+        starsTotal: 0,
+        todayMood: null,
+      }),
+    );
+    expect(window.localStorage.getItem(getChildProgressStorageKey('child-b'))).toContain(
+      'child-a',
+    );
+  });
+
+  it('preserves corrupt scoped data and fails closed', async () => {
+    const storageKey = getChildProgressStorageKey('child-a');
+    window.localStorage.setItem(storageKey, '{not valid JSON');
+    const token = beginChildProgressScope('child-a');
+
+    expect(await hydrateChildProgressScope(token)).toBe('error');
+    expect(useChildProgressStore.getState().hydrationStatus).toBe('error');
+    expect(window.localStorage.getItem(storageKey)).toBe('{not valid JSON');
+  });
+
+  it('does not let stale hydration make a newer account scope writable', async () => {
+    const childAToken = beginChildProgressScope('child-a');
+    const childBToken = beginChildProgressScope('child-b');
+
+    expect(await hydrateChildProgressScope(childAToken)).toBe('stale');
+    expect(useChildProgressStore.getState().hydrationStatus).toBe('loading');
+    expect(await hydrateChildProgressScope(childBToken)).toBe('ready');
+    expect(useChildProgressStore.getState()).toEqual(
+      expect.objectContaining({ ownerId: 'child-b', hydrationStatus: 'ready' }),
+    );
   });
 });

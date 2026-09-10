@@ -248,6 +248,31 @@ const loadRequiredProfile = async (userId: string, version: number): Promise<Pro
 };
 
 const applyAuthSession = async (session: Session) => {
+  const current = useAuthStore.getState();
+  const canRefreshInPlace = (
+    !current.isGuest
+    && current.user?.id === session.user.id
+    && current.profile?.id === session.user.id
+  );
+
+  // Supabase emits TOKEN_REFRESHED, USER_UPDATED, and sometimes repeated
+  // SIGNED_IN events for the account that is already active. Keep the verified
+  // account mounted while its profile is rechecked so child-scoped stores,
+  // drafts, and timers are not torn down as though another child signed in.
+  if (canRefreshInPlace) {
+    const version = ++authTransitionVersion;
+    const profile = await loadRequiredProfile(session.user.id, version);
+    assertCurrentTransition(version);
+    useAuthStore.setState({
+      user: session.user,
+      profile,
+      session: toAuthSessionState(session),
+      loading: false,
+      isGuest: false,
+    });
+    return;
+  }
+
   const version = prepareAuthenticatedTransition();
   const profile = await loadRequiredProfile(session.user.id, version);
   assertCurrentTransition(version);
@@ -596,7 +621,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ profile });
       return profile;
     } catch {
-      return get().profile;
+      if (version !== authTransitionVersion || get().user?.id !== userId) return null;
+      const currentProfile = get().profile;
+      return currentProfile?.id === userId ? currentProfile : null;
     }
   },
 

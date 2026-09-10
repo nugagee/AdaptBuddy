@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { BookOpen, Heart, MessageCircle, Sparkles } from 'lucide-react';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
@@ -6,8 +6,7 @@ import LanguageSimplifierPanel from 'features/child/components/companion/Languag
 import MoodCheckInPanel from 'features/child/components/companion/MoodCheckInPanel';
 import SocialStoryGeneratorPanel from 'features/child/components/companion/SocialStoryGeneratorPanel';
 import BuddyConversationPanel from 'features/child/components/companion/BuddyConversationPanel';
-import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
-import { useAuth } from 'hooks/useAuth';
+import { useActiveChildSupportProfile } from 'features/child/hooks/useActiveChildSupportProfile';
 
 type BuddyTab = 'talk' | 'simplify' | 'mood' | 'story';
 
@@ -40,10 +39,12 @@ const tabs: { id: BuddyTab; label: string; icon: React.ElementType; description:
 
 const CompanionBuddyPage: React.FC = () => {
   const location = useLocation();
-  const { profile } = useAuth();
-  const autismProfile = useAutismProfileStore((s) => s.profile);
+  const { childId, preferredName } = useActiveChildSupportProfile();
   const [tab, setTab] = useState<BuddyTab>('talk');
-  const name = autismProfile.aboutMe?.preferredName || profile?.first_name || 'friend';
+
+  useEffect(() => {
+    setTab('talk');
+  }, [childId]);
 
   const active = tabs.find((t) => t.id === tab)!;
 
@@ -51,13 +52,16 @@ const CompanionBuddyPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/30 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
       <ChildDashboardNavbar />
 
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <main
+        key={childId ?? 'no-child'}
+        className="mx-auto max-w-3xl px-4 py-8 sm:px-6"
+      >
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-adapt-indigo/15 text-adapt-indigo dark:bg-adapt-cyan/15 dark:text-adapt-cyan">
             <Sparkles className="h-7 w-7" aria-hidden />
           </div>
           <h1 className="text-2xl font-extrabold text-adapt-navy dark:text-gray-100 sm:text-3xl">
-            Hi {name}, I&apos;m here with you
+            Hi {preferredName}, I&apos;m here with you
           </h1>
           <p className="mt-2 text-sm text-slate-600 dark:text-gray-400">
             A calm AI helper for words, feelings, next steps and asking an adult.
@@ -72,6 +76,7 @@ const CompanionBuddyPage: React.FC = () => {
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
+                aria-pressed={selected}
                 className={`rounded-2xl border-2 px-4 py-4 text-left transition ${
                   selected
                     ? 'border-adapt-indigo bg-adapt-indigo/10 dark:border-adapt-cyan dark:bg-adapt-cyan/10'

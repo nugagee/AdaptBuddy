@@ -164,8 +164,11 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const [dayCards, setDayCards] = useState(['Hello check-in', 'Calm tool', 'Learning task', 'Reward choice']);
+  const [dayMapInteracted, setDayMapInteracted] = useState(false);
   const [storyScenario, setStoryScenario] = useState('A plan changes');
   const [selectedFeeling, setSelectedFeeling] = useState('unsure');
+  const [storyScenarioChosen, setStoryScenarioChosen] = useState(false);
+  const [storyFeelingChosen, setStoryFeelingChosen] = useState(false);
   const [patternAnswer, setPatternAnswer] = useState<string | null>(null);
   const [adhdEnergy, setAdhdEnergy] = useState('scattered');
   const [adhdStep, setAdhdStep] = useState('Open the task and read only the first instruction.');
@@ -183,6 +186,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
       return next;
     });
+    setDayMapInteracted(true);
   }, [dayCards.length]);
 
   const selectedAdhdEnergy =
@@ -357,7 +361,10 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
                 <button
                   key={scenario}
                   type="button"
-                  onClick={() => setStoryScenario(scenario)}
+                  onClick={() => {
+                    setStoryScenario(scenario);
+                    setStoryScenarioChosen(true);
+                  }}
                   className={`rounded-full px-3 py-2 text-xs font-bold transition ${
                     storyScenario === scenario
                       ? 'bg-adapt-indigo text-white shadow-md'
@@ -392,7 +399,10 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
                 <button
                   key={feeling}
                   type="button"
-                  onClick={() => setSelectedFeeling(feeling)}
+                  onClick={() => {
+                    setSelectedFeeling(feeling);
+                    setStoryFeelingChosen(true);
+                  }}
                   className={`rounded-full px-3 py-2 text-xs font-bold capitalize transition ${
                     selectedFeeling === feeling
                       ? 'bg-adapt-teal text-white shadow-md'
@@ -851,7 +861,12 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
             <button
               type="button"
               onClick={handleCompleteClick}
-              className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-adapt-teal py-3.5 font-bold text-white shadow-md transition hover:scale-[1.02]"
+              disabled={
+                (activity.id === 'autism-visual-schedule' && !dayMapInteracted)
+                || (activity.id === 'autism-social-story' && (!storyScenarioChosen || !storyFeelingChosen))
+                || (activity.id === 'autism-pattern-calm' && patternAnswer !== 'Blue square')
+              }
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-adapt-teal py-3.5 font-bold text-white shadow-md transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:scale-100"
             >
               <Check className="h-5 w-5" aria-hidden />
               Mark Complete

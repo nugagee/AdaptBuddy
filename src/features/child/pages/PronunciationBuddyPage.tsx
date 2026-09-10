@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -29,6 +29,13 @@ import {
 import { ChildAssignmentService } from 'features/child/services/childAssignmentService';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
+import {
+  getCurrentChildScopeId,
+  getReadyChildProgressForOwner,
+  resolveAuthenticatedChildId,
+  resolveChildScopeId,
+} from 'features/child/store/childProgressReadAccess';
+import { resolveRoutedActivity } from 'features/child/routing/routedActivityCompletion';
 
 type SpeechRecognitionResultLike = {
   isFinal: boolean;
@@ -49,6 +56,7 @@ type SpeechRecognitionLike = {
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
+  abort?: () => void;
 };
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
@@ -69,7 +77,7 @@ interface StoredPracticeItem extends PronunciationPracticeItem {
   createdAt?: string;
 }
 
-interface PronunciationAttempt {
+export interface PronunciationAttempt {
   id: string;
   itemId: string;
   phrase: string;
@@ -232,8 +240,31 @@ const buildFeedback = (
   };
 };
 
-const getStorageKey = (profileId: string | undefined, name: string) =>
-  `adaptbuddy-pronunciation-${name}:${profileId ?? 'guest'}`;
+export const getPronunciationStorageKey = (childId: string, name: string) =>
+  `adaptbuddy-pronunciation-${name}:${encodeURIComponent(childId)}`;
+
+export const redactPronunciationAttemptHistory = (value: unknown): PronunciationAttempt[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((attempt): attempt is PronunciationAttempt => (
+      typeof attempt === 'object'
+      && attempt !== null
+      && typeof (attempt as PronunciationAttempt).id === 'string'
+      && typeof (attempt as PronunciationAttempt).phrase === 'string'
+      && ['microphone', 'self_checked', 'support_needed'].includes(
+        String((attempt as PronunciationAttempt).mode),
+      )
+    ))
+    .map((attempt) => ({
+      ...attempt,
+      heard: attempt.mode === 'microphone'
+        ? 'Microphone practice completed'
+        : attempt.mode === 'self_checked'
+          ? 'Self-checked practice'
+          : 'Support requested',
+    }));
+};
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
@@ -304,7 +335,7 @@ const buildWeeklySummaryText = (attempts: PronunciationAttempt[], firstName: str
     `Support needed signals: ${needsHelp}`,
     `Support used: ${supports.length ? supports.join(', ') : 'No support recorded yet'}`,
     '',
-    'Privacy note: This summary is generated from practice metadata only. Raw voice audio is not stored by default.',
+    'Privacy note: This summary uses practice metadata only. AdaptBuddy does not store raw audio or recognised words.',
     'Safety note: Pronunciation Buddy supports speech confidence, phonics and word practice. It does not diagnose speech difficulties or replace professional speech and language therapy.',
   ].join('\n');
 };
@@ -324,10 +355,28 @@ const downloadText = (filename: string, text: string) => {
 const PronunciationBuddyPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile } = useAuth();
+  const { user, profile, isGuest } = useAuth();
   const firstName = profile?.first_name || 'Friend';
-  const profileId = profile?.id;
-  const assignmentPractice = (location.state as PronunciationBuddyRouteState | null)?.assignmentPractice;
+  const authInput = {
+    userId: user?.id ?? null,
+    profileId: profile?.id ?? null,
+    profileRole: profile?.role ?? null,
+    isGuest: Boolean(isGuest),
+  };
+  const childScopeId = resolveChildScopeId(authInput);
+  const authenticatedChildId = resolveAuthenticatedChildId(authInput);
+  const routeState = (location.state as PronunciationBuddyRouteState | null)?.assignmentPractice;
+  const assignmentPractice = authenticatedChildId ? routeState : undefined;
+  const neuroTypes = profile?.neuro_types ?? [];
+  const routedActivity = useMemo(
+    () => resolveRoutedActivity({
+      search: location.search,
+      expectedPathname: location.pathname,
+      neuroTypes,
+      completion: 'pronunciation-attempt',
+    }),
+    [location.pathname, location.search, neuroTypes],
+  );
 
   const [selectedCategory, setSelectedCategory] = useState<PronunciationCategory>('everyday');
   const [selectedItemId, setSelectedItemId] = useState('hello');
@@ -351,9 +400,18 @@ const PronunciationBuddyPage: React.FC = () => {
   const lastTranscriptRef = useRef('');
   const hasSavedAttemptRef = useRef(false);
 
-  const customStorageKey = useMemo(() => getStorageKey(profileId, 'custom-items'), [profileId]);
-  const attemptsStorageKey = useMemo(() => getStorageKey(profileId, 'attempts'), [profileId]);
-  const micConsentStorageKey = useMemo(() => getStorageKey(profileId, 'mic-consent'), [profileId]);
+  const customStorageKey = useMemo(
+    () => authenticatedChildId ? getPronunciationStorageKey(authenticatedChildId, 'custom-items') : null,
+    [authenticatedChildId],
+  );
+  const attemptsStorageKey = useMemo(
+    () => authenticatedChildId ? getPronunciationStorageKey(authenticatedChildId, 'attempts') : null,
+    [authenticatedChildId],
+  );
+  const micConsentStorageKey = useMemo(
+    () => authenticatedChildId ? getPronunciationStorageKey(authenticatedChildId, 'mic-consent') : null,
+    [authenticatedChildId],
+  );
 
   const personalItems = useMemo<StoredPracticeItem[]>(() => {
     if (!profile?.first_name) return [];
@@ -428,31 +486,91 @@ const PronunciationBuddyPage: React.FC = () => {
     ? Boolean((window as SpeechWindow).SpeechRecognition ?? (window as SpeechWindow).webkitSpeechRecognition)
     : false;
 
-  useEffect(() => {
+  const releaseRecognition = useCallback(() => {
+    const recognition = recognitionRef.current;
+    recognitionRef.current = null;
+    if (recognition) {
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
+      try {
+        if (recognition.abort) recognition.abort();
+        else recognition.stop();
+      } catch {
+        // Already stopped; handlers are detached so no stale child callback can run.
+      }
+    }
+    setIsListening(false);
+  }, []);
+
+  useLayoutEffect(() => {
+    releaseRecognition();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    setCustomItems([]);
+    setAttempts([]);
+    setMicConsentGiven(false);
+    setSelectedCategory('everyday');
+    setSelectedItemId('hello');
+    setCustomPhrase('');
+    setCustomHint('');
+    setSpokenText('');
+    setFeedback(null);
+    setStatus('');
+    setLinkedAssignmentSaving(false);
+    setLinkedAssignmentDone(false);
+    setIsSpeaking(false);
+    lastTranscriptRef.current = '';
+    hasSavedAttemptRef.current = false;
+
+    if (!childScopeId || !authenticatedChildId) return undefined;
+
     try {
-      const savedItems = localStorage.getItem(customStorageKey);
-      if (savedItems) setCustomItems(JSON.parse(savedItems) as StoredPracticeItem[]);
+      const savedItems = customStorageKey ? localStorage.getItem(customStorageKey) : null;
+      const parsedItems = savedItems ? JSON.parse(savedItems) : [];
+      setCustomItems(Array.isArray(parsedItems) ? parsedItems as StoredPracticeItem[] : []);
     } catch {
       setCustomItems([]);
     }
-  }, [customStorageKey]);
 
-  useEffect(() => {
     try {
-      const savedAttempts = localStorage.getItem(attemptsStorageKey);
-      if (savedAttempts) setAttempts(JSON.parse(savedAttempts) as PronunciationAttempt[]);
+      const savedAttempts = attemptsStorageKey ? localStorage.getItem(attemptsStorageKey) : null;
+      const parsedAttempts = savedAttempts ? JSON.parse(savedAttempts) : [];
+      const safeAttempts = redactPronunciationAttemptHistory(parsedAttempts);
+      setAttempts(safeAttempts);
+      if (attemptsStorageKey && savedAttempts) {
+        localStorage.setItem(attemptsStorageKey, JSON.stringify(safeAttempts));
+      }
     } catch {
       setAttempts([]);
     }
-  }, [attemptsStorageKey]);
 
-  useEffect(() => {
     try {
-      setMicConsentGiven(localStorage.getItem(micConsentStorageKey) === 'yes');
+      setMicConsentGiven(
+        Boolean(micConsentStorageKey && localStorage.getItem(micConsentStorageKey) === 'yes'),
+      );
     } catch {
       setMicConsentGiven(false);
     }
-  }, [micConsentStorageKey]);
+
+    return undefined;
+  }, [
+    attemptsStorageKey,
+    authenticatedChildId,
+    childScopeId,
+    customStorageKey,
+    micConsentStorageKey,
+    releaseRecognition,
+  ]);
+
+  useEffect(() => () => {
+    releaseRecognition();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, [releaseRecognition]);
 
   useEffect(() => {
     if (!assignmentItem) return;
@@ -469,32 +587,42 @@ const PronunciationBuddyPage: React.FC = () => {
   }, [categoryItems, selectedItem, selectedItemId]);
 
   const persistCustomItems = useCallback((items: StoredPracticeItem[]) => {
+    if (!childScopeId || getCurrentChildScopeId() !== childScopeId) return;
     setCustomItems(items);
+    if (!customStorageKey) {
+      setStatus('Added for this guest visit only.');
+      return;
+    }
     try {
       localStorage.setItem(customStorageKey, JSON.stringify(items));
     } catch {
       setStatus('Could not save that word on this device.');
     }
-  }, [customStorageKey]);
+  }, [childScopeId, customStorageKey]);
 
   const persistAttempts = useCallback((nextAttempts: PronunciationAttempt[]) => {
+    if (!childScopeId || getCurrentChildScopeId() !== childScopeId) return;
     const trimmedAttempts = nextAttempts.slice(0, 120);
     setAttempts(trimmedAttempts);
+    if (!attemptsStorageKey) return;
     try {
       localStorage.setItem(attemptsStorageKey, JSON.stringify(trimmedAttempts));
     } catch {
       setStatus('Practice was checked, but history could not be saved on this device.');
     }
-  }, [attemptsStorageKey]);
+  }, [attemptsStorageKey, childScopeId]);
 
   const acceptMicConsent = () => {
+    if (!childScopeId || getCurrentChildScopeId() !== childScopeId) return;
     setMicConsentGiven(true);
-    try {
-      localStorage.setItem(micConsentStorageKey, 'yes');
-    } catch {
-      // Consent still applies in this session.
+    if (micConsentStorageKey) {
+      try {
+        localStorage.setItem(micConsentStorageKey, 'yes');
+      } catch {
+        // Consent still applies in this session.
+      }
     }
-    setStatus('Microphone practice is enabled for this session. Raw voice audio is not saved.');
+    setStatus('Microphone practice is enabled. AdaptBuddy does not store raw audio or the words your browser heard.');
   };
 
   const speak = useCallback((text: string, rate = 0.86) => {
@@ -519,7 +647,13 @@ const PronunciationBuddyPage: React.FC = () => {
 
   const saveAttempt = useCallback(
     ({ heard, mode = 'microphone', confidence: nextConfidence = confidence, supportUsed = [], force = false }: SaveAttemptInput) => {
-      if (!selectedItem || (!force && hasSavedAttemptRef.current)) return;
+      const expectedOwnerId = childScopeId;
+      if (
+        !expectedOwnerId
+        || getCurrentChildScopeId() !== expectedOwnerId
+        || !selectedItem
+        || (!force && hasSavedAttemptRef.current)
+      ) return;
       hasSavedAttemptRef.current = true;
 
       const nextFeedback = buildFeedback(selectedItem, heard, mode, nextConfidence);
@@ -527,7 +661,11 @@ const PronunciationBuddyPage: React.FC = () => {
         id: `${selectedItem.id}-${Date.now()}`,
         itemId: selectedItem.id,
         phrase: selectedItem.phrase,
-        heard: mode === 'microphone' ? heard.trim() : mode === 'self_checked' ? 'Self-checked practice' : 'Support requested',
+        heard: mode === 'microphone'
+          ? 'Microphone practice completed'
+          : mode === 'self_checked'
+            ? 'Self-checked practice'
+            : 'Support requested',
         score: nextFeedback.score,
         tone: nextFeedback.tone,
         mode,
@@ -540,19 +678,52 @@ const PronunciationBuddyPage: React.FC = () => {
 
       setFeedback(nextFeedback);
       persistAttempts([attempt, ...attempts]);
-      setStatus(mode === 'support_needed' ? 'Help noted for this practice.' : 'Practice checked and saved as metadata only.');
+      const completedRealPractice = mode === 'self_checked'
+        || (mode === 'microphone' && Boolean(heard.trim()));
+      if (completedRealPractice && routedActivity) {
+        const progress = getReadyChildProgressForOwner(expectedOwnerId);
+        progress?.completeActivity(
+          routedActivity.id,
+          routedActivity.neuroId,
+          routedActivity.starsReward,
+          routedActivity.durationMinutes,
+        );
+      }
+      setStatus(
+        mode === 'support_needed'
+          ? 'Help noted for this practice.'
+          : authenticatedChildId
+            ? 'Practice metadata saved. Recognised words and raw audio were not stored.'
+            : 'Practice kept for this guest visit only. Recognised words and raw audio were not stored.',
+      );
     },
-    [assignmentPractice?.assignmentId, attempts, confidence, persistAttempts, selectedItem],
+    [
+      assignmentPractice?.assignmentId,
+      attempts,
+      authenticatedChildId,
+      childScopeId,
+      confidence,
+      persistAttempts,
+      routedActivity,
+      selectedItem,
+    ],
   );
 
   const stopListening = useCallback(() => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    setIsListening(false);
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      setIsListening(false);
+    }
   }, []);
 
   const startListening = useCallback(() => {
-    if (!selectedItem) return;
+    const expectedOwnerId = childScopeId;
+    if (
+      !selectedItem
+      || !expectedOwnerId
+      || getCurrentChildScopeId() !== expectedOwnerId
+    ) return;
 
     if (!micConsentGiven) {
       setStatus('Please confirm microphone consent before using listen-and-repeat.');
@@ -566,7 +737,7 @@ const PronunciationBuddyPage: React.FC = () => {
     }
 
     window.speechSynthesis?.cancel();
-    stopListening();
+    releaseRecognition();
     setFeedback(null);
     setSpokenText('');
     setStatus('Listening... say it in your own time.');
@@ -579,6 +750,10 @@ const PronunciationBuddyPage: React.FC = () => {
     recognition.maxAlternatives = 1;
     recognition.lang = 'en-GB';
     recognition.onresult = (event) => {
+      if (
+        recognitionRef.current !== recognition
+        || getCurrentChildScopeId() !== expectedOwnerId
+      ) return;
       let transcript = '';
       for (let index = 0; index < event.results.length; index += 1) {
         transcript += event.results[index][0].transcript;
@@ -589,10 +764,20 @@ const PronunciationBuddyPage: React.FC = () => {
       setStatus('I can hear you...');
     };
     recognition.onerror = () => {
+      if (
+        recognitionRef.current !== recognition
+        || getCurrentChildScopeId() !== expectedOwnerId
+      ) return;
+      recognitionRef.current = null;
       setIsListening(false);
       setStatus('The microphone could not hear clearly. Try again, or use the private self-check button.');
     };
     recognition.onend = () => {
+      if (
+        recognitionRef.current !== recognition
+        || getCurrentChildScopeId() !== expectedOwnerId
+      ) return;
+      recognitionRef.current = null;
       setIsListening(false);
       saveAttempt({ heard: lastTranscriptRef.current, mode: 'microphone', supportUsed: ['browser_speech_check'] });
     };
@@ -603,16 +788,10 @@ const PronunciationBuddyPage: React.FC = () => {
       recognition.start();
       setIsListening(true);
     } catch {
+      recognitionRef.current = null;
       setStatus('The microphone is already getting ready. Try again in a moment.');
     }
-  }, [micConsentGiven, saveAttempt, selectedItem, stopListening]);
-
-  useEffect(() => () => {
-    recognitionRef.current?.stop();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-  }, []);
+  }, [childScopeId, micConsentGiven, releaseRecognition, saveAttempt, selectedItem]);
 
   const handleAddCustomPhrase = () => {
     const phrase = customPhrase.trim();
@@ -641,25 +820,49 @@ const PronunciationBuddyPage: React.FC = () => {
   };
 
   const markLinkedAssignmentComplete = async () => {
-    if (!assignmentPractice?.assignmentId || linkedAssignmentSaving) return;
+    const expectedOwnerId = authenticatedChildId;
+    if (
+      !assignmentPractice?.assignmentId
+      || !expectedOwnerId
+      || linkedAssignmentSaving
+      || getCurrentChildScopeId() !== expectedOwnerId
+    ) return;
 
     setLinkedAssignmentSaving(true);
     setStatus('');
 
     try {
+      const availableAssignments = await ChildAssignmentService.getAssignments(expectedOwnerId);
+      if (getCurrentChildScopeId() !== expectedOwnerId) return;
+      const verifiedAssignment = availableAssignments.find((assignment) =>
+        assignment.id === assignmentPractice.assignmentId
+        && (
+          assignment.assignmentType === 'pronunciation'
+          || assignment.supportTools.includes('pronunciation_practice')
+        ));
+      if (!verifiedAssignment) {
+        setStatus('This teacher task could not be verified. Return to the dashboard and open it again.');
+        return;
+      }
+
       await ChildAssignmentService.saveProgress({
         assignmentId: assignmentPractice.assignmentId,
-        childId: profileId ?? 'guest-child',
+        childId: expectedOwnerId,
         status: 'completed',
         supportUsed: ['pronunciation_practice', feedback?.tone === 'try' ? 'slow_repetition' : 'listen_repeat'],
         moodAfterTask: feedback?.tone === 'great' ? 'confident' : feedback?.tone === 'try' ? 'needs_more_practice' : 'practised',
       });
+      if (getCurrentChildScopeId() !== expectedOwnerId) return;
       setLinkedAssignmentDone(true);
       setStatus('Teacher task updated.');
     } catch {
-      setStatus('Practice saved here, but the teacher task could not update.');
+      if (getCurrentChildScopeId() === expectedOwnerId) {
+        setStatus('Practice saved here, but the teacher task could not update.');
+      }
     } finally {
-      setLinkedAssignmentSaving(false);
+      if (getCurrentChildScopeId() === expectedOwnerId) {
+        setLinkedAssignmentSaving(false);
+      }
     }
   };
 
@@ -742,8 +945,9 @@ const PronunciationBuddyPage: React.FC = () => {
                 <h2 className="text-lg font-black text-adapt-navy dark:text-gray-100">Safety and consent</h2>
                 <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600 dark:text-gray-400">
                   Pronunciation Buddy supports speech confidence, phonics and word practice. It does not diagnose speech
-                  difficulties or replace professional speech and language therapy. Raw voice audio is not saved by default;
-                  practice history stores only metadata such as word, transcript or self-check, support used, confidence and time.
+                  difficulties or replace professional speech and language therapy. AdaptBuddy does not store raw audio or
+                  the words your browser heard. Your browser&apos;s speech service may process speech. Practice history stores
+                  only the chosen practice item, practice method, support used, confidence and time.
                 </p>
               </div>
             </div>
@@ -757,7 +961,7 @@ const PronunciationBuddyPage: React.FC = () => {
               }`}
             >
               <CheckCircle2 className="h-4 w-4" aria-hidden />
-              {micConsentGiven ? 'Mic consent saved' : 'Allow mic for practice'}
+              {micConsentGiven ? 'Mic enabled' : 'Allow mic for practice'}
             </button>
           </div>
         </section>
@@ -986,7 +1190,7 @@ const PronunciationBuddyPage: React.FC = () => {
                   <div className="mt-5 min-h-[7.5rem] rounded-3xl border border-slate-200 bg-white/80 p-4 dark:border-gray-800 dark:bg-gray-950/80">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-bold text-slate-500 dark:text-gray-400">What AdaptBuddy heard</p>
+                        <p className="text-sm font-bold text-slate-500 dark:text-gray-400">What the browser heard this visit</p>
                         <p className="mt-2 text-2xl font-black text-adapt-navy dark:text-gray-100">
                           {spokenText || (isListening ? 'Listening...' : 'Ready')}
                         </p>
@@ -1164,7 +1368,9 @@ const PronunciationBuddyPage: React.FC = () => {
                           </span>
                         </div>
                         <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
-                          {attempt.mode === 'microphone' ? `Browser heard: ${attempt.heard || 'not clear yet'}` : attempt.heard}
+                          {attempt.mode === 'microphone'
+                            ? 'Microphone practice completed · recognised words not stored'
+                            : attempt.heard}
                         </p>
                         <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-400">
                           {attempt.confidence.replace(/_/g, ' ')} · {attempt.supportUsed.join(', ')}

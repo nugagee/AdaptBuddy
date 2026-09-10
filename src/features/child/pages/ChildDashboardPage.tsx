@@ -44,6 +44,7 @@ import {
 } from 'features/child/utils/dailyMissionProgress';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
+import { buildActivityLaunchPath } from 'features/child/routing/routedActivityCompletion';
 import '../components/dashboard/child-dashboard.css';
 
 const ChildDashboardPage: React.FC = () => {
@@ -175,7 +176,7 @@ const ChildDashboardPage: React.FC = () => {
         return;
       }
       if (activity.route) {
-        navigate(activity.route);
+        navigate(buildActivityLaunchPath(activity) ?? activity.route);
         return;
       }
       if (activity.action === 'music') {

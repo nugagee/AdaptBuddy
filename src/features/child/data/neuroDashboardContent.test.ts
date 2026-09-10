@@ -27,22 +27,31 @@ describe('neuroDashboardContent availability', () => {
     )).toBe(false);
   });
 
-  it('offers one real in-place Dysgraphia sentence activity for daily practice', () => {
+  it('offers the in-place and bridged Dysgraphia activities for daily practice', () => {
     expect(getDailyActivitiesForNeuro('dysgraphia', 1).map((activity) => activity.id)).toEqual([
       'dysgraphia-word-bank',
+      'dysgraphia-voice-story',
     ]);
     expect(getAllActivitiesForNeuro('dysgraphia').filter(
       (activity) => isTrackableDailyActivity(activity),
-    ).map((activity) => activity.id)).toEqual(['dysgraphia-word-bank']);
+    ).map((activity) => activity.id)).toEqual([
+      'dysgraphia-voice-story',
+      'dysgraphia-word-bank',
+    ]);
   });
 
-  it('offers the child-led sensory check-in without counting routed sound pages as completed work', () => {
+  it('offers child-led sensory work and only the routed sound pages with completion bridges', () => {
     expect(getDailyActivitiesForNeuro('spd', 1).map((activity) => activity.id)).toEqual([
       'spd-sensory-checklist',
+      'spd-soundscape',
     ]);
     expect(getAllActivitiesForNeuro('spd').filter(
       (activity) => isTrackableDailyActivity(activity),
-    ).map((activity) => activity.id)).toEqual(['spd-sensory-checklist']);
+    ).map((activity) => activity.id)).toEqual([
+      'spd-calm-corner',
+      'spd-sensory-checklist',
+      'spd-soundscape',
+    ]);
   });
 
   it('does not turn a planned-only profile into a fake ready activity', () => {
@@ -64,11 +73,21 @@ describe('neuroDashboardContent availability', () => {
     )).toHaveLength(1);
   });
 
-  it('keeps routed tools available without pretending navigation completed a daily mission', () => {
-    expect(getDailyActivitiesForNeuro('autism', 1)).toEqual([]);
+  it('offers the three in-place Autism tools and bridged pronunciation support', () => {
+    expect(getDailyActivitiesForNeuro('autism', 1).map((activity) => activity.id)).toEqual([
+      'autism-social-story',
+      'autism-pronunciation-buddy',
+    ]);
     const autismTools = getAllActivitiesForNeuro('autism');
-    expect(autismTools.length).toBeGreaterThan(0);
-    expect(autismTools.some((activity) => activity.availability !== 'planned')).toBe(true);
-    expect(autismTools.every((activity) => !isTrackableDailyActivity(activity))).toBe(true);
+    expect(autismTools.filter(isTrackableDailyActivity).map((activity) => activity.id)).toEqual([
+      'autism-visual-schedule',
+      'autism-social-story',
+      'autism-pronunciation-buddy',
+      'autism-pattern-calm',
+    ]);
+    expect(autismTools.find((activity) => activity.id === 'autism-sensory-break')?.route)
+      .toBe('/autism-space?tab=calm');
+    expect(autismTools.find((activity) => activity.id === 'autism-pronunciation-buddy')?.route)
+      .toBe('/pronunciation-buddy');
   });
 });

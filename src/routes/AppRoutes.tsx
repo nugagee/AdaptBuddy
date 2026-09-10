@@ -13,7 +13,7 @@ import ChildDashboardPage from 'features/child/pages/ChildDashboardPage';
 import ActivityLogPage from 'features/child/pages/ActivityLogPage';
 import AutismSpacePage from 'features/child/pages/AutismSpacePage';
 import SettingsPage from 'features/child/pages/SettingsPage';
-import WritingPad from 'features/child/components/writing-pad/WritingPad';
+import WritingPadPage from 'features/child/pages/WritingPadPage';
 import PronunciationBuddyPage from 'features/child/pages/PronunciationBuddyPage';
 import ParentHubPage from 'features/parent/pages/ParentHubPage';
 import MusicMenu from 'features/child/components/music-menu/MusicMenu';
@@ -89,7 +89,7 @@ const AppRoutes: React.FC = () => (
     <Route path={ROUTES.CHILD_CLASSROOM_LIVE} element={withChildAuth(<ChildLiveClassroomPage />)} />
     <Route path={ROUTES.AUTISM_SPACE} element={withChildAuth(<AutismSpacePage />)} />
     <Route path={ROUTES.CHILD_SETTINGS} element={withChildAuth(<SettingsPage />)} />
-    <Route path={ROUTES.WRITING_PAD} element={withChildAuth(<WritingPad />)} />
+    <Route path={ROUTES.WRITING_PAD} element={withChildAuth(<WritingPadPage />)} />
     <Route path={ROUTES.PRONUNCIATION_BUDDY} element={withChildAuth(<PronunciationBuddyPage />)} />
     <Route path={ROUTES.PARENT_HUB} element={withAuth(<ParentHubPage />)} />
     <Route path={ROUTES.MUSIC} element={withChildAuth(<MusicMenu />)} />

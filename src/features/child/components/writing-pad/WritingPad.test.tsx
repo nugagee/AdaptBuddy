@@ -5,6 +5,22 @@ import { getWritingPadStorageKey } from './writingPadHelpers';
 
 const mockUseAuth = jest.fn();
 
+jest.mock('features/child/store/childProgressReadAccess', () => {
+  const actual = jest.requireActual('features/child/store/childProgressReadAccess');
+  return {
+    ...actual,
+    getCurrentChildScopeId: () => {
+      const auth = mockUseAuth();
+      return actual.resolveChildScopeId({
+        userId: auth.user?.id ?? null,
+        profileId: auth.profile?.id ?? null,
+        profileRole: auth.profile?.role ?? null,
+        isGuest: Boolean(auth.isGuest),
+      });
+    },
+  };
+});
+
 jest.mock('hooks/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }));
@@ -15,11 +31,23 @@ jest.mock('features/child/components/layout/ChildDashboardNavbar', () => () => (
 
 const childAuth = (id: string) => ({
   user: { id },
+  isGuest: false,
   profile: {
     id,
     role: 'child',
     first_name: 'Child',
     neuro_types: [],
+  },
+});
+
+const guestChildAuth = () => ({
+  user: null,
+  isGuest: true,
+  profile: {
+    id: 'guest-child',
+    role: 'child',
+    first_name: 'Love',
+    neuro_types: ['dysgraphia'],
   },
 });
 
@@ -60,6 +88,64 @@ describe('WritingPad draft ownership', () => {
     fireEvent.change(writingArea, { target: { value: 'must not be kept' } });
     expect(writingArea).toHaveValue('');
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('lets the exact guest child write and save only for this visit', () => {
+    localStorage.setItem(getWritingPadStorageKey('child-a')!, 'A private draft');
+    localStorage.setItem(getWritingPadStorageKey('guest-child')!, 'must never load');
+    mockUseAuth.mockReturnValue(guestChildAuth());
+    const onSave = jest.fn();
+
+    const { unmount } = render(<WritingPad onSave={onSave} />);
+    const writingArea = screen.getByRole('textbox', { name: 'Writing area' });
+    expect(writingArea).toHaveValue('');
+    expect(writingArea).not.toHaveAttribute('readonly');
+
+    fireEvent.change(writingArea, { target: { value: 'My guest story' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onSave).toHaveBeenCalledWith({
+      ownerId: 'guest-child',
+      wordCount: 3,
+      hadSessionContribution: true,
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Kept for this visit only');
+    expect(localStorage.getItem(getWritingPadStorageKey('child-a')!)).toBe('A private draft');
+    expect(localStorage.getItem(getWritingPadStorageKey('guest-child')!)).toBe('must never load');
+
+    unmount();
+    render(<WritingPad />);
+    expect(screen.getByRole('textbox', { name: 'Writing area' })).toHaveValue('');
+  });
+
+  it.each([
+    {
+      label: 'guest parent',
+      auth: { user: null, isGuest: true, profile: { id: 'guest-child', role: 'parent' } },
+    },
+    {
+      label: 'malformed guest child',
+      auth: { user: null, isGuest: true, profile: { id: 'someone-else', role: 'child' } },
+    },
+    {
+      label: 'guest with a user session',
+      auth: { user: { id: 'child-a' }, isGuest: true, profile: { id: 'guest-child', role: 'child' } },
+    },
+  ])('keeps a $label read-only', ({ auth }) => {
+    mockUseAuth.mockReturnValue(auth);
+    render(<WritingPad />);
+    expect(screen.getByRole('textbox', { name: 'Writing area' })).toHaveAttribute('readonly');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  it('requires a clear microphone disclosure and confirmation', () => {
+    mockUseAuth.mockReturnValue(guestChildAuth());
+    render(<WritingPad />);
+
+    expect(screen.getByText(/browser's speech service may process/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Voice type' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Enable voice typing' }));
+    expect(screen.getByRole('button', { name: 'Voice type' })).toBeEnabled();
   });
 
   it('loads only the current authenticated child draft', () => {
@@ -177,6 +263,7 @@ describe('WritingPad draft ownership', () => {
     try {
       mockUseAuth.mockReturnValue(childAuth('child-a'));
       const { rerender, unmount } = render(<WritingPad />);
+      fireEvent.click(screen.getByRole('button', { name: 'Enable voice typing' }));
       fireEvent.click(screen.getByRole('button', { name: 'Voice type' }));
 
       expect(recognition).not.toBeNull();
@@ -199,6 +286,7 @@ describe('WritingPad draft ownership', () => {
       });
       expect(screen.getByRole('textbox', { name: 'Writing area' })).toHaveValue('');
 
+      fireEvent.click(screen.getByRole('button', { name: 'Enable voice typing' }));
       fireEvent.click(screen.getByRole('button', { name: 'Voice type' }));
       const childBRecognition = recognition!;
       expect(childBRecognition).not.toBe(childARecognition);

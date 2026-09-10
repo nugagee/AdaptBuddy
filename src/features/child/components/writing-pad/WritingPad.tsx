@@ -13,6 +13,11 @@ import {
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import { useAuth } from 'hooks/useAuth';
 import {
+  getCurrentChildScopeId,
+  resolveAuthenticatedChildId,
+  resolveChildScopeId,
+} from 'features/child/store/childProgressReadAccess';
+import {
   countWords,
   getLineHeight,
   getOverlayRgba,
@@ -53,8 +58,14 @@ type SpeechWindow = Window & {
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
 
+export interface WritingPadSaveResult {
+  ownerId: string;
+  wordCount: number;
+  hadSessionContribution: boolean;
+}
+
 interface WritingPadProps {
-  onSave?: (content: string) => void;
+  onSave?: (result: WritingPadSaveResult) => void;
   initialContent?: string;
   initialContentOwnerId?: string;
 }
@@ -65,8 +76,16 @@ const WritingPad: React.FC<WritingPadProps> = ({
   initialContentOwnerId,
 }) => {
   const { user, profile, isGuest } = useAuth();
-  const authenticatedChildId =
-    !isGuest && user?.id && profile?.role === 'child' && profile.id === user.id ? user.id : '';
+  const authInput = {
+    userId: user?.id ?? null,
+    profileId: profile?.id ?? null,
+    profileRole: profile?.role ?? null,
+    isGuest: Boolean(isGuest),
+  };
+  const childScopeId = resolveChildScopeId(authInput);
+  const authenticatedChildId = resolveAuthenticatedChildId(authInput) ?? '';
+  const isGuestChild = childScopeId === 'guest-child';
+  const canEdit = childScopeId !== null;
   const ownedInitialContent =
     authenticatedChildId && initialContentOwnerId === authenticatedChildId ? initialContent : '';
   const [content, setContent] = useState(() =>
@@ -80,10 +99,12 @@ const WritingPad: React.FC<WritingPadProps> = ({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [saveFlash, setSaveFlash] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [micConsentGiven, setMicConsentGiven] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const recordingBaseContentRef = useRef('');
+  const hasSessionContributionRef = useRef(false);
 
   const firstName = profile?.first_name || 'Friend';
   const neuroTypes = profile?.neuro_types ?? [];
@@ -143,6 +164,8 @@ const WritingPad: React.FC<WritingPadProps> = ({
     setShowClearConfirm(false);
     setSaveFlash(false);
     setLastSaved(null);
+    setMicConsentGiven(false);
+    hasSessionContributionRef.current = false;
     setContent(
       authenticatedChildId ? ownedInitialContent || loadSavedWriting(authenticatedChildId) : '',
     );
@@ -151,11 +174,16 @@ const WritingPad: React.FC<WritingPadProps> = ({
       releaseRecognition();
       cancelSpeechSynthesis();
     };
-  }, [authenticatedChildId, cancelSpeechSynthesis, ownedInitialContent, releaseRecognition]);
+  }, [authenticatedChildId, cancelSpeechSynthesis, childScopeId, ownedInitialContent, releaseRecognition]);
 
   const startRecording = useCallback(() => {
-    if (!authenticatedChildId) {
-      setRecordingStatus('Sign in with a child account before using voice typing.');
+    const expectedOwnerId = childScopeId;
+    if (!expectedOwnerId || getCurrentChildScopeId() !== expectedOwnerId) {
+      setRecordingStatus('Open this tool from a child profile before using voice typing.');
+      return;
+    }
+    if (!micConsentGiven) {
+      setRecordingStatus('Please enable voice typing after reading the privacy note.');
       return;
     }
 
@@ -174,7 +202,10 @@ const WritingPad: React.FC<WritingPadProps> = ({
     recognition.interimResults = true;
     recognition.lang = 'en-GB';
     recognition.onresult = (event) => {
-      if (recognitionRef.current !== recognition) return;
+      if (
+        recognitionRef.current !== recognition
+        || getCurrentChildScopeId() !== expectedOwnerId
+      ) return;
 
       let transcript = '';
       for (let index = 0; index < event.results.length; index += 1) {
@@ -183,16 +214,23 @@ const WritingPad: React.FC<WritingPadProps> = ({
       const baseContent = recordingBaseContentRef.current;
       const nextContent = [baseContent, transcript.trim()].filter(Boolean).join(' ');
       setContent(nextContent);
+      if (transcript.trim()) hasSessionContributionRef.current = true;
       setRecordingStatus('Listening… speak at your own pace.');
     };
     recognition.onerror = () => {
-      if (recognitionRef.current !== recognition) return;
+      if (
+        recognitionRef.current !== recognition
+        || getCurrentChildScopeId() !== expectedOwnerId
+      ) return;
       recognitionRef.current = null;
       setRecordingStatus('Voice typing could not hear clearly. Try again, or type your words.');
       setIsRecording(false);
     };
     recognition.onend = () => {
-      if (recognitionRef.current !== recognition) return;
+      if (
+        recognitionRef.current !== recognition
+        || getCurrentChildScopeId() !== expectedOwnerId
+      ) return;
       recognitionRef.current = null;
       setIsRecording(false);
       setRecordingStatus((current) =>
@@ -211,7 +249,7 @@ const WritingPad: React.FC<WritingPadProps> = ({
       releaseRecognition();
       setRecordingStatus('Voice typing is already starting. Try again in a moment.');
     }
-  }, [authenticatedChildId, content, releaseRecognition]);
+  }, [childScopeId, content, micConsentGiven, releaseRecognition]);
 
   const toggleRecording = () => {
     if (isRecording) stopRecording();
@@ -232,13 +270,30 @@ const WritingPad: React.FC<WritingPadProps> = ({
   };
 
   const handleSave = () => {
-    if (!authenticatedChildId) return;
+    const expectedOwnerId = childScopeId;
+    if (!expectedOwnerId || getCurrentChildScopeId() !== expectedOwnerId) {
+      setRecordingStatus('This profile changed before the draft could be saved.');
+      return;
+    }
+    if (!content.trim()) {
+      setRecordingStatus('Add at least one word before saving.');
+      return;
+    }
 
-    if (!persistWriting(authenticatedChildId, content)) {
+    if (authenticatedChildId && !persistWriting(authenticatedChildId, content)) {
       setRecordingStatus('This draft could not be saved on this device. Download a copy instead.');
       return;
     }
-    onSave?.(content);
+    onSave?.({
+      ownerId: expectedOwnerId,
+      wordCount: countWords(content),
+      hadSessionContribution: hasSessionContributionRef.current,
+    });
+    setRecordingStatus(
+      isGuestChild
+        ? 'Kept for this visit only. Download a copy if you want to keep it.'
+        : 'Draft saved on this device.',
+    );
     setLastSaved(new Date());
     setSaveFlash(true);
     window.setTimeout(() => setSaveFlash(false), 800);
@@ -246,7 +301,8 @@ const WritingPad: React.FC<WritingPadProps> = ({
 
   const clearContent = () => {
     setContent('');
-    persistWriting(authenticatedChildId, '');
+    if (authenticatedChildId) persistWriting(authenticatedChildId, '');
+    hasSessionContributionRef.current = false;
     setShowClearConfirm(false);
     setRecordingStatus('');
     textareaRef.current?.focus();
@@ -330,6 +386,29 @@ const WritingPad: React.FC<WritingPadProps> = ({
         )}
 
         {/* Toolbar */}
+        {canEdit && !micConsentGiven && (
+          <section
+            className="rounded-2xl border border-sky-200/80 bg-sky-50/90 p-4 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100"
+            role="note"
+          >
+            <p className="font-bold">Voice typing privacy</p>
+            <p className="mt-1">
+              AdaptBuddy does not store raw audio. Your browser&apos;s speech service may process
+              what you say. Typing stays available if you do not enable the microphone.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setMicConsentGiven(true);
+                setRecordingStatus('Voice typing is enabled for this visit.');
+              }}
+              className="mt-3 rounded-full bg-adapt-navy px-4 py-2 text-xs font-bold text-white dark:bg-adapt-indigo"
+            >
+              Enable voice typing
+            </button>
+          </section>
+        )}
+
         <section
           className="flex flex-wrap items-center gap-2 rounded-[1.75rem] border border-white/60 bg-white/65 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-gray-900/55 sm:gap-3 sm:p-4"
           aria-label="Writing tools"
@@ -337,7 +416,7 @@ const WritingPad: React.FC<WritingPadProps> = ({
           <button
             type="button"
             onClick={toggleRecording}
-            disabled={!authenticatedChildId}
+            disabled={!canEdit || !micConsentGiven}
             className={`${toolbarBtn} ${
               isRecording
                 ? 'bg-red-500 text-white shadow-md writing-mic-pulse'
@@ -365,7 +444,7 @@ const WritingPad: React.FC<WritingPadProps> = ({
           <button
             type="button"
             onClick={handleSave}
-            disabled={!authenticatedChildId}
+            disabled={!canEdit || !content.trim()}
             className={`${toolbarBtn} bg-adapt-navy text-white shadow-soft hover:bg-adapt-purple dark:bg-adapt-indigo dark:hover:bg-adapt-purple ${
               saveFlash ? 'writing-save-flash' : ''
             }`}
@@ -532,9 +611,12 @@ const WritingPad: React.FC<WritingPadProps> = ({
             ref={textareaRef}
             value={content}
             onChange={(e) => {
-              if (authenticatedChildId) setContent(e.target.value);
+              if (canEdit) {
+                if (e.target.value !== content) hasSessionContributionRef.current = true;
+                setContent(e.target.value);
+              }
             }}
-            readOnly={!authenticatedChildId}
+            readOnly={!canEdit}
             placeholder="Start writing here… take your time, one word at a time."
             className={`relative z-10 min-h-[min(70vh,560px)] w-full resize-y bg-transparent p-6 text-lg text-adapt-navy outline-none placeholder:text-slate-400 dark:text-gray-100 dark:placeholder:text-gray-500 sm:p-8 ${
               useDyslexicFont ? 'font-dyslexic' : 'font-sans'
@@ -547,7 +629,9 @@ const WritingPad: React.FC<WritingPadProps> = ({
 
         <footer className="flex flex-col gap-2 rounded-2xl border border-dashed border-adapt-indigo/20 bg-adapt-indigo/5 px-5 py-4 text-center text-sm text-slate-600 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/5 dark:text-gray-400 sm:flex-row sm:items-center sm:justify-between sm:text-left">
           <p>
-            {content.length} characters · auto-saves when you press Save
+            {content.length} characters · {isGuestChild
+              ? 'guest writing stays only for this visit'
+              : 'saves on this device when you press Save'}
           </p>
           <p className="text-xs">
             Tip: voice typing works best in a quiet room with the mic button

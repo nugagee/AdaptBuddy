@@ -47,6 +47,16 @@ export const resolveChildScopeId = (input: AuthenticatedChildInput): string | nu
       : null;
 };
 
+export const getCurrentChildScopeId = (): string | null => {
+  const auth = useAuthStore.getState();
+  return resolveChildScopeId({
+    userId: auth.user?.id ?? null,
+    profileId: auth.profile?.id ?? null,
+    profileRole: auth.profile?.role ?? null,
+    isGuest: auth.isGuest,
+  });
+};
+
 export const isChildProgressReadable = (
   childId: string | null,
   ownerId: string | null,
@@ -63,13 +73,7 @@ export const isChildProgressReadable = (
  * only on the owner that was valid when they first rendered.
  */
 export const getReadyChildProgressForOwner = (expectedOwnerId: string | null) => {
-  const auth = useAuthStore.getState();
-  const childId = resolveChildScopeId({
-    userId: auth.user?.id ?? null,
-    profileId: auth.profile?.id ?? null,
-    profileRole: auth.profile?.role ?? null,
-    isGuest: auth.isGuest,
-  });
+  const childId = getCurrentChildScopeId();
   if (!expectedOwnerId || childId !== expectedOwnerId) return null;
 
   const progress = useChildProgressStore.getState();

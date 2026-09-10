@@ -25,6 +25,65 @@ const completeActivity = (activityId: string, onComplete: jest.Mock) => {
 };
 
 describe('ActivitySessionModal ADHD results', () => {
+  it('opens and completes the Visual Day Map activity', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('autism-visual-schedule')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    expect(screen.getByText('Build today in order')).toBeInTheDocument();
+    const completeButton = screen.getByRole('button', { name: /mark complete/i });
+    expect(completeButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Move Calm tool up' }));
+    expect(completeButton).toBeEnabled();
+    fireEvent.click(completeButton);
+    expect(onComplete).toHaveBeenCalledWith();
+  });
+
+  it('lets the child choose and complete a Social Story', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('autism-social-story')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    const completeButton = screen.getByRole('button', { name: /mark complete/i });
+    expect(completeButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'A room feels noisy' }));
+    expect(completeButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'worried' }));
+    expect(completeButton).toBeEnabled();
+    fireEvent.click(completeButton);
+    expect(onComplete).toHaveBeenCalledWith();
+  });
+
+  it('requires the correct Pattern Predictor answer before completion', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('autism-pattern-calm')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    const completeButton = screen.getByRole('button', { name: /mark complete/i });
+    expect(completeButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Green circle' }));
+    expect(completeButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Blue square' }));
+    expect(completeButton).toBeEnabled();
+    fireEvent.click(completeButton);
+    expect(onComplete).toHaveBeenCalledWith();
+  });
+
   it('returns the selected Focus Coach state and rescue plan', () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
     render(

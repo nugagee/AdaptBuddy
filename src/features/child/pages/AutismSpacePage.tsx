@@ -24,7 +24,7 @@ import {
   Volume2,
   Wind,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ROUTES } from 'constants/routes';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
@@ -47,8 +47,7 @@ import { useAuthStore } from 'store/authStore';
 import { useAuth } from 'hooks/useAuth';
 import { resolveChildScopeId } from 'features/child/store/childProgressReadAccess';
 import { saveAutismProfile } from 'services/supabase/autismProfileService';
-
-type AutismTab = 'profile' | 'schedule' | 'transition' | 'calm' | 'story' | 'communication';
+import { resolveAutismTab, type AutismTab } from './autismSpaceRouting';
 
 const tabs: { id: AutismTab; label: string; icon: React.ElementType }[] = [
   { id: 'profile', label: 'Profile Wizard', icon: Sparkles },
@@ -157,6 +156,7 @@ const canMutateAutismState = (
 };
 
 const AutismSpacePage: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialAutismState = useAutismProfileStore.getState();
   const initialAuth = useAuthStore.getState();
   const initialChildScopeId = resolveChildScopeId({
@@ -172,7 +172,9 @@ const AutismSpacePage: React.FC = () => {
     && initialAutismState.profile.childId === initialChildScopeId
   ) ? initialChildScopeId : null;
 
-  const [activeTab, setActiveTab] = useState<AutismTab>('profile');
+  const [activeTab, setActiveTab] = useState<AutismTab>(() =>
+    resolveAutismTab(searchParams.get('tab')),
+  );
   const [profileDraft, setProfileDraft] = useState<AutismProfile>(
     initialAutismState.profile,
   );
@@ -218,6 +220,18 @@ const AutismSpacePage: React.FC = () => {
   const selectedTrustedAdultId = useTrustedAdultStore((s) => s.selectedTrustedAdultId);
   const setReducedMotion = useUiStore((s) => s.setReducedMotion);
   const setTheme = useUiStore((s) => s.setTheme);
+
+  useEffect(() => {
+    setActiveTab(resolveAutismTab(searchParams.get('tab')));
+  }, [searchParams]);
+
+  const selectTab = (tab: AutismTab) => {
+    setActiveTab(tab);
+    const nextParams = new URLSearchParams(searchParams);
+    if (tab === 'profile') nextParams.delete('tab');
+    else nextParams.set('tab', tab);
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const activeTrustedAdult = useMemo(
     () => {
@@ -1397,7 +1411,8 @@ const AutismSpacePage: React.FC = () => {
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => selectTab(tab.id)}
+                    aria-pressed={active}
                     className={`rounded-2xl border-2 p-3 text-sm font-bold transition ${
                       active
                         ? 'border-adapt-indigo bg-adapt-indigo text-white shadow-md'

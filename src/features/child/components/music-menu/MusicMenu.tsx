@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Headphones, Sparkles, Timer, Waves } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, Headphones, Sparkles, Timer, Waves } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import {
   getTrackById,
@@ -9,12 +10,38 @@ import {
 } from 'features/child/data/musicTracks';
 import { useAuth } from 'hooks/useAuth';
 import { useMusicPlayer } from 'contexts/musicPlayerContext';
+import { ROUTES } from 'constants/routes';
+import {
+  getCurrentChildScopeId,
+  getReadyChildProgressForOwner,
+  resolveChildScopeId,
+  useChildProgressReadAccess,
+} from 'features/child/store/childProgressReadAccess';
+import { resolveRoutedActivity } from 'features/child/routing/routedActivityCompletion';
 import MusicNowPlaying from './MusicNowPlaying';
 import SoundscapeCard from './SoundscapeCard';
 import './music-menu.css';
 
 const MusicMenu: React.FC = () => {
-  const { profile } = useAuth();
+  const location = useLocation();
+  const { user, profile, isGuest } = useAuth();
+  const childScopeId = resolveChildScopeId({
+    userId: user?.id ?? null,
+    profileId: profile?.id ?? null,
+    profileRole: profile?.role ?? null,
+    isGuest: Boolean(isGuest),
+  });
+  const { isReady: isProgressReady } = useChildProgressReadAccess();
+  const neuroTypes = profile?.neuro_types ?? [];
+  const routedActivity = useMemo(
+    () => resolveRoutedActivity({
+      search: location.search,
+      expectedPathname: location.pathname,
+      neuroTypes,
+      completion: 'sound-session',
+    }),
+    [location.pathname, location.search, neuroTypes],
+  );
   const { beginSoundscapeOverride, endSoundscapeOverride } = useMusicPlayer();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
@@ -24,7 +51,11 @@ const MusicMenu: React.FC = () => {
   const [activeTimerPreset, setActiveTimerPreset] = useState<number | null>(null);
   const [showSensoryTip, setShowSensoryTip] = useState(false);
   const [dismissedSensoryTip, setDismissedSensoryTip] = useState(false);
+  const [listenedSeconds, setListenedSeconds] = useState(0);
+  const [missionCompleted, setMissionCompleted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playbackEpochRef = useRef(0);
+  const missionIdentityRef = useRef<{ ownerId: string; activityId: string } | null>(null);
 
   const currentTrack = getTrackById(currentTrackId);
   const firstName = profile?.first_name || 'Friend';
@@ -47,24 +78,47 @@ const MusicMenu: React.FC = () => {
 
   const playTrack = useCallback(
     async (track: MusicTrack) => {
+      const expectedOwnerId = childScopeId;
+      if (!expectedOwnerId || getCurrentChildScopeId() !== expectedOwnerId) {
+        setPlaybackError('Open this tool from a child profile to play a sound.');
+        return;
+      }
+      const playbackEpoch = ++playbackEpochRef.current;
       setPlaybackError('');
 
-      if (!audioRef.current) {
-        audioRef.current = new Audio();
-        audioRef.current.loop = true;
-        audioRef.current.preload = 'auto';
-        audioRef.current.addEventListener('ended', () => setIsPlaying(false));
-        audioRef.current.addEventListener('error', () => {
-          setIsPlaying(false);
-          setPlaybackError('This sound could not load. Please try another calming sound.');
-        });
-      }
-
-      const audio = audioRef.current;
-      const sourceChanged = audio.src !== new URL(track.src, window.location.origin).href;
+      const resolvedSource = new URL(track.src, window.location.origin).href;
+      const sourceChanged = !audioRef.current || audioRef.current.src !== resolvedSource;
 
       if (sourceChanged) {
-        audio.pause();
+        if (audioRef.current) {
+          audioRef.current.onended = null;
+          audioRef.current.onerror = null;
+          audioRef.current.pause();
+        }
+        audioRef.current = new Audio();
+      }
+
+      // The ref is assigned above when there is no reusable player, but keep
+      // the local value explicitly non-null for strict TypeScript builds.
+      const audio = audioRef.current ?? new Audio();
+      audioRef.current = audio;
+      audio.loop = true;
+      audio.preload = 'auto';
+      audio.onended = () => {
+        if (audioRef.current !== audio || playbackEpochRef.current !== playbackEpoch) return;
+        ++playbackEpochRef.current;
+        setIsPlaying(false);
+        endSoundscapeOverride();
+      };
+      audio.onerror = () => {
+        if (audioRef.current !== audio || playbackEpochRef.current !== playbackEpoch) return;
+        ++playbackEpochRef.current;
+        setIsPlaying(false);
+        setPlaybackError('This sound could not load. Please try another calming sound.');
+        endSoundscapeOverride();
+      };
+
+      if (sourceChanged) {
         audio.src = track.src;
         audio.load();
       }
@@ -73,18 +127,31 @@ const MusicMenu: React.FC = () => {
 
       try {
         await audio.play();
+        if (playbackEpochRef.current !== playbackEpoch || audioRef.current !== audio) return;
+        if (getCurrentChildScopeId() !== expectedOwnerId) {
+          audio.pause();
+          endSoundscapeOverride();
+          return;
+        }
         setCurrentTrackId(track.id);
         setIsPlaying(true);
+        missionIdentityRef.current = routedActivity
+          ? { ownerId: expectedOwnerId, activityId: routedActivity.id }
+          : null;
         beginSoundscapeOverride();
       } catch {
+        if (playbackEpochRef.current !== playbackEpoch || audioRef.current !== audio) return;
+        ++playbackEpochRef.current;
         setIsPlaying(false);
         setPlaybackError('Tap play again if your browser blocked the sound.');
+        endSoundscapeOverride();
       }
     },
-    [volume, beginSoundscapeOverride],
+    [beginSoundscapeOverride, childScopeId, endSoundscapeOverride, routedActivity, volume],
   );
 
   const pauseTrack = useCallback(() => {
+    ++playbackEpochRef.current;
     audioRef.current?.pause();
     setIsPlaying(false);
     endSoundscapeOverride();
@@ -106,6 +173,7 @@ const MusicMenu: React.FC = () => {
   );
 
   const stopAll = useCallback(() => {
+    ++playbackEpochRef.current;
     audioRef.current?.pause();
     if (audioRef.current) audioRef.current.currentTime = 0;
     setIsPlaying(false);
@@ -121,7 +189,13 @@ const MusicMenu: React.FC = () => {
 
   useEffect(
     () => () => {
-      audioRef.current?.pause();
+      ++playbackEpochRef.current;
+      missionIdentityRef.current = null;
+      if (audioRef.current) {
+        audioRef.current.onended = null;
+        audioRef.current.onerror = null;
+        audioRef.current.pause();
+      }
       audioRef.current = null;
       endSoundscapeOverride();
     },
@@ -133,16 +207,89 @@ const MusicMenu: React.FC = () => {
       if (timeRemaining === 0) {
         stopAll();
         setActiveTimerPreset(null);
+        setTimeRemaining(null);
       }
       return undefined;
     }
+    if (!isPlaying) return undefined;
 
     const interval = window.setInterval(() => {
       setTimeRemaining((prev) => (prev !== null ? prev - 1 : null));
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [timeRemaining, stopAll]);
+  }, [isPlaying, timeRemaining, stopAll]);
+
+  useEffect(() => {
+    ++playbackEpochRef.current;
+    missionIdentityRef.current = null;
+    audioRef.current?.pause();
+    if (audioRef.current) audioRef.current.currentTime = 0;
+    endSoundscapeOverride();
+    setIsPlaying(false);
+    setCurrentTrackId(null);
+    setPlaybackError('');
+    const readyProgress = isProgressReady
+      ? getReadyChildProgressForOwner(childScopeId)
+      : null;
+    const alreadyCompleted = Boolean(
+      routedActivity
+      && readyProgress
+      && typeof readyProgress.isActivityCompletedToday === 'function'
+      && readyProgress.isActivityCompletedToday(routedActivity.id),
+    );
+    setListenedSeconds(alreadyCompleted && routedActivity
+      ? routedActivity.durationMinutes * 60
+      : 0);
+    setMissionCompleted(alreadyCompleted);
+    setActiveTimerPreset(routedActivity?.durationMinutes ?? null);
+    setTimeRemaining(routedActivity ? routedActivity.durationMinutes * 60 : null);
+  }, [
+    childScopeId,
+    endSoundscapeOverride,
+    isProgressReady,
+    routedActivity?.id,
+    routedActivity?.durationMinutes,
+  ]);
+
+  useEffect(() => {
+    if (!routedActivity || !isPlaying || missionCompleted) return undefined;
+    const requiredSeconds = routedActivity.durationMinutes * 60;
+    const interval = window.setInterval(() => {
+      const mission = missionIdentityRef.current;
+      if (
+        !mission
+        || mission.ownerId !== childScopeId
+        || mission.activityId !== routedActivity.id
+        || getCurrentChildScopeId() !== mission.ownerId
+      ) return;
+      setListenedSeconds((current) => Math.min(requiredSeconds, current + 1));
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [isPlaying, missionCompleted, routedActivity]);
+
+  useEffect(() => {
+    if (!routedActivity || missionCompleted) return;
+    const requiredSeconds = routedActivity.durationMinutes * 60;
+    if (listenedSeconds < requiredSeconds) return;
+
+    const mission = missionIdentityRef.current;
+    if (
+      !mission
+      || mission.ownerId !== childScopeId
+      || mission.activityId !== routedActivity.id
+      || getCurrentChildScopeId() !== mission.ownerId
+    ) return;
+    const progress = getReadyChildProgressForOwner(mission.ownerId);
+    if (!progress) return;
+    progress.completeActivity(
+      routedActivity.id,
+      routedActivity.neuroId,
+      routedActivity.starsReward,
+      routedActivity.durationMinutes,
+    );
+    setMissionCompleted(true);
+  }, [childScopeId, isProgressReady, listenedSeconds, missionCompleted, routedActivity]);
 
   const handleSensorySuggestion = () => {
     setDismissedSensoryTip(true);
@@ -197,6 +344,45 @@ const MusicMenu: React.FC = () => {
             </div>
           </div>
         </section>
+
+        {routedActivity && (
+          <section
+            className="rounded-[1.75rem] border border-emerald-200/80 bg-emerald-50/90 p-5 shadow-soft dark:border-emerald-900/50 dark:bg-emerald-950/30"
+            aria-label={`${routedActivity.title} progress`}
+          >
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-600" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <h2 className="font-extrabold text-emerald-900 dark:text-emerald-100">
+                  {routedActivity.title}
+                </h2>
+                <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
+                  {missionCompleted
+                    ? `Sound break complete. +${routedActivity.starsReward} stars.`
+                    : `Play any sound for ${routedActivity.durationMinutes} active minutes. Paused time does not count.`}
+                </p>
+                <div
+                  className="mt-3 h-2 overflow-hidden rounded-full bg-white/80 dark:bg-black/20"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={routedActivity.durationMinutes * 60}
+                  aria-valuenow={listenedSeconds}
+                  aria-label="Active listening time"
+                >
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-[width]"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.round((listenedSeconds / (routedActivity.durationMinutes * 60)) * 100),
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {showSensoryTip && (
           <div

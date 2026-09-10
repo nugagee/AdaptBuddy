@@ -54,6 +54,8 @@ export interface NeuroActivity {
   route?: string;
   /** Opens feelings journal, focus timer, etc. */
   action?: 'journal' | 'focus-timer' | 'music' | 'writing';
+  /** A routed activity is trackable only after this verified completion bridge exists. */
+  completion?: 'writing-save' | 'pronunciation-attempt' | 'sound-session';
   starsReward: number;
 }
 
@@ -187,7 +189,6 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'focus',
     icon: LayoutGrid,
     inspiration: 'Visual schedules reduce anxiety (UDL / Tiimo-style)',
-    route: ROUTES.AUTISM_SPACE,
     starsReward: 3,
   },
   {
@@ -199,7 +200,6 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'social',
     icon: BookOpen,
     inspiration: 'Carol Gray social stories framework',
-    route: ROUTES.AUTISM_SPACE,
     starsReward: 4,
   },
   {
@@ -211,7 +211,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'regulation',
     icon: Wind,
     inspiration: 'Calm Corner regulation (Vedyx-style)',
-    route: ROUTES.AUTISM_SPACE,
+    route: `${ROUTES.AUTISM_SPACE}?tab=calm`,
     starsReward: 2,
   },
   {
@@ -224,6 +224,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     icon: Mic,
     inspiration: 'Communication confidence with speech, AAC, and mixed communication styles',
     route: ROUTES.PRONUNCIATION_BUDDY,
+    completion: 'pronunciation-attempt',
     starsReward: 3,
   },
   {
@@ -235,7 +236,6 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'focus',
     icon: Brain,
     inspiration: 'Structured visual learning paths',
-    route: ROUTES.AUTISM_SPACE,
     starsReward: 3,
   },
 
@@ -366,6 +366,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     inspiration: 'Speech-to-text writing support',
     action: 'writing',
     route: ROUTES.WRITING_PAD,
+    completion: 'writing-save',
     starsReward: 5,
   },
   {
@@ -483,6 +484,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     inspiration: 'Sensory diet / Calm Corner (Vedyx)',
     action: 'music',
     route: ROUTES.MUSIC,
+    completion: 'sound-session',
     starsReward: 3,
   },
   {
@@ -506,6 +508,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     icon: Music,
     inspiration: 'Auditory regulation tools',
     route: ROUTES.MUSIC,
+    completion: 'sound-session',
     starsReward: 2,
   },
 
@@ -533,6 +536,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     icon: Headphones,
     inspiration: 'Optional listen-and-repeat communication practice',
     route: ROUTES.PRONUNCIATION_BUDDY,
+    completion: 'pronunciation-attempt',
     starsReward: 3,
   },
   {
@@ -628,6 +632,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     inspiration: 'Low-demand expression with more than one input method',
     action: 'writing',
     route: ROUTES.WRITING_PAD,
+    completion: 'writing-save',
     starsReward: 4,
   },
 ];
@@ -644,6 +649,7 @@ const buildPronunciationActivity = (neuroId: string): NeuroActivity => ({
   icon: Mic,
   inspiration: 'Speech, listening, and AAC-adjacent communication confidence',
   route: ROUTES.PRONUNCIATION_BUDDY,
+  completion: 'pronunciation-attempt',
   starsReward: 3,
 });
 
@@ -674,10 +680,23 @@ export const NEURO_METRICS: NeuroMetricDefinition[] = [
 
 /** A daily mission must have an in-place completion path that records real work. */
 export function isTrackableDailyActivity(activity: NeuroActivity): boolean {
-  if (activity.availability === 'planned' || activity.route) return false;
+  if (activity.availability === 'planned') return false;
+  if (activity.route) return activity.completion !== undefined;
   return activity.action === undefined
     || activity.action === 'journal'
     || activity.action === 'focus-timer';
+}
+
+/** Resolve activity metadata from code, never from URL-provided reward fields. */
+export function getKnownActivityById(activityId: string): NeuroActivity | null {
+  const activity = NEURO_ACTIVITIES.find((candidate) => candidate.id === activityId);
+  if (activity) return activity;
+
+  const pronunciationMatch = activityId.match(/^(.+)-pronunciation-buddy$/);
+  const neuroId = pronunciationMatch?.[1];
+  return neuroId && PRONUNCIATION_NEURO_IDS.has(neuroId)
+    ? buildPronunciationActivity(neuroId)
+    : null;
 }
 
 /** Pick 2 daily activities per neuro (rotates by day of year) */

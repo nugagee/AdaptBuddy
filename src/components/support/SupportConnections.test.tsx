@@ -5,6 +5,7 @@ import SupportConnectionsPanel from './SupportConnectionsPanel';
 import SupportRequestAction from './SupportRequestAction';
 import MoodCheckInPanel from 'features/child/components/companion/MoodCheckInPanel';
 import { respondToMoodCheckIn } from 'services/ai';
+import { prepareReadyChildScope, clearReadyChildScope } from 'testUtils/readyChildScope';
 jest.mock('services/ai', () => ({ isOpenAiConfigured: true, buildCompanionContext: () => ({}), respondToMoodCheckIn: jest.fn() }));
 
 let mockAuth: any;
@@ -22,12 +23,14 @@ const contact = { id: 'contact-a', name: 'Alex', email: 'alex@example.invalid', 
 const mock = (fn: unknown) => fn as jest.Mock;
 beforeEach(() => {
   jest.resetAllMocks();
-  mockAuth = { user: { id: 'child' }, profile: { role: 'child' }, isGuest: false };
+  prepareReadyChildScope('child');
+  mockAuth = { user: { id: 'child' }, profile: { id: 'child', role: 'child', first_name: 'Test', age: 10 }, isGuest: false };
   mock(service.fetchTrustedAdultsForChild).mockResolvedValue([]);
   mock(service.fetchAdultSupportInvitations).mockResolvedValue([]);
   mock(service.fetchSupportRequests).mockResolvedValue([]);
   Object.defineProperty(global, 'crypto', { configurable: true, value: { randomUUID: jest.fn().mockReturnValue('request-uuid') } });
 });
+afterEach(clearReadyChildScope);
 
 test('child can create an in-app invitation with an explicit no-email result', async () => {
   render(<SupportConnectionsPanel />);

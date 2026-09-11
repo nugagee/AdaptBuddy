@@ -1,16 +1,19 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { prepareReadyChildScope, clearReadyChildScope } from 'testUtils/readyChildScope';
 import AdhdEnergyPacingPanel from './AdhdEnergyPacingPanel';
 
 describe('AdhdEnergyPacingPanel', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-09-02T09:30:00.000Z'));
+    prepareReadyChildScope();
     useChildProgressStore.setState({ adhdEnergyPacing: null });
   });
 
   afterEach(() => {
+    clearReadyChildScope();
     jest.useRealTimers();
   });
 

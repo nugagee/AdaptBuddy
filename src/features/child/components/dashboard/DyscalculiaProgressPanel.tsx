@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
+import DyscalculiaPracticeProgress from './DyscalculiaPracticeProgress';
 import { Calculator, CheckCircle2, HelpCircle } from 'lucide-react';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
 import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 
-const DyscalculiaProgressPanel: React.FC = () => {
+const NumberLineProgressPanel: React.FC = () => {
   const allSessions = useChildProgressStore((state) => state.dyscalculiaSessions);
   const { isReady } = useChildProgressReadAccess();
 
@@ -116,5 +117,12 @@ const DyscalculiaProgressPanel: React.FC = () => {
     </section>
   );
 };
+
+const DyscalculiaProgressPanel: React.FC = () => (
+  <div className="space-y-4">
+    <DyscalculiaPracticeProgress />
+    <NumberLineProgressPanel />
+  </div>
+);
 
 export default DyscalculiaProgressPanel;

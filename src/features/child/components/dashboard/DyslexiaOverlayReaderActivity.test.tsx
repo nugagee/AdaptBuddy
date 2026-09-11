@@ -5,12 +5,16 @@ import type {
   DyslexiaReadingSessionInput,
 } from 'features/child/store/childProgressStore';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { prepareReadyChildScope, clearReadyChildScope } from 'testUtils/readyChildScope';
 import DyslexiaOverlayReaderActivity from './DyslexiaOverlayReaderActivity';
 
 describe('DyslexiaOverlayReaderActivity', () => {
   beforeEach(() => {
+    prepareReadyChildScope();
     useChildProgressStore.setState({ dyslexiaReaderPreferences: null });
   });
+
+  afterEach(clearReadyChildScope);
 
   it('saves partial reading progress with the chosen comfort setup', () => {
     const onComplete = jest.fn<

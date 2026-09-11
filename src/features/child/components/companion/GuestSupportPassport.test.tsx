@@ -131,7 +131,10 @@ const setRegisteredChild = (childId: string) => {
 describe('guest Support Passport hand-off', () => {
   beforeEach(() => {
     setGuestChild();
-    mockBuildCompanionContext.mockClear();
+    // CRA resets mock implementations before each test, not just call history.
+    mockBuildCompanionContext.mockImplementation((profile, preferredName, age) => ({
+      profile, preferredName, age,
+    }));
     mockSendBuddyMessage.mockReset();
     mockSimplifyLanguage.mockReset();
     mockRespondToMoodCheckIn.mockReset();

@@ -7,17 +7,18 @@ import MoodCheckInPanel from './MoodCheckInPanel';
 import BuddyConversationPanel from './BuddyConversationPanel';
 import { useTrustedAdultStore } from 'features/child/store/trustedAdultStore';
 import SettingsPage from 'features/child/pages/SettingsPage';
+import { prepareReadyChildScope, clearReadyChildScope } from 'testUtils/readyChildScope';
 
 jest.mock('constants/releaseCapabilities', () => ({
   TRUSTED_ADULT_INVITATIONS_ENABLED: false, SUPPORT_RECORDING_ENABLED: false,
   DIRECT_ADULT_GUIDANCE: 'Please speak to a safe adult nearby. No email or text alert is sent by AdaptBuddy.',
 }));
 jest.mock('hooks/useAuth', () => {
-  const auth = {
+  const mockAuth = {
     user: { id: 'child' }, isGuest: false, setProfile: jest.fn(),
     profile: { id: 'child', first_name: 'Test', last_name: 'Child', role: 'child', neuro_types: ['adhd'], age: 10 },
   };
-  return { useAuth: () => auth };
+  return { useAuth: () => mockAuth };
 });
 jest.mock('services/ai', () => ({
   isOpenAiConfigured: true, buildCompanionContext: () => ({}),
@@ -31,7 +32,11 @@ jest.mock('services/supabase/profileService', () => ({ updateUserProfile: jest.f
 jest.mock('features/child/components/layout/ChildDashboardNavbar', () => () => null);
 jest.mock('components/feedback/FeedbackPulsePanel', () => () => null);
 
-beforeEach(() => { jest.clearAllMocks(); });
+beforeEach(() => {
+  jest.clearAllMocks();
+  prepareReadyChildScope('child', ['adhd']);
+});
+afterEach(clearReadyChildScope);
 
 test('mood check-ins still save while urgent guidance cannot record a support request', async () => {
   (respondToMoodCheckIn as jest.Mock).mockResolvedValue({ response: 'Please find a safe adult.', adultActionRequired: true, riskLevel: 'urgent' });

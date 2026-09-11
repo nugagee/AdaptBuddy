@@ -208,11 +208,22 @@ const ChildDashboardPage: React.FC = () => {
       return;
     }
 
+    // Reopening support is allowed without duplicate records or star claims.
+    if (activity.neuroId === 'tourettes'
+      && (activity.id === 'tourettes-flex-flow' || activity.id === 'tourettes-tic-break')
+      && progress.isActivityCompletedToday(activity.id)) {
+      showCelebrationForOwner(expectedOwnerId, 'Your support tool stays available. The first practice today was already recorded; no extra stars were added.', 4000);
+      closeActivity(expectedOwnerId);
+      return;
+    }
+
     progress.completeActivity(
       activity.id,
       activity.neuroId,
       activity.starsReward,
-      activity.durationMinutes,
+      typeof result?.durationMinutes === 'number' && Number.isFinite(result.durationMinutes) && result.durationMinutes >= 0
+        ? result.durationMinutes
+        : activity.durationMinutes,
     );
     if (activity.neuroId === 'adhd' && result?.adhdSupportSignal) {
       progress.addAdhdSupportSignal(activity.id, result.adhdSupportSignal);

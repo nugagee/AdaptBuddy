@@ -67,6 +67,9 @@ const NeuroZoneCard: React.FC<NeuroZoneCardProps> = ({ neuroId, activities, onSt
           const planned = activity.availability === 'planned';
           const trackable = !planned && isTrackableDailyActivity(activity);
           const done = trackable && isCompleted(activity.id);
+          // Daily recording must not remove access to these support tools.
+          const reopenableSupport = activity.neuroId === 'tourettes'
+            && (activity.id === 'tourettes-flex-flow' || activity.id === 'tourettes-tic-break');
           const ActivityIcon = activity.icon;
 
           return (
@@ -139,10 +142,18 @@ const NeuroZoneCard: React.FC<NeuroZoneCardProps> = ({ neuroId, activities, onSt
                       Not available yet
                     </span>
                   ) : done ? (
-                    <span className="dash-activity-done inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                      <Check className="h-4 w-4" aria-hidden />
-                      Completed!
-                    </span>
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                      <span className="dash-activity-done inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                        <Check className="h-4 w-4" aria-hidden />
+                        Completed!
+                      </span>
+                      {reopenableSupport && <button
+                        type="button"
+                        disabled={!isReady}
+                        onClick={() => onStartActivity(activity)}
+                        className="min-h-12 rounded-full border-2 border-purple-300 bg-white px-5 py-3 font-bold text-purple-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-700 dark:border-purple-700 dark:bg-slate-900 dark:text-purple-100"
+                      >Use support tool again</button>}
+                    </div>
                   ) : (
                     <button
                       type="button"

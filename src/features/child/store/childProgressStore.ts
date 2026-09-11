@@ -595,7 +595,13 @@ export const useChildProgressStore = create<ChildProgressState>()(
           || activityId === 'dyspraxia-sequence-steps'
           || activityId === 'dysgraphia-word-bank'
           || activityId === 'spd-sensory-checklist';
-        if (!usesStructuredMetric) {
+        // Reviewed maths practice is not a verified correct-answer count.
+        const isMathsPractice = activityId === 'dyscalculia-pattern-blocks'
+          || activityId === 'dyscalculia-real-world';
+        // A motor-card exploration is not a completed step plan or a movement assessment.
+        const isMotorPractice = activityId === 'dyspraxia-fine-motor'
+          || activityId === 'dyspraxia-gross-motor';
+        if (!usesStructuredMetric && !isMathsPractice && !isMotorPractice) {
           get().incrementNeuroMetric(neuroId, 1);
         }
       },

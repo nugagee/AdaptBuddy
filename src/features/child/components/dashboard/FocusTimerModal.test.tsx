@@ -5,9 +5,10 @@ import FocusTimerModal from './FocusTimerModal';
 const mockAddFocusMinutes = jest.fn();
 
 jest.mock('features/child/store/childProgressReadAccess', () => ({
-  getReadyChildProgressForOwner: jest.fn(() => ({
+  // A plain wrapper survives CRA's per-test resetMocks; the spy is reset below.
+  getReadyChildProgressForOwner: () => ({
     addFocusMinutes: mockAddFocusMinutes,
-  })),
+  }),
 }));
 
 describe('FocusTimerModal session duration', () => {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DyspraxiaStepPlannerActivity, {
   type DyspraxiaPlanningSessionInput,
@@ -25,13 +25,13 @@ describe('DyspraxiaStepPlannerActivity', () => {
     expect(screen.getByRole('button', { name: 'Save this plan' })).toBeDisabled();
   });
 
-  it('moves cards by keyboard with large labelled buttons and can undo the last move', () => {
+  it('moves cards by keyboard with large labelled buttons and can undo the last move', async () => {
     render(<DyspraxiaStepPlannerActivity onComplete={jest.fn()} />);
 
     const moveButton = screen.getByRole('button', { name: 'Move Pack the things I need down' });
     expect(moveButton).toHaveClass('min-h-12');
     moveButton.focus();
-    userEvent.keyboard('{Enter}');
+    await act(async () => { await userEvent.keyboard('{Enter}'); });
 
     expect(getVisibleSteps()).toEqual([
       'Put on my shoes and coat',

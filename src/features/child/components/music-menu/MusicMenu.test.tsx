@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { prepareReadyChildScope, clearReadyChildScope } from 'testUtils/readyChildScope';
 import MusicMenu from './MusicMenu';
 
 const mockUseAuth = jest.fn();
@@ -9,9 +10,7 @@ const mockBeginSoundscapeOverride = jest.fn();
 const mockEndSoundscapeOverride = jest.fn();
 
 jest.mock('hooks/useAuth', () => ({ useAuth: () => mockUseAuth() }));
-jest.mock('features/child/components/layout/ChildDashboardNavbar', () => () => (
-  <div data-testid="child-navbar" />
-));
+jest.mock('features/child/components/layout/ChildDashboardNavbar', () => () => null);
 jest.mock('contexts/musicPlayerContext', () => ({
   useMusicPlayer: () => ({
     beginSoundscapeOverride: mockBeginSoundscapeOverride,
@@ -19,16 +18,16 @@ jest.mock('contexts/musicPlayerContext', () => ({
   }),
 }));
 jest.mock('features/child/store/childProgressReadAccess', () => {
-  const actual = jest.requireActual('features/child/store/childProgressReadAccess');
+  const mockActual = jest.requireActual('features/child/store/childProgressReadAccess');
   return {
-    ...actual,
+    ...mockActual,
     getCurrentChildScopeId: () => {
-      const auth = mockUseAuth();
-      return actual.resolveChildScopeId({
-        userId: auth.user?.id ?? null,
-        profileId: auth.profile?.id ?? null,
-        profileRole: auth.profile?.role ?? null,
-        isGuest: Boolean(auth.isGuest),
+      const mockAuth = mockUseAuth();
+      return mockActual.resolveChildScopeId({
+        userId: mockAuth.user?.id ?? null,
+        profileId: mockAuth.profile?.id ?? null,
+        profileRole: mockAuth.profile?.role ?? null,
+        isGuest: Boolean(mockAuth.isGuest),
       });
     },
     getReadyChildProgressForOwner: (...args: unknown[]) =>
@@ -72,6 +71,7 @@ const renderMenu = (entry: string) => render(
 describe('MusicMenu routed sound-session completion', () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    prepareReadyChildScope('child-a', ['spd']);
     mockUseAuth.mockReset();
     mockUseAuth.mockReturnValue(childAuth());
     mockGetReadyChildProgressForOwner.mockReset();
@@ -89,6 +89,7 @@ describe('MusicMenu routed sound-session completion', () => {
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
     Reflect.deleteProperty(window, 'Audio');
+    clearReadyChildScope();
   });
 
   const startRain = async () => {

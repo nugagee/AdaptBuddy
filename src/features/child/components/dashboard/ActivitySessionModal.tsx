@@ -20,11 +20,21 @@ import DyslexiaOverlayReaderActivity from './DyslexiaOverlayReaderActivity';
 import DyslexiaPhonicsTraceActivity from './DyslexiaPhonicsTraceActivity';
 import DyslexiaReadAloudActivity from './DyslexiaReadAloudActivity';
 import DyscalculiaNumberLineActivity from './DyscalculiaNumberLineActivity';
+import DyscalculiaPracticeActivity, { isDyscalculiaPracticeActivity } from './DyscalculiaPracticeActivity';
 import DyspraxiaStepPlannerActivity from './DyspraxiaStepPlannerActivity';
+import AuditoryPracticeActivity, { isAuditoryPracticeActivity } from './AuditoryPracticeActivity';
+import DyspraxiaMotorActivity, { isDyspraxiaMotorActivity } from './DyspraxiaMotorActivity';
 import DysgraphiaWordBankActivity from './DysgraphiaWordBankActivity';
+import DysgraphiaTracePathActivity from './DysgraphiaTracePathActivity';
 import SensoryComfortCheckInActivity from './SensoryComfortCheckInActivity';
+import VisualStressActivity, { isVisualStressActivity } from './VisualStressActivity';
+import SpeechLanguageActivity, { isSpeechLanguageActivity } from './SpeechLanguageActivity';
+import ExecutiveFunctionActivity, { isExecutiveFunctionActivity } from './ExecutiveFunctionActivity';
+import TouretteSupportActivity, { isTouretteSupportActivity } from './TouretteSupportActivity';
 
 export interface ActivitySessionResult {
+  /** Measured session time; optional for older activities. */
+  durationMinutes?: number;
   adhdSupportSignal?: AdhdSupportSignalInput;
   adhdEnergyPacing?: AdhdEnergyPacingInput;
   achievementBadge?: AchievementBadgeInput;
@@ -218,7 +228,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       dialogRef.current?.querySelectorAll<HTMLElement>(
         'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       ) ?? [],
-    ).filter((element) => !element.hasAttribute('aria-hidden'));
+    ).filter((element) => !element.hasAttribute('aria-hidden') && !element.closest('[hidden]') && !element.matches(':disabled'));
     if (focusable.length === 0) return;
 
     const first = focusable[0];
@@ -280,6 +290,30 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
   }, [activity.id, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, onComplete, selectedAdhdBreak, selectedAdhdEnergy]);
 
   const activityBody = useMemo(() => {
+    if (isTouretteSupportActivity(activity.id)) {
+      return <TouretteSupportActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (isAuditoryPracticeActivity(activity.id)) {
+      return <AuditoryPracticeActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (isDyspraxiaMotorActivity(activity.id)) {
+      return <DyspraxiaMotorActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (isDyscalculiaPracticeActivity(activity.id)) {
+      return <DyscalculiaPracticeActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (activity.id === 'dysgraphia-trace-path') {
+      return <DysgraphiaTracePathActivity key={activity.id} onComplete={onComplete} />;
+    }
+    if (isExecutiveFunctionActivity(activity.id)) {
+      return <ExecutiveFunctionActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (isSpeechLanguageActivity(activity.id)) {
+      return <SpeechLanguageActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (isVisualStressActivity(activity.id)) {
+      return <VisualStressActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
     if (activity.id === 'autism-visual-schedule') {
       return (
         <div className="space-y-4">
@@ -838,7 +872,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
               </div>
               <div>
                 <h2 id="activity-session-title" className="text-xl font-bold text-adapt-navy dark:text-gray-100">{activity.title}</h2>
-                <p className="text-sm text-slate-500">{activity.durationMinutes} min · +{activity.starsReward} stars</p>
+                <p className="text-sm text-slate-500">{(isVisualStressActivity(activity.id) || isSpeechLanguageActivity(activity.id) || isExecutiveFunctionActivity(activity.id)) ? 'At your pace' : `${activity.durationMinutes} min`} · +{activity.starsReward} stars</p>
               </div>
             </div>
             <button
@@ -857,7 +891,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
           {activityBody}
 
-          {!['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check', 'dyslexia-read-aloud', 'dyslexia-overlay-read', 'dyslexia-phonics-trace', 'dyscalculia-number-line', 'dyspraxia-sequence-steps', 'dysgraphia-word-bank', 'spd-sensory-checklist'].includes(activity.id) ? (
+          {!isVisualStressActivity(activity.id) && !isSpeechLanguageActivity(activity.id) && !isExecutiveFunctionActivity(activity.id) && !['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check', 'dyslexia-read-aloud', 'dyslexia-overlay-read', 'dyslexia-phonics-trace', 'dyscalculia-number-line', 'dyscalculia-pattern-blocks', 'dyscalculia-real-world', 'dyspraxia-sequence-steps', 'dyspraxia-fine-motor', 'dyspraxia-gross-motor', 'auditory-caption-match', 'auditory-slow-speech', 'tourettes-flex-flow', 'tourettes-tic-break', 'dysgraphia-word-bank', 'dysgraphia-trace-path', 'spd-sensory-checklist'].includes(activity.id) ? (
             <button
               type="button"
               onClick={handleCompleteClick}

@@ -130,8 +130,8 @@ export const neuroProfiles: NeuroOption[] = [
   {
     id: 'speech-language',
     name: 'Speech & Language / DLD',
-    description: 'Simpler instructions, word finding, sentence builders, visual checklists, and communication choices.',
-    longDescription: 'A communication companion that helps learners understand instructions, find words and express ideas with confidence.',
+    description: 'Helpful phrase cards, sentence choices and story steps. Point, read or speak at your own pace.',
+    longDescription: 'Explore everyday phrases, build a sentence and sequence a short story with text and picture cues. Speaking is optional; this is educational practice, not speech therapy or assessment.',
     colorClass: 'bg-cyan-50 text-cyan-900 border-cyan-300 hover:bg-cyan-100',
     icon: MessageCircle,
     theme: {
@@ -194,8 +194,8 @@ export const neuroProfiles: NeuroOption[] = [
   {
     id: 'executive-function',
     name: 'Executive Function',
-    description: 'Task starting, planning, reminders, visual checklists, time support, transitions, and organisation.',
-    longDescription: 'A planning companion that turns overwhelming tasks into clear, doable steps.',
+    description: 'Choose a first step, review what you need and explore a change of plan at your own pace.',
+    longDescription: 'Optional planning practice with small-step choices, preparation checklists and transition cards. Asking for help or more time counts; no reminders are sent and this is not clinical assessment.',
     colorClass: 'bg-slate-50 text-slate-900 border-slate-300 hover:bg-slate-100',
     icon: CheckSquare,
     theme: {
@@ -205,6 +205,6 @@ export const neuroProfiles: NeuroOption[] = [
       cardBg: 'bg-white/90',
       accent: 'border-l-4 border-slate-500',
     },
-    learningStyle: 'Plan • Start • Finish',
+    learningStyle: 'Choose • Prepare • Adjust',
   },
 ];

@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
+import DyspraxiaMotorProgress from './DyspraxiaMotorProgress';
 import { CheckSquare2, Footprints, ListChecks } from 'lucide-react';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
 import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 
-const DyspraxiaProgressPanel: React.FC = () => {
+const StepPlanningProgressPanel: React.FC = () => {
   const allSessions = useChildProgressStore((state) => state.dyspraxiaPlanningSessions);
   const { isReady } = useChildProgressReadAccess();
 
@@ -116,5 +117,12 @@ const DyspraxiaProgressPanel: React.FC = () => {
     </section>
   );
 };
+
+const DyspraxiaProgressPanel: React.FC = () => (
+  <div className="space-y-4">
+    <DyspraxiaMotorProgress />
+    <StepPlanningProgressPanel />
+  </div>
+);
 
 export default DyspraxiaProgressPanel;

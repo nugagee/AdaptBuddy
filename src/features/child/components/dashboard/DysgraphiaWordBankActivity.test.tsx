@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DysgraphiaWordBankActivity, {
   type DysgraphiaWordBankSessionInput,
@@ -26,19 +26,19 @@ describe('DysgraphiaWordBankActivity', () => {
     expect(screen.getByTestId('dysgraphia-built-sentence')).toHaveTextContent('Today');
   });
 
-  it('supports keyboard selection, reordering and removal with large labelled controls', () => {
+  it('supports keyboard selection, reordering and removal with large labelled controls', async () => {
     render(<DysgraphiaWordBankActivity onComplete={jest.fn()} />);
 
     const addToday = screen.getByRole('button', { name: 'Add Today' });
     expect(addToday).toHaveClass('min-h-12');
     addToday.focus();
-    userEvent.keyboard('{Enter}');
+    await act(async () => { await userEvent.keyboard('{Enter}'); });
     fireEvent.click(screen.getByRole('button', { name: 'Add I' }));
 
     const moveILeft = screen.getByRole('button', { name: 'Move I left' });
     expect(moveILeft).toHaveClass('min-h-12');
     moveILeft.focus();
-    userEvent.keyboard('{Enter}');
+    await act(async () => { await userEvent.keyboard('{Enter}'); });
     expect(screen.getByTestId('dysgraphia-built-sentence')).toHaveTextContent('I Today');
 
     const removeToday = screen.getByRole('button', { name: 'Remove Today' });

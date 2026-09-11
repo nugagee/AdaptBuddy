@@ -64,6 +64,7 @@ describe('Pronunciation Buddy privacy and routed completion', () => {
     mockGetAssignments.mockReset();
     mockSaveProgress.mockReset();
     mockUseAuth.mockReturnValue(childAuth());
+    mockGetReadyChildProgressForOwner.mockReturnValue({ completeActivity: jest.fn() });
     mockGetAssignments.mockResolvedValue([]);
     mockSaveProgress.mockResolvedValue(undefined);
   });
@@ -101,7 +102,7 @@ describe('Pronunciation Buddy privacy and routed completion', () => {
     mockGetReadyChildProgressForOwner.mockReturnValue({ completeActivity: jest.fn() });
     renderPage('/pronunciation-buddy?activity=autism-pronunciation-buddy');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Allow mic for practice' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Allow browser speech checking for this visit' }));
     fireEvent.change(screen.getByPlaceholderText('Name, word, or short sentence'), {
       target: { value: 'guest private phrase' },
     });
@@ -146,12 +147,12 @@ describe('Pronunciation Buddy privacy and routed completion', () => {
     });
     mockGetReadyChildProgressForOwner.mockReturnValue({ completeActivity: jest.fn() });
     renderPage('/pronunciation-buddy?activity=autism-pronunciation-buddy');
-    fireEvent.click(screen.getByRole('button', { name: 'Allow mic for practice' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Allow browser speech checking for this visit' }));
     fireEvent.click(screen.getByRole('button', { name: 'Use mic' }));
 
     act(() => {
       recognition!.onresult!({
-        results: { length: 1, 0: { 0: { transcript: 'private recognised sentence' } } },
+        results: { length: 1, 0: { isFinal: true, 0: { transcript: 'private recognised sentence' } } },
       });
       recognition!.onend!();
     });

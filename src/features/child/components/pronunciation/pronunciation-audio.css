@@ -1,0 +1,23 @@
+/* Static is the default. No flashing, fake waveform, or continuous idle motion. */
+.pronunciation-action { touch-action: manipulation; }
+@media (prefers-reduced-motion: no-preference) {
+  .pronunciation-motion:not([data-calm="true"]) .pronunciation-action:hover .pronunciation-icon,
+  .pronunciation-motion:not([data-calm="true"]) .pronunciation-action:focus-visible .pronunciation-icon {
+    animation: pronunciation-welcome 420ms ease-out 1;
+  }
+  .pronunciation-motion:not([data-calm="true"]) .pronunciation-active {
+    animation: pronunciation-welcome 420ms ease-out 1;
+  }
+}
+@keyframes pronunciation-welcome {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-2px) rotate(-5deg); }
+}
+.pronunciation-motion[data-calm="true"] .pronunciation-icon { animation: none !important; transform: none !important; }
+.pronunciation-motion[data-calm="true"] .animate-spin,
+.pronunciation-motion[data-calm="true"] .animate-pulse { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .pronunciation-motion .pronunciation-icon,
+  .pronunciation-motion .animate-spin,
+  .pronunciation-motion .animate-pulse { animation: none !important; transform: none !important; }
+}

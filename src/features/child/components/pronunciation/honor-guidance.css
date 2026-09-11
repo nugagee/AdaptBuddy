@@ -1,0 +1,79 @@
+/* Original AdaptBuddy visuals. No borrowed Honor assets, flashing or idle loops. */
+.guidance-launcher { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; padding: 1.25rem; border: 1px solid #c7d9ed; border-radius: 1.5rem; background: linear-gradient(115deg,#f0fdfa,#eef2ff); color: #172b49; }
+.guidance-launcher-copy { display: flex; align-items: center; gap: .9rem; flex: 1 1 17rem; }
+.guidance-launcher h2 { font-size: 1.2rem; font-weight: 800; margin: 0; }
+.guidance-launcher p { margin: .35rem 0 0; }
+.guidance-mini-bubble { width: 3.2rem; height: 3.2rem; flex-shrink: 0; border-radius: 50%; background: radial-gradient(circle at 30% 25%,#ecfeff,#67e8d0 40%,#6366f1); box-shadow: inset -3px -5px 12px #312e8133; }
+.guidance-launcher-actions, .calm-controls, .guide-navigation, .calm-options { display: flex; flex-wrap: wrap; gap: .65rem; }
+.guidance-launcher > .guidance-small { flex-basis: 100%; }
+.guidance-button { min-height: 48px; min-width: 48px; border: 2px solid #c7d2e5; border-radius: .95rem; padding: .7rem 1rem; color: #20395e; background: #fff; font: inherit; font-weight: 750; cursor: pointer; line-height: 1.4; }
+.guidance-button:focus-visible, .practice-dialog select:focus-visible, .practice-dialog input:focus-visible { outline: 3px solid #0f766e; outline-offset: 3px; }
+.guidance-button:disabled { cursor: not-allowed; opacity: .5; }
+.guidance-primary { background: #4338a0; border-color: #4338a0; color: #fff; }
+.practice-overlay { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; padding: max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom)); background: #0b183dd9; isolation: isolate; overscroll-behavior: contain; }
+.practice-overlay, .practice-overlay * { box-sizing: border-box; }
+.practice-dialog { width: min(100%,760px); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; border-radius: 1.6rem; padding: clamp(1rem,3vw,1.8rem); color: #1e334e; background: #f7fafc; border: 1px solid #cbd5e1; box-shadow: 0 22px 80px #02061766; }
+.guidance-heading { display: flex; gap: 1rem; align-items: start; justify-content: space-between; flex-wrap: wrap; }
+.guidance-eyebrow { letter-spacing: .12em; font-size: .69rem; font-weight: 800; color: #4b5779; margin: 0 0 .45rem; }
+.practice-dialog h2 { font-size: clamp(1.5rem,4vw,2rem); line-height: 1.2; font-weight: 850; margin: 0 0 .45rem; }
+.guidance-intro { font-size: 1rem; line-height: 1.6; margin: .75rem 0; }
+.guidance-small { font-size: .81rem; line-height: 1.6; color: #4b5971; margin: .7rem 0 0; }
+.guidance-note { border-left: 3px solid #0f766e; padding: .65rem .85rem; background: #e6f5f1; color: #164e49; border-radius: .35rem; line-height: 1.5; }
+.calm-stage { position: relative; height: clamp(300px,38vh,350px); margin: 1rem 0; display: grid; place-items: center; overflow: hidden; border-radius: 1.25rem; background: radial-gradient(ellipse at 50% 35%,#183466,#0f1d3c 68%,#101c33); color: #fff; }
+.calm-orbit { width: 260px; height: 260px; border: 1px solid #a5f3fc30; border-radius: 50%; display: grid; place-items: center; position: absolute; top: calc((100% - 326px) / 2); }
+.calm-orbit-inner { width: 220px; height: 220px; border: 1px solid #a5f3fc35; border-radius: 50%; }
+.calm-bubble { position: absolute; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle at 33% 26%,#e0fffb,#8aebda 22%,#51a6cf 52%,#6c75e3 77%,#a6a7ef); border: 2px solid #c5fff2b0; box-shadow: 0 0 42px #65d9e02a,inset -12px -16px 28px #38329b4d,inset 5px 7px 20px #ffffff80; transform: scale(var(--calm-scale, .72)); transition: transform 60ms linear; top: calc((100% - 286px) / 2); }
+.calm-bubble-shine { position: absolute; top: 16%; left: 19%; width: 28%; height: 13%; border-radius: 50%; transform: rotate(-27deg); background: #fff7; filter: blur(7px); }
+.calm-caption { position: absolute; left: .8rem; right: .8rem; bottom: .8rem; text-align: center; z-index: 1; }
+.calm-caption p { margin: 0 0 .3rem; font-size: clamp(1.1rem,4vw,1.45rem); font-weight: 800; }
+.calm-caption span { font-size: .78rem; line-height: 1.45; color: #dce9ff; }
+.calm-stage[data-still="true"] .calm-bubble { transform: scale(.9); transition: none; }
+.calm-stage[data-running="false"] .calm-bubble { transition: none; }
+.calm-controls { justify-content: center; }
+.calm-time { text-align: center; color: #4b5971; font-size: .85rem; font-variant-numeric: tabular-nums; margin: .8rem 0; }
+.calm-setup { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; border: 1px solid #cbd5e1; border-radius: 1rem; padding: .9rem; min-width: 0; margin: .8rem 0; }
+.calm-setup legend { font-size: .85rem; font-weight: 800; padding: 0 .4rem; }
+.calm-setup label { font-size: .85rem; font-weight: 650; min-width: 0; }
+.calm-setup select { display: block; width: 100%; min-height: 48px; font: inherit; margin-top: .35rem; border: 1px solid #a5b4cf; border-radius: .6rem; padding: .55rem; color: #1e334e; background: #fff; }
+.calm-setup .guidance-check, .calm-setup p { grid-column: 1 / -1; margin: 0; }
+.guidance-check { display: flex; align-items: center; gap: .65rem; min-height: 48px; font-size: .86rem; font-weight: 600; cursor: pointer; }
+.guidance-check input { width: 1.3rem; height: 1.3rem; flex-shrink: 0; accent-color: #4338a0; }
+.walkthrough-overlay { background: transparent; }
+.walkthrough-overlay .practice-dialog { width: 100%; height: 100%; max-height: none; padding: 0; border: 0; overflow: visible; background: transparent; box-shadow: none; }
+.guide-spotlight { position: fixed; pointer-events: none; border: 3px solid #6ee7cf; border-radius: .85rem; box-shadow: 0 0 0 9999px #0b183ddc; }
+.walkthrough-overlay.guide-no-target { background: #0b183ddc; }
+.guide-card { position: fixed; z-index: 1; right: max(14px,env(safe-area-inset-right)); width: min(480px,calc(100vw - 28px)); max-height: 48vh; max-height: 48dvh; overflow-y: auto; background: #f7fafc; border: 1px solid #c4d5eb; border-radius: 1.3rem; padding: 1.1rem; box-shadow: 0 10px 40px #02061777; }
+.guide-card-top { top: max(14px,env(safe-area-inset-top)); }
+.guide-card-bottom { bottom: max(14px,env(safe-area-inset-bottom)); }
+.guide-progress { display: flex; gap: .3rem; margin: .7rem 0 1rem; }
+.guide-progress span { flex: 1; height: 4px; border-radius: 2px; background: #d4dbea; }
+.guide-progress [data-complete="true"] { background: #0f766e; }
+.guide-navigation { justify-content: space-between; margin-top: 1rem; }
+.dark .guidance-launcher { background: linear-gradient(115deg,#172a39,#202443); color: #f1f5ff; border-color: #435477; }
+.dark .guidance-button { background: #172339; color: #edf4ff; border-color: #526385; }
+.dark .guidance-primary { background: #6d62c2; color: #fff; border-color: #8c83df; }
+.dark .practice-dialog, .dark .guide-card { background: #172237; color: #edf4ff; border-color: #526385; }
+.dark .walkthrough-overlay .practice-dialog { background: transparent; border: 0; }
+.dark .guidance-small, .dark .guidance-eyebrow, .dark .calm-time { color: #c1cce0; }
+.dark .calm-setup { border-color: #526385; }
+.dark .calm-setup select { background: #0d192f; color: #edf4ff; }
+.dark .guidance-note { background: #133c38; color: #e0fff3; }
+@media (max-width: 440px) { .guidance-launcher-actions { width: 100%; } .guidance-launcher-actions .guidance-button { flex: 1; } .calm-setup { grid-template-columns: 1fr; } .guidance-heading > .guidance-button { padding: .5rem .75rem; font-size: .8rem; } .guide-card { max-height: 50vh; max-height: 50dvh; } }
+@media (prefers-reduced-motion: reduce) { .calm-bubble { transform: scale(.9) !important; transition: none !important; } .practice-overlay *, .guidance-launcher * { animation: none !important; scroll-behavior: auto !important; } }
+@media (forced-colors: active) { .calm-bubble, .calm-orbit, .calm-orbit-inner { background: Canvas; border: 2px solid CanvasText; } .calm-stage { background: Canvas; color: CanvasText; } .calm-caption span { color: CanvasText; } .guide-spotlight { border-color: Highlight; } }
+
+.calm-overlay .practice-dialog { display: flex; flex-direction: column; overflow: hidden; }
+.calm-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: .15rem; }
+.calm-overlay .guidance-heading { flex-shrink: 0; padding-bottom: .55rem; }
+.calm-controls { flex-shrink: 0; border-top: 1px solid #c7d2e5; padding-top: .8rem; margin-top: .65rem; }
+.guide-no-target .guide-card { max-height: calc(100vh - 28px); max-height: calc(100dvh - 28px); }
+
+/* Short/large-text viewports keep Pause and Stop in one reachable control row. */
+@media (max-height: 600px) {
+  .calm-overlay .guidance-heading { flex-wrap: nowrap; align-items: center; gap: .5rem; }
+  .calm-overlay .guidance-heading > div { min-width: 0; }
+  .calm-overlay .guidance-eyebrow { display: none; }
+  .calm-overlay .guidance-heading > .guidance-button { max-width: 48%; }
+  .calm-controls { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .35rem; }
+  .calm-controls .guidance-button { padding: .65rem .3rem; overflow-wrap: anywhere; }
+}

@@ -12,7 +12,7 @@ const features = [
   {
     icon: Infinity,
     title: 'Adaptive Learning',
-    description: 'Lessons that adjust pace, difficulty, and style to each neurotype.',
+    description: 'Activity suggestions and pacing options based on your choices and support profile.',
     color: 'bg-blue-100 text-blue-600',
   },
   {
@@ -24,7 +24,7 @@ const features = [
   {
     icon: ShieldCheck,
     title: 'Trusted Adult Controls',
-    description: 'Parents and guardians stay informed with safeguarding alerts they can trust.',
+    description: 'Children can send an in-app support request to an accepted adult contact. No email or text alert is sent.',
     color: 'bg-emerald-100 text-emerald-600',
   },
   {
@@ -35,8 +35,8 @@ const features = [
   },
   {
     icon: GraduationCap,
-    title: 'Classroom Heatmaps',
-    description: 'Teachers see engagement and emotional patterns across their classroom at a glance.',
+    title: 'Supported Assignments',
+    description: 'Teachers can choose support tools for tasks and review progress shared through connected classes.',
     color: 'bg-indigo-100 text-indigo-600',
   },
 ];

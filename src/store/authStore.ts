@@ -250,7 +250,9 @@ const loadRequiredProfile = async (userId: string, version: number): Promise<Pro
 const applyAuthSession = async (session: Session) => {
   const current = useAuthStore.getState();
   const canRefreshInPlace = (
-    !current.isGuest
+    !current.loading
+    && !current.isGuest
+    && !hasStoredGuestMode()
     && current.user?.id === session.user.id
     && current.profile?.id === session.user.id
   );
@@ -263,6 +265,16 @@ const applyAuthSession = async (session: Session) => {
     const version = ++authTransitionVersion;
     const profile = await loadRequiredProfile(session.user.id, version);
     assertCurrentTransition(version);
+    if (
+      profile.role !== current.profile?.role
+      || profile.status !== current.profile?.status
+      || profile.is_authorized !== current.profile?.is_authorized
+      || session.user.email !== current.user?.email
+      || session.user.email_confirmed_at !== current.user?.email_confirmed_at
+    ) {
+      useChildSessionStore.getState().resetSession();
+      useTrustedAdultStore.getState().clearTrustedAdults();
+    }
     useAuthStore.setState({
       user: session.user,
       profile,

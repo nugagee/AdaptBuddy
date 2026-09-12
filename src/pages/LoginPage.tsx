@@ -16,9 +16,9 @@ import {
 } from 'pages/auth/authForm';
 
 const demoRoles: { role: UserRole; label: string }[] = [
-  { role: 'child', label: 'Child' },
-  { role: 'parent', label: 'Parent' },
-  { role: 'teacher', label: 'Teacher' },
+  { role: 'child', label: 'Child demo' },
+  { role: 'parent', label: 'Parent demo' },
+  { role: 'teacher', label: 'Teacher demo' },
 ];
 
 const LoginPage: React.FC = () => {
@@ -98,8 +98,8 @@ const LoginPage: React.FC = () => {
               Welcome back to a calmer space.
             </h1>
             <p className="mt-4 text-base leading-relaxed text-slate-600 dark:text-gray-300 sepia:text-amber-900/80">
-              Sign in to your AdaptBuddy account. Choose a demo role to explore everything
-              instantly — no setup required.
+              Explore what AdaptBuddy can do with a child, parent or teacher guest demo.
+              To use it with your own account and saved work, create an account and sign in.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               {demoRoles.map(({ role, label }) => (

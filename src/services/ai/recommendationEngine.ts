@@ -1,5 +1,6 @@
 import { LearningRecommendation, LearningStyle } from 'types/ai.types';
 
+// Deterministic ranking rules. baseWeight is a fixed catalog weight, not model confidence.
 export class RecommendationEngine {
   private static activitiesDatabase: LearningRecommendation[] = [
     {
@@ -10,7 +11,7 @@ export class RecommendationEngine {
       difficulty: 4,
       estimatedTime: 15,
       neuroProfileMatch: ['autism', 'dyscalculia'],
-      aiConfidence: 0.88,
+      baseWeight: 0.88,
       tags: ['math', 'patterns', 'visual'],
     },
     {
@@ -21,7 +22,7 @@ export class RecommendationEngine {
       difficulty: 3,
       estimatedTime: 20,
       neuroProfileMatch: ['adhd', 'dyslexia', 'auditory'],
-      aiConfidence: 0.82,
+      baseWeight: 0.82,
       tags: ['creativity', 'language', 'audio'],
     },
     {
@@ -32,7 +33,7 @@ export class RecommendationEngine {
       difficulty: 5,
       estimatedTime: 10,
       neuroProfileMatch: ['dyspraxia', 'dysgraphia', 'adhd'],
-      aiConfidence: 0.91,
+      baseWeight: 0.91,
       tags: ['motor skills', 'coordination', 'hands-on'],
     },
     {
@@ -43,7 +44,7 @@ export class RecommendationEngine {
       difficulty: 3,
       estimatedTime: 25,
       neuroProfileMatch: ['autism', 'spd'],
-      aiConfidence: 0.76,
+      baseWeight: 0.76,
       tags: ['social skills', 'emotions', 'interactive'],
     },
     {
@@ -54,7 +55,7 @@ export class RecommendationEngine {
       difficulty: 2,
       estimatedTime: 12,
       neuroProfileMatch: ['adhd', 'spd', 'tourettes'],
-      aiConfidence: 0.85,
+      baseWeight: 0.85,
       tags: ['focus', 'attention', 'calming'],
     },
     {
@@ -65,7 +66,7 @@ export class RecommendationEngine {
       difficulty: 2,
       estimatedTime: 15,
       neuroProfileMatch: ['dyslexia', 'visual-stress'],
-      aiConfidence: 0.9,
+      baseWeight: 0.9,
       tags: ['reading', 'accessibility', 'calming'],
     },
     {
@@ -76,7 +77,7 @@ export class RecommendationEngine {
       difficulty: 3,
       estimatedTime: 12,
       neuroProfileMatch: ['dysgraphia', 'autism', 'auditory'],
-      aiConfidence: 0.84,
+      baseWeight: 0.84,
       tags: ['communication', 'voice', 'motor-friendly'],
     },
     {
@@ -87,7 +88,7 @@ export class RecommendationEngine {
       difficulty: 1,
       estimatedTime: 10,
       neuroProfileMatch: ['spd', 'autism', 'adhd'],
-      aiConfidence: 0.87,
+      baseWeight: 0.87,
       tags: ['calming', 'regulation', 'sensory'],
     },
     {
@@ -98,7 +99,7 @@ export class RecommendationEngine {
       difficulty: 2,
       estimatedTime: 18,
       neuroProfileMatch: ['tourettes', 'adhd', 'dysgraphia'],
-      aiConfidence: 0.8,
+      baseWeight: 0.8,
       tags: ['creative', 'flexible', 'low-pressure'],
     },
     {
@@ -109,7 +110,7 @@ export class RecommendationEngine {
       difficulty: 3,
       estimatedTime: 20,
       neuroProfileMatch: ['dyslexia', 'adhd', 'autism'],
-      aiConfidence: 0.86,
+      baseWeight: 0.86,
       tags: ['reading', 'mood', 'adaptive'],
     },
   ];
@@ -143,7 +144,7 @@ export class RecommendationEngine {
       if (currentMood === 'happy' && activity.tags.includes('interactive')) moodScore = 0.8;
       score += moodScore * 0.2;
 
-      score += activity.aiConfidence * 0.1;
+      score += activity.baseWeight * 0.1;
 
       return { ...activity, matchScore: score };
     });

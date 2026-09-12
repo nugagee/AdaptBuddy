@@ -55,7 +55,7 @@ describe('ADHD energy pacing', () => {
       difficulty: 2,
       estimatedTime: 12,
       neuroProfileMatch: ['adhd'],
-      aiConfidence: 0.9,
+      baseWeight: 0.9,
       tags: ['focus'],
     };
 

@@ -1,0 +1,9 @@
+[
+  { "id": "read_aloud", "label": "Read aloud", "description": "Offer spoken instructions or text alongside the written version. Let the learner choose whether to listen." },
+  { "id": "line_focus", "label": "Line focus", "description": "Offer a reading guide that shows one line at a time when a task contains longer passages." },
+  { "id": "visual_steps", "label": "Visual steps", "description": "Show the order of the task with a short sequence the learner can refer back to." },
+  { "id": "task_breaker", "label": "Task breaker", "description": "Split a task with several parts into smaller steps, with a clear place to pause." },
+  { "id": "calm_break", "label": "Calm break", "description": "Make an optional pause available during a longer task. A break should never depend on performance." },
+  { "id": "writing_support", "label": "Writing support", "description": "Offer a writing scaffold or an alternative way to draft an answer when the task involves writing." },
+  { "id": "pronunciation_practice", "label": "Pronunciation practice", "description": "Offer optional word practice in Pronunciation Buddy when speaking practice is part of the task. Respect the learner's chosen way to communicate." }
+]

@@ -28,11 +28,12 @@
     "test:buddy-safety": "node scripts/test-buddy-safety.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "prebuild": "npm run test:buddy-safety && npm run test:trusted-adult-safety && npm run test:auth-boundaries",
+    "prebuild": "npm run test:buddy-safety && npm run test:trusted-adult-safety && npm run test:auth-boundaries && npm run test:assignment-ai",
     "test:trusted-adult-safety": "node scripts/test-trusted-adult-safety.js",
     "test:auth-boundaries": "node scripts/test-auth-boundaries.cjs",
     "test:safeguarding-db": "node scripts/test-profile-authority.cjs && node scripts/test-trusted-adult-database.cjs",
-    "test:safeguarding": "npm run test:buddy-safety && npm run test:trusted-adult-safety && npm run test:auth-boundaries && npm run test:safeguarding-db"
+    "test:safeguarding": "npm run test:buddy-safety && npm run test:trusted-adult-safety && npm run test:auth-boundaries && npm run test:safeguarding-db",
+    "test:assignment-ai": "node --test scripts/test-assignment-support.cjs"
   },
   "eslintConfig": {
     "extends": [

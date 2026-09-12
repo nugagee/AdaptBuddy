@@ -30,13 +30,13 @@ jest.mock('constants/neuroOptions', () => ({
       icon: () => <span aria-hidden>speech</span>,
     },
   ],
-}), { virtual: true });
+}));
 
 jest.mock('store/uiStore', () => ({
   useUiStore: (selector: (state: { reducedMotion: boolean }) => unknown) => selector({ reducedMotion: false }),
-}), { virtual: true });
+}));
 
-jest.mock('assets/Adaptbuddy_logo.png', () => 'adaptbuddy-logo.png', { virtual: true });
+jest.mock('assets/Adaptbuddy_logo.png', () => 'adaptbuddy-logo.png');
 
 describe('NeuroSelector', () => {
   it('starts without an assumed support profile and requires an affirmative choice', () => {

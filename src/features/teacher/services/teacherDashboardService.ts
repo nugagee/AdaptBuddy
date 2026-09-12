@@ -924,8 +924,8 @@ export class TeacherDashboardService {
     if (error) throw error;
   }
 
-  static async getDashboardSummary(): Promise<TeacherDashboardSummary> {
-    if (!isSupabaseConfigured) return this.getGuestSummary();
+  static async getDashboardSummary(options: { guest?: boolean } = {}): Promise<TeacherDashboardSummary> {
+    if (options.guest || !isSupabaseConfigured) return this.getGuestSummary();
 
     const client = getSupabaseClient();
     const { data: userData } = await client.auth.getUser();

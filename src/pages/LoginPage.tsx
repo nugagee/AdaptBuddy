@@ -196,7 +196,7 @@ const LoginPage: React.FC = () => {
                 |
               </span>
               <Link
-                to={`${ROUTES.GUEST_ENTRY}?role=child`}
+                to={ROUTES.GUEST_ENTRY}
                 className="font-semibold text-adapt-indigo transition-colors hover:text-adapt-purple dark:text-adapt-cyan"
               >
                 Enter as guest

@@ -36,7 +36,7 @@ const HeroSection: React.FC = () => {
               Start gently
             </Link>
             <Link
-              to={`${ROUTES.GUEST_ENTRY}?role=child`}
+              to={ROUTES.GUEST_ENTRY}
               className="rounded-full border-2 border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-adapt-navy transition hover:border-adapt-indigo/30 hover:bg-adapt-mist"
             >
               Enter as guest

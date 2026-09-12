@@ -426,7 +426,7 @@ const TeacherDashboard: React.FC = () => {
     setError(null);
 
     try {
-      const data = await TeacherDashboardService.getDashboardSummary();
+      const data = await TeacherDashboardService.getDashboardSummary({ guest: isGuest });
       setSummary(data);
       setSelectedClassId((current) => current || data.classes[0]?.id || '');
     } catch (loadError) {
@@ -436,7 +436,7 @@ const TeacherDashboard: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isGuest]);
 
   useEffect(() => {
     void loadDashboard();

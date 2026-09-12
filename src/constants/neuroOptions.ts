@@ -15,6 +15,8 @@ export const ACTIVE_NEURO_IDS = new Set<string>([
   'auditory',
   'spd',
   'visual-stress',
+  'speech-language',
+  'executive-function',
 ]);
 
 export const NEURO_OPTION_MAP = Object.fromEntries(

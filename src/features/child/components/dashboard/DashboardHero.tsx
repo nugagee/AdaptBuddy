@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Sparkles, Flame, Mic2, Volume2 } from 'lucide-react';
 import { NEURO_OPTION_MAP } from 'constants/neuroOptions';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 import { ROUTES } from 'constants/routes';
 
 interface DashboardHeroProps {
@@ -14,6 +15,10 @@ interface DashboardHeroProps {
 const DashboardHero: React.FC<DashboardHeroProps> = ({ firstName, neuroTypes, todayProgress }) => {
   const streakDays = useChildProgressStore((s) => s.streakDays);
   const starsTotal = useChildProgressStore((s) => s.starsTotal);
+  const { isReady } = useChildProgressReadAccess();
+  const visibleStreakDays = isReady ? streakDays : 0;
+  const visibleStarsTotal = isReady ? starsTotal : 0;
+  const visibleTodayProgress = isReady ? todayProgress : 0;
 
   const greeting = (() => {
     const hour = new Date().getHours();
@@ -77,7 +82,7 @@ const DashboardHero: React.FC<DashboardHeroProps> = ({ firstName, neuroTypes, to
         <div className="flex shrink-0 items-center gap-4 sm:gap-6">
           <div className="text-center">
             <div className="dash-float mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-adapt-indigo to-adapt-teal text-2xl font-black text-white shadow-glow">
-              {todayProgress}%
+              {visibleTodayProgress}%
             </div>
             <p className="mt-2 text-xs font-medium text-slate-500 dark:text-gray-400">Today</p>
           </div>
@@ -86,14 +91,14 @@ const DashboardHero: React.FC<DashboardHeroProps> = ({ firstName, neuroTypes, to
             <div className="flex items-center gap-2 rounded-2xl bg-white/70 px-4 py-2.5 dark:bg-gray-800/70">
               <Flame className="h-5 w-5 text-orange-500" aria-hidden />
               <div>
-                <p className="text-lg font-bold leading-none text-adapt-navy dark:text-gray-100">{streakDays}</p>
+                <p className="text-lg font-bold leading-none text-adapt-navy dark:text-gray-100">{visibleStreakDays}</p>
                 <p className="text-[10px] uppercase tracking-wide text-slate-500">Day streak</p>
               </div>
             </div>
             <div className="flex items-center gap-2 rounded-2xl bg-white/70 px-4 py-2.5 dark:bg-gray-800/70">
               <Sparkles className="h-5 w-5 text-amber-500" aria-hidden />
               <div>
-                <p className="text-lg font-bold leading-none text-adapt-navy dark:text-gray-100">{starsTotal}</p>
+                <p className="text-lg font-bold leading-none text-adapt-navy dark:text-gray-100">{visibleStarsTotal}</p>
                 <p className="text-[10px] uppercase tracking-wide text-slate-500">Stars earned</p>
               </div>
             </div>

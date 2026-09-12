@@ -26,6 +26,7 @@ import {
   LayoutGrid,
   Star,
   Wind,
+  MessageCircle,
 } from 'lucide-react';
 import { ROUTES } from 'constants/routes';
 
@@ -46,11 +47,16 @@ export interface NeuroActivity {
   durationMinutes: number;
   category: NeuroActivityCategory;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
-  /** Research-inspired design note (shown subtly in UI) */
+  /** Internal design rationale; do not present as a clinical claim. */
   inspiration: string;
+  /** Planned activities stay visible but cannot be launched or award progress. */
+  availability?: 'ready' | 'planned';
+  availabilityNote?: string;
   route?: string;
   /** Opens feelings journal, focus timer, etc. */
   action?: 'journal' | 'focus-timer' | 'music' | 'writing';
+  /** A routed activity is trackable only after this verified completion bridge exists. */
+  completion?: 'writing-save' | 'pronunciation-attempt' | 'sound-session';
   starsReward: number;
 }
 
@@ -91,6 +97,22 @@ export interface NeuroZoneMeta {
 }
 
 export const NEURO_ZONE_META: Record<string, NeuroZoneMeta> = {
+  'executive-function': {
+    neuroId: 'executive-function',
+    tagline: 'One small step, with room to pause or change your plan',
+    dailyGoalLabel: 'Optional planning practice',
+    gradient: 'from-slate-400/20 via-sky-400/10 to-indigo-500/5',
+    glow: 'shadow-[0_12px_40px_-12px_rgba(100,116,139,0.3)]',
+    chip: 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100',
+  },
+  'speech-language': {
+    neuroId: 'speech-language',
+    tagline: 'Point, read or speak — your way of communicating matters',
+    dailyGoalLabel: 'Optional communication practice',
+    gradient: 'from-cyan-400/20 via-sky-400/10 to-blue-500/5',
+    glow: 'shadow-[0_12px_40px_-12px_rgba(6,182,212,0.3)]',
+    chip: 'bg-cyan-100 text-cyan-900 dark:bg-cyan-950/50 dark:text-cyan-200',
+  },
   autism: {
     neuroId: 'autism',
     tagline: 'Predictable paths, visual clarity, calm routines',
@@ -165,8 +187,8 @@ export const NEURO_ZONE_META: Record<string, NeuroZoneMeta> = {
   },
   tourettes: {
     neuroId: 'tourettes',
-    tagline: 'No rush, no pressure — pause anytime, progress always',
-    dailyGoalLabel: 'Flexible-flow activities',
+    tagline: 'Your pace, your choices — breaks never need to be earned',
+    dailyGoalLabel: 'Optional creative and support tools',
     gradient: 'from-purple-400/20 via-violet-400/10 to-indigo-500/5',
     glow: 'shadow-[0_12px_40px_-12px_rgba(192,132,252,0.35)]',
     chip: 'bg-purple-100 text-purple-900 dark:bg-purple-950/50 dark:text-purple-200',
@@ -174,6 +196,56 @@ export const NEURO_ZONE_META: Record<string, NeuroZoneMeta> = {
 };
 
 export const NEURO_ACTIVITIES: NeuroActivity[] = [
+  // Child-led planning practice, not productivity or compliance scoring.
+  {
+    id: 'executive-first-step', neuroId: 'executive-function',
+    title: 'First Step Planner',
+    description: 'Choose one small starting step and the support you prefer',
+    durationMinutes: 3, category: 'focus', icon: Target,
+    inspiration: 'Fixed-vocabulary first-step planning with optional adult help',
+    availability: 'ready', starsReward: 3,
+  },
+  {
+    id: 'executive-ready-checklist', neuroId: 'executive-function',
+    title: 'Ready-to-Go Checklist',
+    description: 'Review what you need: ready, not needed or ask for help',
+    durationMinutes: 4, category: 'focus', icon: LayoutGrid,
+    inspiration: 'Preparation choices without requiring every item to be ready',
+    availability: 'ready', starsReward: 3,
+  },
+  {
+    id: 'executive-change-plan', neuroId: 'executive-function',
+    title: 'Change of Plan',
+    description: 'Explore now, next and a helpful bridge without a countdown',
+    durationMinutes: 4, category: 'regulation', icon: Calendar,
+    inspiration: 'Optional transition rehearsal with pause and more-time choices',
+    availability: 'ready', starsReward: 3,
+  },
+  // Educational communication practice; never speech grading or clinical assessment.
+  {
+    id: 'speech-language-phrase-cards', neuroId: 'speech-language',
+    title: 'Helpful Phrase Cards',
+    description: 'Choose a useful phrase and explore it by pointing, reading or speaking',
+    durationMinutes: 3, category: 'social', icon: MessageCircle,
+    inspiration: 'Child-chosen fixed phrase cards with equal non-speaking participation',
+    availability: 'ready', starsReward: 3,
+  },
+  {
+    id: 'speech-language-sentence-builder', neuroId: 'speech-language',
+    title: 'Sentence Builder',
+    description: 'Choose who, an action and a place to build your own sentence',
+    durationMinutes: 5, category: 'literacy', icon: BookOpen,
+    inspiration: 'Fixed vocabulary choices and clear sentence-part labels',
+    availability: 'ready', starsReward: 3,
+  },
+  {
+    id: 'speech-language-story-steps', neuroId: 'speech-language',
+    title: 'Story Steps',
+    description: 'Explore three story cards with large move buttons and an optional one-step view',
+    durationMinutes: 5, category: 'social', icon: LayoutGrid,
+    inspiration: 'Optional sequencing examples without correctness or speech scores',
+    availability: 'ready', starsReward: 3,
+  },
   // Autism — inspired by visual schedules (Choiceworks, Tiimo), UDL predictability
   {
     id: 'autism-visual-schedule',
@@ -184,7 +256,6 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'focus',
     icon: LayoutGrid,
     inspiration: 'Visual schedules reduce anxiety (UDL / Tiimo-style)',
-    route: ROUTES.AUTISM_SPACE,
     starsReward: 3,
   },
   {
@@ -196,7 +267,6 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'social',
     icon: BookOpen,
     inspiration: 'Carol Gray social stories framework',
-    route: ROUTES.AUTISM_SPACE,
     starsReward: 4,
   },
   {
@@ -208,7 +278,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'regulation',
     icon: Wind,
     inspiration: 'Calm Corner regulation (Vedyx-style)',
-    route: ROUTES.AUTISM_SPACE,
+    route: `${ROUTES.AUTISM_SPACE}?tab=calm`,
     starsReward: 2,
   },
   {
@@ -221,6 +291,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     icon: Mic,
     inspiration: 'Communication confidence with speech, AAC, and mixed communication styles',
     route: ROUTES.PRONUNCIATION_BUDDY,
+    completion: 'pronunciation-attempt',
     starsReward: 3,
   },
   {
@@ -232,7 +303,6 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     category: 'focus',
     icon: Brain,
     inspiration: 'Structured visual learning paths',
-    route: ROUTES.AUTISM_SPACE,
     starsReward: 3,
   },
 
@@ -363,29 +433,29 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     inspiration: 'Speech-to-text writing support',
     action: 'writing',
     route: ROUTES.WRITING_PAD,
+    completion: 'writing-save',
     starsReward: 5,
   },
   {
     id: 'dysgraphia-trace-path',
     neuroId: 'dysgraphia',
     title: 'Trace the Path',
-    description: 'Follow dotted lines with your finger — build motor memory',
+    description: 'Explore a path by drawing or using large step buttons — at your own pace',
     durationMinutes: 8,
     category: 'motor',
     icon: PenTool,
-    inspiration: 'Occupational therapy tracing',
-    route: ROUTES.WRITING_PAD,
+    inspiration: 'Optional path exploration with equal touch and keyboard alternatives',
     starsReward: 3,
   },
   {
     id: 'dysgraphia-word-bank',
     neuroId: 'dysgraphia',
     title: 'Word Bank Express',
-    description: 'Tap picture tiles to build sentences — no typing needed',
+    description: 'Tap word cards to build sentences — no typing needed',
     durationMinutes: 10,
     category: 'literacy',
     icon: LayoutGrid,
-    inspiration: 'AAC grid communication (SelectSpeak-style)',
+    inspiration: 'Fixed word choices reduce writing friction without scoring expression',
     starsReward: 4,
   },
 
@@ -398,29 +468,31 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     durationMinutes: 12,
     category: 'math',
     icon: LineChart,
-    inspiration: 'Visual math manipulatives (TouchMath)',
+    inspiration: 'Connected counters, numerals, and one-unit number-line hops',
     starsReward: 4,
   },
   {
     id: 'dyscalculia-pattern-blocks',
     neuroId: 'dyscalculia',
     title: 'Pattern Block Puzzle',
-    description: 'Match shapes to build number patterns — no timed pressure',
+    description: 'Explore repeating shapes and growing counter groups with hints and no timer',
     durationMinutes: 10,
     category: 'math',
     icon: Calculator,
-    inspiration: 'Concrete-representational-abstract (CRA)',
+    inspiration: 'Visible pattern examples, labelled choices and optional hints',
+    availability: 'ready',
     starsReward: 3,
   },
   {
     id: 'dyscalculia-real-world',
     neuroId: 'dyscalculia',
     title: 'Kitchen Math Story',
-    description: 'Measure ingredients in a comic — math with real meaning',
+    description: 'Explore pretend counting, sharing and equal measures with on-screen counters',
     durationMinutes: 15,
     category: 'math',
     icon: Star,
-    inspiration: 'Contextual math (UDL principle)',
+    inspiration: 'On-screen everyday quantities with explicit units and worked examples',
+    availability: 'ready',
     starsReward: 5,
   },
 
@@ -429,34 +501,35 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     id: 'dyspraxia-fine-motor',
     neuroId: 'dyspraxia',
     title: 'Fine Motor Mission',
-    description: 'Pinch, tap, and trace — graded precision challenges',
+    description: 'Choose and place labelled pieces using large tap or keyboard controls, without dragging',
     durationMinutes: 10,
     category: 'motor',
     icon: Target,
-    inspiration: 'OT fine motor grading',
-    route: ROUTES.WRITING_PAD,
+    inspiration: 'Child-led digital placement with undo, partial practice and no precision score',
+    availability: 'ready',
     starsReward: 4,
   },
   {
     id: 'dyspraxia-sequence-steps',
     neuroId: 'dyspraxia',
     title: 'Step-by-Step Planner',
-    description: 'Break a task into 3 motor steps with picture cues',
+    description: 'Put an everyday task into three clear steps using large controls',
     durationMinutes: 8,
     category: 'motor',
     icon: Calendar,
-    inspiration: 'Motor planning scaffolding',
+    inspiration: 'One-step visual sequencing with touch and keyboard controls',
     starsReward: 3,
   },
   {
     id: 'dyspraxia-gross-motor',
     neuroId: 'dyspraxia',
     title: 'Gross Motor Galaxy',
-    description: 'Balance, reach, and cross-body moves in a fun sequence',
+    description: 'Explore read-only cards or optional gentle seated actions with adult-supported safety checks',
     durationMinutes: 7,
     category: 'motor',
     icon: Sparkles,
-    inspiration: 'Integrated movement breaks',
+    inspiration: 'Optional movement-card exploration with equal read, imagine, rest and help choices',
+    availability: 'ready',
     starsReward: 3,
   },
 
@@ -472,18 +545,18 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     inspiration: 'Sensory diet / Calm Corner (Vedyx)',
     action: 'music',
     route: ROUTES.MUSIC,
+    completion: 'sound-session',
     starsReward: 3,
   },
   {
     id: 'spd-sensory-checklist',
     neuroId: 'spd',
     title: 'Sensory Check-In',
-    description: 'Rate sight, sound, touch, movement — get a tailored break tip',
+    description: 'Choose how sight, sound, touch, and movement feel — then pick a comfort support',
     durationMinutes: 3,
     category: 'regulation',
     icon: Heart,
-    inspiration: 'Sensory profile assessment',
-    action: 'journal',
+    inspiration: 'Child-led sensory comfort choices and practical adjustments',
     starsReward: 2,
   },
   {
@@ -496,6 +569,7 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     icon: Music,
     inspiration: 'Auditory regulation tools',
     route: ROUTES.MUSIC,
+    completion: 'sound-session',
     starsReward: 2,
   },
 
@@ -504,70 +578,75 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     id: 'auditory-caption-match',
     neuroId: 'auditory',
     title: 'Caption Match Game',
-    description: 'Watch a short clip — match what you heard to visual cards',
+    description: 'Read a caption or use optional device speech, then compare it with labelled cards',
     durationMinutes: 10,
     category: 'literacy',
     icon: Volume2,
-    inspiration: 'Visual reinforcement of auditory input',
+    inspiration: 'Equal text and optional audio routes with explicit comparison, not hearing assessment',
+    availability: 'ready',
     starsReward: 4,
   },
   {
     id: 'auditory-repeat-back',
     neuroId: 'auditory',
-    title: 'Repeat & Visualize',
-    description: 'Hear a phrase, tap the picture that matches — no rush',
+    title: 'Listen & Repeat Buddy',
+    description: 'Hear and practise a helpful word or short phrase at your own pace',
     durationMinutes: 8,
     category: 'focus',
     icon: Headphones,
-    inspiration: 'Auditory closure exercises',
+    inspiration: 'Optional listen-and-repeat communication practice',
     route: ROUTES.PRONUNCIATION_BUDDY,
+    completion: 'pronunciation-attempt',
     starsReward: 3,
   },
   {
     id: 'auditory-slow-speech',
     neuroId: 'auditory',
     title: 'Slow & Clear Mode',
-    description: 'Instructions at 0.75× speed with bold keyword highlights',
+    description: 'Explore one instruction at a time with key words, replay and optional speech-rate choices',
     durationMinutes: 12,
     category: 'literacy',
     icon: Timer,
-    inspiration: 'Extended time / clear speech accommodations',
-    route: ROUTES.PRONUNCIATION_BUDDY,
+    inspiration: 'Child-controlled instruction presentation with equal text-only practice',
+    availability: 'ready',
     starsReward: 3,
   },
 
-  // Visual stress
+  // Visual stress — personal comfort choices, not diagnosis or treatment.
   {
     id: 'visual-comfort-read',
     neuroId: 'visual-stress',
     title: 'Comfort Read Session',
-    description: 'Sepia theme, large text, reading ruler — 10 calm minutes',
-    durationMinutes: 10,
+    description: 'Choose a comfortable layout and read a short passage, one line at a time if helpful',
+    durationMinutes: 5,
     category: 'literacy',
     icon: Sun,
-    inspiration: 'Visual stress / Irlen protocols',
+    inspiration: 'Child-chosen reading presentation with optional line focus',
+    availability: 'ready',
     starsReward: 3,
   },
   {
     id: 'visual-font-lab',
     neuroId: 'visual-stress',
     title: 'Font & Spacing Lab',
-    description: 'Try OpenDyslexic, wider lines, and cream background live',
+    description: 'Try text size, font, spacing and background choices in a live preview',
     durationMinutes: 5,
     category: 'literacy',
     icon: Type,
-    inspiration: 'Accessible typography (WCAG)',
+    inspiration: 'Adjustable presentation and keyboard-accessible controls',
+    availability: 'ready',
     starsReward: 2,
   },
   {
     id: 'visual-break-2020',
     neuroId: 'visual-stress',
-    title: '20-20-20 Eye Rest',
-    description: 'Look 20 feet away for 20 seconds — gentle reminder loop',
-    durationMinutes: 4,
+    title: 'Screen Break',
+    description: 'Choose an optional 20-second timer or an untimed pause, with no pressure to finish',
+    durationMinutes: 1,
     category: 'regulation',
     icon: Eye,
-    inspiration: 'Digital eye strain prevention',
+    inspiration: 'Optional, child-controlled pauses without health-outcome claims',
+    availability: 'ready',
     starsReward: 2,
   },
 
@@ -576,39 +655,43 @@ export const NEURO_ACTIVITIES: NeuroActivity[] = [
     id: 'tourettes-flex-flow',
     neuroId: 'tourettes',
     title: 'Flex Flow Session',
-    description: 'Pause anytime — progress saves automatically, zero countdown',
+    description: 'Build a small scene, pause freely and resume your private draft in this tab',
     durationMinutes: 15,
     category: 'creative',
     icon: Pause,
-    inspiration: 'Tic-friendly / PDA-aware design',
+    inspiration: 'Untimed creative choice with session-only drafts and no tic monitoring',
+    availability: 'ready',
     starsReward: 4,
   },
   {
     id: 'tourettes-tic-break',
     neuroId: 'tourettes',
     title: 'Tic Break Pass',
-    description: 'Take an official break — no questions, no lost progress',
+    description: 'Show a break support card without explaining why; no automatic message or permission',
     durationMinutes: 3,
     category: 'regulation',
     icon: Wind,
-    inspiration: 'Compassionate accommodation',
-    action: 'music',
+    inspiration: 'Optional communication support, not permission, therapy or a requirement to stop tics',
+    availability: 'ready',
     starsReward: 2,
   },
   {
     id: 'tourettes-creative-free',
     neuroId: 'tourettes',
-    title: 'Free Create Zone',
-    description: 'Draw, doodle, or voice-note with no rules or timers',
+    title: 'Voice or Type Freely',
+    description: 'Use voice or typing to capture an idea with no timer',
     durationMinutes: 12,
     category: 'creative',
     icon: Palette,
-    inspiration: 'Low-demand recovery activities',
+    inspiration: 'Low-demand expression with more than one input method',
     action: 'writing',
     route: ROUTES.WRITING_PAD,
+    completion: 'writing-save',
     starsReward: 4,
   },
 ];
+
+const PRONUNCIATION_NEURO_IDS = new Set(['autism', 'dyslexia', 'auditory']);
 
 const buildPronunciationActivity = (neuroId: string): NeuroActivity => ({
   id: `${neuroId}-pronunciation-buddy`,
@@ -620,42 +703,70 @@ const buildPronunciationActivity = (neuroId: string): NeuroActivity => ({
   icon: Mic,
   inspiration: 'Speech, listening, and AAC-adjacent communication confidence',
   route: ROUTES.PRONUNCIATION_BUDDY,
+  completion: 'pronunciation-attempt',
   starsReward: 3,
 });
 
 export const ACCESSIBILITY_TOOLS: NeuroAccessibilityTool[] = [
-  { id: 'tool-font-up', neuroIds: ['dyslexia', 'visual-stress', 'adhd'], label: 'Bigger Text', description: 'Increase reading size', icon: Type, action: 'font-up' },
+  { id: 'tool-font-up', neuroIds: ['dyslexia', 'visual-stress', 'adhd', 'speech-language', 'executive-function'], label: 'Bigger Text', description: 'Increase reading size', icon: Type, action: 'font-up' },
   { id: 'tool-font-down', neuroIds: ['visual-stress'], label: 'Smaller Text', description: 'Reduce visual clutter', icon: Type, action: 'font-down' },
   { id: 'tool-dyslexia', neuroIds: ['dyslexia', 'visual-stress'], label: 'Dyslexia Font', description: 'OpenDyslexic typeface', icon: BookOpen, action: 'dyslexia-font' },
   { id: 'tool-contrast', neuroIds: ['visual-stress', 'autism', 'spd'], label: 'High Contrast', description: 'Sharper text & borders', icon: Eye, action: 'high-contrast' },
   { id: 'tool-sepia', neuroIds: ['visual-stress', 'dyslexia', 'spd'], label: 'Comfort Sepia', description: 'Warm, low-glare theme', icon: Sun, action: 'sepia-theme' },
-  { id: 'tool-motion', neuroIds: ['autism', 'spd', 'tourettes'], label: 'Calm Motion', description: 'Reduce animations', icon: Wind, action: 'reduced-motion' },
+  { id: 'tool-motion', neuroIds: ['autism', 'spd', 'tourettes', 'speech-language', 'executive-function'], label: 'Calm Motion', description: 'Reduce animations', icon: Wind, action: 'reduced-motion' },
   { id: 'tool-music', neuroIds: ['spd', 'adhd', 'autism'], label: 'Calm Sounds', description: 'Lo-fi & nature mixes', icon: Music, action: 'music' },
-  { id: 'tool-writing', neuroIds: ['dysgraphia', 'dyslexia', 'tourettes'], label: 'Voice Writing', description: 'Speak instead of type', icon: Mic, action: 'writing' },
-  { id: 'tool-pronunciation', neuroIds: Object.keys(NEURO_ZONE_META), label: 'Pronounce', description: 'Listen, repeat, practise words', icon: Mic, action: 'pronunciation' },
+  { id: 'tool-writing', neuroIds: ['dysgraphia', 'dyslexia', 'dyspraxia', 'tourettes'], label: 'Voice Writing', description: 'Speak instead of type', icon: Mic, action: 'writing' },
+  { id: 'tool-pronunciation', neuroIds: Array.from(PRONUNCIATION_NEURO_IDS), label: 'Pronounce', description: 'Listen, repeat, practise words', icon: Mic, action: 'pronunciation' },
 ];
 
 export const NEURO_METRICS: NeuroMetricDefinition[] = [
+  { neuroId: 'executive-function', label: 'Planning practices', unit: 'sessions', icon: Target, dailyTarget: 1 },
+  { neuroId: 'speech-language', label: 'Practice sessions', unit: 'sessions', icon: MessageCircle, dailyTarget: 1 },
   { neuroId: 'autism', label: 'Routine streak', unit: 'days', icon: Calendar, dailyTarget: 1 },
   { neuroId: 'adhd', label: 'Focus minutes', unit: 'min', icon: Timer, dailyTarget: 25 },
   { neuroId: 'dyslexia', label: 'Words read', unit: 'words', icon: BookOpen, dailyTarget: 50 },
   { neuroId: 'dysgraphia', label: 'Expressions', unit: 'pieces', icon: PenTool, dailyTarget: 2 },
-  { neuroId: 'dyscalculia', label: 'Math puzzles', unit: 'solved', icon: Calculator, dailyTarget: 3 },
-  { neuroId: 'dyspraxia', label: 'Motor reps', unit: 'reps', icon: Target, dailyTarget: 5 },
+  { neuroId: 'dyscalculia', label: 'Math answers', unit: 'correct', icon: Calculator, dailyTarget: 3 },
+  { neuroId: 'dyspraxia', label: 'Plans practised', unit: 'plans', icon: Target, dailyTarget: 1 },
   { neuroId: 'spd', label: 'Regulation breaks', unit: 'breaks', icon: Waves, dailyTarget: 2 },
-  { neuroId: 'auditory', label: 'Listen tasks', unit: 'tasks', icon: Volume2, dailyTarget: 2 },
+  { neuroId: 'auditory', label: 'Communication practices', unit: 'sessions', icon: Volume2, dailyTarget: 2 },
   { neuroId: 'visual-stress', label: 'Comfort sessions', unit: 'sessions', icon: Sun, dailyTarget: 2 },
-  { neuroId: 'tourettes', label: 'Flow sessions', unit: 'sessions', icon: Sparkles, dailyTarget: 1 },
+  { neuroId: 'tourettes', label: 'Support practices', unit: 'sessions', icon: Sparkles, dailyTarget: 1 },
 ];
+
+/** A daily mission must have an in-place completion path that records real work. */
+export function isTrackableDailyActivity(activity: NeuroActivity): boolean {
+  if (activity.availability === 'planned') return false;
+  if (activity.route) return activity.completion !== undefined;
+  return activity.action === undefined
+    || activity.action === 'journal'
+    || activity.action === 'focus-timer';
+}
+
+/** Resolve activity metadata from code, never from URL-provided reward fields. */
+export function getKnownActivityById(activityId: string): NeuroActivity | null {
+  const activity = NEURO_ACTIVITIES.find((candidate) => candidate.id === activityId);
+  if (activity) return activity;
+
+  const pronunciationMatch = activityId.match(/^(.+)-pronunciation-buddy$/);
+  const neuroId = pronunciationMatch?.[1];
+  return neuroId && PRONUNCIATION_NEURO_IDS.has(neuroId)
+    ? buildPronunciationActivity(neuroId)
+    : null;
+}
 
 /** Pick 2 daily activities per neuro (rotates by day of year) */
 export function getDailyActivitiesForNeuro(neuroId: string, daySeed = new Date().getDate()): NeuroActivity[] {
-  const pronunciationActivity = buildPronunciationActivity(neuroId);
-  const pool = NEURO_ACTIVITIES.filter((a) => a.neuroId === neuroId && a.id !== pronunciationActivity.id);
+  const pool = NEURO_ACTIVITIES.filter(
+    (activity) => activity.neuroId === neuroId
+      && isTrackableDailyActivity(activity),
+  );
   if (!NEURO_ZONE_META[neuroId]) return [];
-  if (pool.length === 0) return [pronunciationActivity];
+  if (pool.length === 0) return [];
   const start = daySeed % pool.length;
-  const picked = [pool[start], pool[(start + 1) % pool.length]];
+  const picked = pool.length === 1
+    ? [pool[0]]
+    : [pool[start], pool[(start + 1) % pool.length]];
   if (neuroId === 'adhd') {
     ['adhd-focus-coach', 'adhd-task-breakdown', 'adhd-break-prescription', 'adhd-mood-check'].forEach((activityId) => {
       if (picked.some((activity) => activity.id === activityId)) return;
@@ -663,8 +774,18 @@ export function getDailyActivitiesForNeuro(neuroId: string, daySeed = new Date()
       if (activity) picked.push(activity);
     });
   }
-  const hasPronunciation = picked.some((activity) => activity.route === ROUTES.PRONUNCIATION_BUDDY);
-  return hasPronunciation ? picked : [...picked, pronunciationActivity];
+  return picked;
+}
+
+/** All profile activities for the expandable zone, including honest coming-next cards. */
+export function getAllActivitiesForNeuro(neuroId: string): NeuroActivity[] {
+  if (!NEURO_ZONE_META[neuroId]) return [];
+  const activities = NEURO_ACTIVITIES.filter((activity) => activity.neuroId === neuroId);
+  if (!PRONUNCIATION_NEURO_IDS.has(neuroId)) return activities;
+  const pronunciationActivity = buildPronunciationActivity(neuroId);
+  return activities.some((activity) => activity.route === ROUTES.PRONUNCIATION_BUDDY)
+    ? activities
+    : [...activities, pronunciationActivity];
 }
 
 export function getActivitiesForNeuros(neuroIds: string[]): NeuroActivity[] {

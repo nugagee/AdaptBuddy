@@ -1,7 +1,11 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { NEURO_ACTIVITIES } from 'features/child/data/neuroDashboardContent';
 import ActivitySessionModal, { type ActivitySessionResult } from './ActivitySessionModal';
+
+jest.mock('features/child/store/childProgressReadAccess', () => ({
+  useChildProgressReadAccess: () => ({ childId: 'test-child', isReady: true }),
+}));
 
 const getActivity = (activityId: string) => {
   const activity = NEURO_ACTIVITIES.find((candidate) => candidate.id === activityId);
@@ -21,6 +25,65 @@ const completeActivity = (activityId: string, onComplete: jest.Mock) => {
 };
 
 describe('ActivitySessionModal ADHD results', () => {
+  it('opens and completes the Visual Day Map activity', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('autism-visual-schedule')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    expect(screen.getByText('Build today in order')).toBeInTheDocument();
+    const completeButton = screen.getByRole('button', { name: /mark complete/i });
+    expect(completeButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Move Calm tool up' }));
+    expect(completeButton).toBeEnabled();
+    fireEvent.click(completeButton);
+    expect(onComplete).toHaveBeenCalledWith();
+  });
+
+  it('lets the child choose and complete a Social Story', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('autism-social-story')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    const completeButton = screen.getByRole('button', { name: /mark complete/i });
+    expect(completeButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'A room feels noisy' }));
+    expect(completeButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'worried' }));
+    expect(completeButton).toBeEnabled();
+    fireEvent.click(completeButton);
+    expect(onComplete).toHaveBeenCalledWith();
+  });
+
+  it('requires the correct Pattern Predictor answer before completion', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('autism-pattern-calm')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    const completeButton = screen.getByRole('button', { name: /mark complete/i });
+    expect(completeButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Green circle' }));
+    expect(completeButton).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Blue square' }));
+    expect(completeButton).toBeEnabled();
+    fireEvent.click(completeButton);
+    expect(onComplete).toHaveBeenCalledWith();
+  });
+
   it('returns the selected Focus Coach state and rescue plan', () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
     render(
@@ -199,7 +262,7 @@ describe('ActivitySessionModal ADHD results', () => {
     });
   });
 
-  it('hands Colored Overlay Reader progress and preferences back to the dashboard', () => {
+  it('hands Colored Overlay Reader progress and preferences back to the dashboard', async () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
     render(
       <ActivitySessionModal
@@ -209,7 +272,7 @@ describe('ActivitySessionModal ADHD results', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Blue' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Blue' }));
     fireEvent.click(screen.getByRole('button', { name: 'I read this line' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save partial overlay reading' }));
 
@@ -253,9 +316,124 @@ describe('ActivitySessionModal ADHD results', () => {
     });
   });
 
-  it('does not invent a support signal for a generic activity', () => {
+  it('hands meaningful Number Line practice back to the dashboard without a bypass button', () => {
     const onComplete = jest.fn<void, [ActivitySessionResult?]>();
-    completeActivity('dyscalculia-number-line', onComplete);
-    expect(onComplete).toHaveBeenCalledWith();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('dyscalculia-number-line')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /choose 7 as answer/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Check answer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'I practised' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save practice' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      dyscalculiaSession: expect.objectContaining({
+        activityId: 'dyscalculia-number-line',
+        sessionId: expect.any(String),
+        questionsAttempted: 1,
+        questionsCorrect: 1,
+      }),
+    });
+  });
+
+  it('hands a checked Step Planner draft back without a generic completion bypass', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('dyspraxia-sequence-steps')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Check my order' }));
+    fireEvent.click(screen.getByRole('button', { name: 'I have practised' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save this plan' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      dyspraxiaPlanningSession: expect.objectContaining({
+        activityId: 'dyspraxia-sequence-steps',
+        sessionId: expect.any(String),
+        checksMade: 1,
+        confidence: 'practised',
+      }),
+    });
+  });
+
+  it('hands Word Bank Express practice back without a generic completion bypass', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('dysgraphia-word-bank')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add Today' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add I' }));
+    fireEvent.click(screen.getByRole('button', { name: 'I practised' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save sentence practice' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      dysgraphiaWordBankSession: expect.objectContaining({
+        activityId: 'dysgraphia-word-bank',
+        sessionId: expect.any(String),
+        selectedWordIds: ['today', 'i'],
+        confidence: 'practised',
+      }),
+    });
+  });
+
+  it('hands a child-led sensory choice back without a generic completion bypass', () => {
+    const onComplete = jest.fn<void, [ActivitySessionResult?]>();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('spd-sensory-checklist')}
+        onClose={jest.fn()}
+        onComplete={onComplete}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /mark complete/i })).not.toBeInTheDocument();
+    ['Light and things I see', 'Sounds', 'Touch and textures', 'Movement'].forEach((areaName) => {
+      fireEvent.click(within(screen.getByRole('group', { name: areaName })).getByRole('button', {
+        name: 'Comfortable',
+      }));
+    });
+    fireEvent.click(screen.getByRole('button', { name: /keep things as they are/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ready to continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save my comfort choice' }));
+
+    expect(onComplete).toHaveBeenCalledWith({
+      sensoryComfortSession: expect.objectContaining({
+        activityId: 'spd-sensory-checklist',
+        sessionId: expect.any(String),
+        supportChoiceId: 'keep-going',
+        confidence: 'ready-to-continue',
+      }),
+    });
+  });
+
+  it('closes the accessible dialog with Escape', () => {
+    const onClose = jest.fn();
+    render(
+      <ActivitySessionModal
+        activity={getActivity('dyscalculia-number-line')}
+        onClose={onClose}
+        onComplete={jest.fn()}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

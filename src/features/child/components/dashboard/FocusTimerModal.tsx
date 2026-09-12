@@ -1,21 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Pause, Play, X } from 'lucide-react';
-import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { getReadyChildProgressForOwner } from 'features/child/store/childProgressReadAccess';
 
 interface FocusTimerModalProps {
+  ownerId: string;
   durationMinutes: number;
-  onClose: () => void;
-  onComplete: () => void;
+  onClose: (ownerId: string) => void;
+  onComplete: (ownerId: string, durationMinutes: number) => void;
 }
 
 const FocusTimerModal: React.FC<FocusTimerModalProps> = ({
+  ownerId,
   durationMinutes,
   onClose,
   onComplete,
 }) => {
-  const [secondsLeft, setSecondsLeft] = useState(durationMinutes * 60);
+  const sessionDurationRef = useRef(durationMinutes);
+  const [secondsLeft, setSecondsLeft] = useState(sessionDurationRef.current * 60);
   const [running, setRunning] = useState(false);
-  const addFocusMinutes = useChildProgressStore((s) => s.addFocusMinutes);
+  const sessionOwnerIdRef = useRef(ownerId);
 
   useEffect(() => {
     if (!running || secondsLeft <= 0) return undefined;
@@ -30,14 +33,23 @@ const FocusTimerModal: React.FC<FocusTimerModalProps> = ({
   useEffect(() => {
     if (secondsLeft === 0 && running) {
       setRunning(false);
-      addFocusMinutes(durationMinutes);
-      onComplete();
+
+      const expectedOwnerId = sessionOwnerIdRef.current;
+      const progress = getReadyChildProgressForOwner(expectedOwnerId);
+      if (!progress) {
+        onClose(expectedOwnerId);
+        return;
+      }
+
+      progress.addFocusMinutes(sessionDurationRef.current);
+      onComplete(expectedOwnerId, sessionDurationRef.current);
     }
-  }, [secondsLeft, running, durationMinutes, addFocusMinutes, onComplete]);
+  }, [secondsLeft, running, onClose, onComplete]);
 
   const mins = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
-  const pct = ((durationMinutes * 60 - secondsLeft) / (durationMinutes * 60)) * 100;
+  const sessionDurationMinutes = sessionDurationRef.current;
+  const pct = ((sessionDurationMinutes * 60 - secondsLeft) / (sessionDurationMinutes * 60)) * 100;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
@@ -46,7 +58,7 @@ const FocusTimerModal: React.FC<FocusTimerModalProps> = ({
           <h2 className="text-xl font-bold text-adapt-navy dark:text-gray-100">Focus Sprint</h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => onClose(sessionOwnerIdRef.current)}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-gray-800"
             aria-label="Close focus timer"
           >

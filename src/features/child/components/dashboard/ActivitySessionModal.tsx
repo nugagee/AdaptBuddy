@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, Star, X, Zap } from 'lucide-react';
 import type { NeuroActivity } from 'features/child/data/neuroDashboardContent';
 import type {
@@ -8,6 +8,10 @@ import type {
   DyslexiaPhonicsSessionInput,
   DyslexiaReaderPreferencesInput,
   DyslexiaReadingSessionInput,
+  DysgraphiaWordBankSessionInput,
+  DyscalculiaSessionInput,
+  DyspraxiaPlanningSessionInput,
+  SensoryComfortSessionInput,
 } from 'features/child/store/childProgressStore';
 import AdhdEnergyCheckInActivity from './AdhdEnergyCheckInActivity';
 import AdhdMovementBurstActivity from './AdhdMovementBurstActivity';
@@ -15,14 +19,32 @@ import AdhdQuestChainActivity from './AdhdQuestChainActivity';
 import DyslexiaOverlayReaderActivity from './DyslexiaOverlayReaderActivity';
 import DyslexiaPhonicsTraceActivity from './DyslexiaPhonicsTraceActivity';
 import DyslexiaReadAloudActivity from './DyslexiaReadAloudActivity';
+import DyscalculiaNumberLineActivity from './DyscalculiaNumberLineActivity';
+import DyscalculiaPracticeActivity, { isDyscalculiaPracticeActivity } from './DyscalculiaPracticeActivity';
+import DyspraxiaStepPlannerActivity from './DyspraxiaStepPlannerActivity';
+import AuditoryPracticeActivity, { isAuditoryPracticeActivity } from './AuditoryPracticeActivity';
+import DyspraxiaMotorActivity, { isDyspraxiaMotorActivity } from './DyspraxiaMotorActivity';
+import DysgraphiaWordBankActivity from './DysgraphiaWordBankActivity';
+import DysgraphiaTracePathActivity from './DysgraphiaTracePathActivity';
+import SensoryComfortCheckInActivity from './SensoryComfortCheckInActivity';
+import VisualStressActivity, { isVisualStressActivity } from './VisualStressActivity';
+import SpeechLanguageActivity, { isSpeechLanguageActivity } from './SpeechLanguageActivity';
+import ExecutiveFunctionActivity, { isExecutiveFunctionActivity } from './ExecutiveFunctionActivity';
+import TouretteSupportActivity, { isTouretteSupportActivity } from './TouretteSupportActivity';
 
 export interface ActivitySessionResult {
+  /** Measured session time; optional for older activities. */
+  durationMinutes?: number;
   adhdSupportSignal?: AdhdSupportSignalInput;
   adhdEnergyPacing?: AdhdEnergyPacingInput;
   achievementBadge?: AchievementBadgeInput;
   dyslexiaReadingSession?: DyslexiaReadingSessionInput;
   dyslexiaReaderPreferences?: DyslexiaReaderPreferencesInput;
   dyslexiaPhonicsSession?: DyslexiaPhonicsSessionInput;
+  dyscalculiaSession?: DyscalculiaSessionInput;
+  dyspraxiaPlanningSession?: DyspraxiaPlanningSessionInput;
+  dysgraphiaWordBankSession?: DysgraphiaWordBankSessionInput;
+  sensoryComfortSession?: SensoryComfortSessionInput;
 }
 
 const ADHD_ENERGY_OPTIONS = [
@@ -149,9 +171,14 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
   onComplete,
 }) => {
   const Icon = activity.icon;
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const [dayCards, setDayCards] = useState(['Hello check-in', 'Calm tool', 'Learning task', 'Reward choice']);
+  const [dayMapInteracted, setDayMapInteracted] = useState(false);
   const [storyScenario, setStoryScenario] = useState('A plan changes');
   const [selectedFeeling, setSelectedFeeling] = useState('unsure');
+  const [storyScenarioChosen, setStoryScenarioChosen] = useState(false);
+  const [storyFeelingChosen, setStoryFeelingChosen] = useState(false);
   const [patternAnswer, setPatternAnswer] = useState<string | null>(null);
   const [adhdEnergy, setAdhdEnergy] = useState('scattered');
   const [adhdStep, setAdhdStep] = useState('Open the task and read only the first instruction.');
@@ -169,6 +196,7 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
       return next;
     });
+    setDayMapInteracted(true);
   }, [dayCards.length]);
 
   const selectedAdhdEnergy =
@@ -176,6 +204,43 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
   const adhdTaskSteps = useMemo(() => buildAdhdTaskSteps(adhdTaskText), [adhdTaskText]);
   const selectedAdhdBreak =
     ADHD_BREAK_OPTIONS.find((option) => option.id === adhdBreakState) ?? ADHD_BREAK_OPTIONS[0];
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    dialogRef.current
+      ?.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      ?.focus();
+
+    return () => previousFocusRef.current?.focus();
+  }, []);
+
+  const handleDialogKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const focusable = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
+    ).filter((element) => !element.hasAttribute('aria-hidden') && !element.closest('[hidden]') && !element.matches(':disabled'));
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, [onClose]);
 
   const handleCompleteClick = useCallback(() => {
     if (activity.id === 'adhd-focus-coach') {
@@ -225,6 +290,30 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
   }, [activity.id, adhdRescue, adhdStep, adhdTaskBlocker, adhdTaskSteps, adhdTaskText, onComplete, selectedAdhdBreak, selectedAdhdEnergy]);
 
   const activityBody = useMemo(() => {
+    if (isTouretteSupportActivity(activity.id)) {
+      return <TouretteSupportActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (isAuditoryPracticeActivity(activity.id)) {
+      return <AuditoryPracticeActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (isDyspraxiaMotorActivity(activity.id)) {
+      return <DyspraxiaMotorActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (isDyscalculiaPracticeActivity(activity.id)) {
+      return <DyscalculiaPracticeActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (activity.id === 'dysgraphia-trace-path') {
+      return <DysgraphiaTracePathActivity key={activity.id} onComplete={onComplete} />;
+    }
+    if (isExecutiveFunctionActivity(activity.id)) {
+      return <ExecutiveFunctionActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (isSpeechLanguageActivity(activity.id)) {
+      return <SpeechLanguageActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
+    if (isVisualStressActivity(activity.id)) {
+      return <VisualStressActivity key={activity.id} activityId={activity.id} onComplete={onComplete} />;
+    }
     if (activity.id === 'autism-visual-schedule') {
       return (
         <div className="space-y-4">
@@ -306,7 +395,10 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
                 <button
                   key={scenario}
                   type="button"
-                  onClick={() => setStoryScenario(scenario)}
+                  onClick={() => {
+                    setStoryScenario(scenario);
+                    setStoryScenarioChosen(true);
+                  }}
                   className={`rounded-full px-3 py-2 text-xs font-bold transition ${
                     storyScenario === scenario
                       ? 'bg-adapt-indigo text-white shadow-md'
@@ -341,7 +433,10 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
                 <button
                   key={feeling}
                   type="button"
-                  onClick={() => setSelectedFeeling(feeling)}
+                  onClick={() => {
+                    setSelectedFeeling(feeling);
+                    setStoryFeelingChosen(true);
+                  }}
                   className={`rounded-full px-3 py-2 text-xs font-bold capitalize transition ${
                     selectedFeeling === feeling
                       ? 'bg-adapt-teal text-white shadow-md'
@@ -713,6 +808,38 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
       );
     }
 
+    if (activity.id === 'dyscalculia-number-line') {
+      return (
+        <DyscalculiaNumberLineActivity
+          onComplete={(session) => onComplete({ dyscalculiaSession: session })}
+        />
+      );
+    }
+
+    if (activity.id === 'dyspraxia-sequence-steps') {
+      return (
+        <DyspraxiaStepPlannerActivity
+          onComplete={(session) => onComplete({ dyspraxiaPlanningSession: session })}
+        />
+      );
+    }
+
+    if (activity.id === 'dysgraphia-word-bank') {
+      return (
+        <DysgraphiaWordBankActivity
+          onComplete={(session) => onComplete({ dysgraphiaWordBankSession: session })}
+        />
+      );
+    }
+
+    if (activity.id === 'spd-sensory-checklist') {
+      return (
+        <SensoryComfortCheckInActivity
+          onComplete={(session) => onComplete({ sensoryComfortSession: session })}
+        />
+      );
+    }
+
     return (
       <div className="rounded-2xl bg-adapt-mist/60 p-4 dark:bg-gray-800/60">
         <p className="text-xs font-semibold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">
@@ -729,7 +856,14 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-gray-900">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="activity-session-title"
+        onKeyDown={handleDialogKeyDown}
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-gray-900"
+      >
         <div className="bg-gradient-to-r from-adapt-indigo/10 to-adapt-teal/10 p-6 dark:from-adapt-indigo/20 dark:to-adapt-teal/20">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -737,14 +871,14 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
                 <Icon className="h-6 w-6 text-adapt-indigo" aria-hidden />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-adapt-navy dark:text-gray-100">{activity.title}</h2>
-                <p className="text-sm text-slate-500">{activity.durationMinutes} min · +{activity.starsReward} stars</p>
+                <h2 id="activity-session-title" className="text-xl font-bold text-adapt-navy dark:text-gray-100">{activity.title}</h2>
+                <p className="text-sm text-slate-500">{(isVisualStressActivity(activity.id) || isSpeechLanguageActivity(activity.id) || isExecutiveFunctionActivity(activity.id)) ? 'At your pace' : `${activity.durationMinutes} min`} · +{activity.starsReward} stars</p>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/80 dark:bg-gray-800"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/80 dark:bg-gray-800"
               aria-label="Close activity"
             >
               <X className="h-5 w-5" aria-hidden />
@@ -757,13 +891,16 @@ const ActivitySessionModal: React.FC<ActivitySessionModalProps> = ({
 
           {activityBody}
 
-          <p className="text-xs text-slate-400 italic">{activity.inspiration}</p>
-
-          {!['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check', 'dyslexia-read-aloud', 'dyslexia-overlay-read', 'dyslexia-phonics-trace'].includes(activity.id) ? (
+          {!isVisualStressActivity(activity.id) && !isSpeechLanguageActivity(activity.id) && !isExecutiveFunctionActivity(activity.id) && !['adhd-movement-burst', 'adhd-quest-chain', 'adhd-mood-check', 'dyslexia-read-aloud', 'dyslexia-overlay-read', 'dyslexia-phonics-trace', 'dyscalculia-number-line', 'dyscalculia-pattern-blocks', 'dyscalculia-real-world', 'dyspraxia-sequence-steps', 'dyspraxia-fine-motor', 'dyspraxia-gross-motor', 'auditory-caption-match', 'auditory-slow-speech', 'tourettes-flex-flow', 'tourettes-tic-break', 'dysgraphia-word-bank', 'dysgraphia-trace-path', 'spd-sensory-checklist'].includes(activity.id) ? (
             <button
               type="button"
               onClick={handleCompleteClick}
-              className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-adapt-teal py-3.5 font-bold text-white shadow-md transition hover:scale-[1.02]"
+              disabled={
+                (activity.id === 'autism-visual-schedule' && !dayMapInteracted)
+                || (activity.id === 'autism-social-story' && (!storyScenarioChosen || !storyFeelingChosen))
+                || (activity.id === 'autism-pattern-calm' && patternAnswer !== 'Blue square')
+              }
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-adapt-teal py-3.5 font-bold text-white shadow-md transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:scale-100"
             >
               <Check className="h-5 w-5" aria-hidden />
               Mark Complete

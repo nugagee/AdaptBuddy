@@ -3,14 +3,18 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { syncAdhdSupportSignal } from 'features/child/services/adhdSupportSignalService';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { prepareReadyChildScope, clearReadyChildScope } from 'testUtils/readyChildScope';
 import ChildDashboardPage from './ChildDashboardPage';
 
 let mockNeuroTypes = ['adhd'];
 
 jest.mock('hooks/useAuth', () => ({
   useAuth: () => ({
+    user: { id: 'child-123' },
+    isGuest: false,
     profile: {
       id: 'child-123',
+      role: 'child',
       first_name: 'Ari',
       neuro_types: mockNeuroTypes,
     },
@@ -43,6 +47,7 @@ const mockSyncAdhdSupportSignal = syncAdhdSupportSignal as jest.MockedFunction<
 >;
 
 const resetProgressStore = () => {
+  prepareReadyChildScope('child-123', mockNeuroTypes);
   useChildProgressStore.setState({
     completions: [],
     metricValues: [],
@@ -68,6 +73,11 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
     mockSyncAdhdSupportSignal.mockReset();
   });
 
+  afterEach(() => {
+    clearReadyChildScope();
+    jest.restoreAllMocks();
+  });
+
   it('keeps the completion and support signal locally when cloud sync fails', async () => {
     const syncError = new Error('offline');
     mockSyncAdhdSupportSignal.mockRejectedValue(syncError);
@@ -84,7 +94,7 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
       .closest('li');
     if (!focusCoachCard) throw new Error('Could not find the ADHD Focus Coach card');
 
-    fireEvent.click(within(focusCoachCard).getByRole('button', { name: 'Start' }));
+    fireEvent.click(within(focusCoachCard).getByRole('button', { name: 'Start activity' }));
     fireEvent.click(screen.getByRole('button', { name: /mark complete/i }));
 
     await waitFor(() => {
@@ -140,7 +150,7 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
         .closest('li');
       if (!questChainCard) throw new Error('Could not find the Quest Chain card');
 
-      fireEvent.click(within(questChainCard).getByRole('button', { name: 'Start' }));
+      fireEvent.click(within(questChainCard).getByRole('button', { name: 'Start activity' }));
       fireEvent.click(screen.getByRole('button', { name: 'Complete win 1' }));
       fireEvent.click(screen.getByRole('button', { name: 'Complete win 2' }));
       fireEvent.click(screen.getByRole('button', { name: 'Complete win 3' }));
@@ -178,7 +188,7 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
       .closest('li');
     if (!energyCheckCard) throw new Error('Could not find the Energy Check-In card');
 
-    fireEvent.click(within(energyCheckCard).getByRole('button', { name: 'Start' }));
+    fireEvent.click(within(energyCheckCard).getByRole('button', { name: 'Start activity' }));
     fireEvent.click(screen.getByRole('button', { name: /^low battery/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Use this pacing plan' }));
 
@@ -210,6 +220,7 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-09-02T09:30:00.000Z'));
     mockNeuroTypes = ['dyslexia'];
+    prepareReadyChildScope('child-123', mockNeuroTypes);
 
     try {
       render(
@@ -223,7 +234,7 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
         .closest('li');
       if (!readAloudCard) throw new Error('Could not find the Read-Aloud Adventure card');
 
-      fireEvent.click(within(readAloudCard).getByRole('button', { name: 'Start' }));
+      fireEvent.click(within(readAloudCard).getByRole('button', { name: 'Start activity' }));
       fireEvent.click(screen.getByRole('button', { name: 'Mark sentence complete' }));
       fireEvent.click(screen.getByRole('button', { name: 'Save partial reading' }));
 
@@ -250,6 +261,7 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-09-02T10:00:00.000Z'));
     mockNeuroTypes = ['dyslexia'];
+    prepareReadyChildScope('child-123', mockNeuroTypes);
 
     try {
       render(
@@ -263,7 +275,7 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
         .closest('li');
       if (!overlayCard) throw new Error('Could not find the Colored Overlay Reader card');
 
-      fireEvent.click(within(overlayCard).getByRole('button', { name: 'Start' }));
+      fireEvent.click(within(overlayCard).getByRole('button', { name: 'Start activity' }));
       fireEvent.click(screen.getByRole('button', { name: 'Blue' }));
       fireEvent.click(screen.getByRole('button', { name: 'Extra large' }));
       fireEvent.click(screen.getByRole('button', { name: 'I read this line' }));
@@ -301,6 +313,7 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-09-01T10:30:00.000Z'));
     mockNeuroTypes = ['dyslexia'];
+    prepareReadyChildScope('child-123', mockNeuroTypes);
 
     try {
       render(
@@ -314,7 +327,7 @@ describe('ChildDashboardPage ADHD signal handoff', () => {
         .closest('li');
       if (!phonicsCard) throw new Error('Could not find the Phonics Trace & Say card');
 
-      fireEvent.click(within(phonicsCard).getByRole('button', { name: 'Start' }));
+      fireEvent.click(within(phonicsCard).getByRole('button', { name: 'Start activity' }));
       fireEvent.click(screen.getByRole('button', { name: 'Hear mmm' }));
       fireEvent.click(screen.getByRole('button', { name: 'My trace is ready' }));
       fireEvent.click(screen.getByRole('button', { name: 'I said mmm' }));

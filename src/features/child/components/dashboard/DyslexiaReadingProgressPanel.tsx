@@ -1,19 +1,23 @@
 import React, { useMemo } from 'react';
 import { BookOpenCheck, Ear, Headphones, Type } from 'lucide-react';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 
 const DyslexiaReadingProgressPanel: React.FC = () => {
   const allSessions = useChildProgressStore((state) => state.dyslexiaReadingSessions);
   const readerPreferences = useChildProgressStore((state) => state.dyslexiaReaderPreferences);
   const allPhonicsSessions = useChildProgressStore((state) => state.dyslexiaPhonicsSessions);
+  const { isReady } = useChildProgressReadAccess();
   const sessions = useMemo(() => {
+    if (!isReady) return [];
     const today = new Date().toISOString().slice(0, 10);
     return allSessions.filter((session) => session.createdAt.startsWith(today));
-  }, [allSessions]);
+  }, [allSessions, isReady]);
   const phonicsSessions = useMemo(() => {
+    if (!isReady) return [];
     const today = new Date().toISOString().slice(0, 10);
     return allPhonicsSessions.filter((session) => session.createdAt.startsWith(today));
-  }, [allPhonicsSessions]);
+  }, [allPhonicsSessions, isReady]);
   const latest = sessions[0];
   const latestPhonics = phonicsSessions[0];
   const wordsRead = sessions.reduce((total, session) => total + session.wordsRead, 0);
@@ -112,7 +116,7 @@ const DyslexiaReadingProgressPanel: React.FC = () => {
         </div>
       ) : null}
 
-      {readerPreferences ? (
+      {isReady && readerPreferences ? (
         <div className="mt-4 rounded-2xl border border-violet-100 bg-white/80 p-4 dark:border-violet-900/40 dark:bg-gray-950/60">
           <p className="text-xs font-black uppercase tracking-wide text-violet-700 dark:text-violet-200">
             Saved comfort setup

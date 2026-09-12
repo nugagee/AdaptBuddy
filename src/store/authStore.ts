@@ -249,24 +249,45 @@ const loadRequiredProfile = async (userId: string, version: number): Promise<Pro
 
 const applyAuthSession = async (session: Session) => {
   const current = useAuthStore.getState();
-  // Supabase can emit SIGNED_IN again when a tab regains focus. Revalidate the
-  // same account in place so protected routes keep their unsaved form state.
-  // Account switches and guest transitions still clear all previous identity.
-  const sameAccount = !current.loading && !current.isGuest && !hasStoredGuestMode()
-    && current.user?.id === session.user.id && current.profile?.id === session.user.id;
-  const version = sameAccount ? ++authTransitionVersion : prepareAuthenticatedTransition();
+  const canRefreshInPlace = (
+    !current.loading
+    && !current.isGuest
+    && !hasStoredGuestMode()
+    && current.user?.id === session.user.id
+    && current.profile?.id === session.user.id
+  );
+
+  // Supabase emits TOKEN_REFRESHED, USER_UPDATED, and sometimes repeated
+  // SIGNED_IN events for the account that is already active. Keep the verified
+  // account mounted while its profile is rechecked so child-scoped stores,
+  // drafts, and timers are not torn down as though another child signed in.
+  if (canRefreshInPlace) {
+    const version = ++authTransitionVersion;
+    const profile = await loadRequiredProfile(session.user.id, version);
+    assertCurrentTransition(version);
+    if (
+      profile.role !== current.profile?.role
+      || profile.status !== current.profile?.status
+      || profile.is_authorized !== current.profile?.is_authorized
+      || session.user.email !== current.user?.email
+      || session.user.email_confirmed_at !== current.user?.email_confirmed_at
+    ) {
+      useChildSessionStore.getState().resetSession();
+      useTrustedAdultStore.getState().clearTrustedAdults();
+    }
+    useAuthStore.setState({
+      user: session.user,
+      profile,
+      session: toAuthSessionState(session),
+      loading: false,
+      isGuest: false,
+    });
+    return;
+  }
+
+  const version = prepareAuthenticatedTransition();
   const profile = await loadRequiredProfile(session.user.id, version);
   assertCurrentTransition(version);
-  if (sameAccount && (
-    profile.role !== current.profile?.role
-    || profile.status !== current.profile?.status
-    || profile.is_authorized !== current.profile?.is_authorized
-    || session.user.email !== current.user?.email
-    || session.user.email_confirmed_at !== current.user?.email_confirmed_at
-  )) {
-    useChildSessionStore.getState().resetSession();
-    useTrustedAdultStore.getState().clearTrustedAdults();
-  }
   useAuthStore.setState({
     user: session.user,
     profile,
@@ -612,7 +633,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ profile });
       return profile;
     } catch {
-      return get().profile;
+      if (version !== authTransitionVersion || get().user?.id !== userId) return null;
+      const currentProfile = get().profile;
+      return currentProfile?.id === userId ? currentProfile : null;
     }
   },
 

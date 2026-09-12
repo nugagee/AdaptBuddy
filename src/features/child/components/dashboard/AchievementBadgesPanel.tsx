@@ -1,9 +1,12 @@
 import React from 'react';
 import { Award, LockKeyhole } from 'lucide-react';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 
 const AchievementBadgesPanel: React.FC = () => {
-  const badges = useChildProgressStore((state) => state.achievementBadges);
+  const storedBadges = useChildProgressStore((state) => state.achievementBadges);
+  const { isReady } = useChildProgressReadAccess();
+  const badges = isReady ? storedBadges : [];
 
   return (
     <section className="rounded-3xl border border-violet-200 bg-gradient-to-br from-white via-violet-50 to-amber-50 p-6 shadow-sm dark:border-violet-900/50 dark:from-gray-900 dark:via-violet-950/20 dark:to-amber-950/20 sm:p-8">

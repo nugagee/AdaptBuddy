@@ -268,6 +268,7 @@ const Assignments: React.FC = () => {
   const [selectedAssignment, setSelectedAssignment] = useState<TeacherAssignment | null>(null);
   const [editingAssignment, setEditingAssignment] = useState<TeacherAssignment | null>(null);
   const [archivingAssignmentId, setArchivingAssignmentId] = useState<string | null>(null);
+  const [assistantRevision, setAssistantRevision] = useState(0);
   const [form, setForm] = useState({
     classId: '',
     title: '',
@@ -307,6 +308,7 @@ const Assignments: React.FC = () => {
 
   const resetForm = useCallback(() => {
     setEditingAssignment(null);
+    setAssistantRevision((current) => current + 1);
     setForm((current) => ({
       ...current,
       title: '',
@@ -565,7 +567,7 @@ const Assignments: React.FC = () => {
               </div>
 
               <AssignmentSupportAssistant
-                key={`${user?.id ?? 'guest'}:${editingAssignment?.id ?? 'new'}`}
+                key={`${user?.id ?? 'guest'}:${editingAssignment?.id ?? 'new'}:${assistantRevision}`}
                 assignment={form}
                 selectedTools={form.supportTools}
                 isGuest={isGuest}

@@ -144,16 +144,37 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
   await signup.upsertUserProfile({id:'child',email:'fake@example.invalid',role:'admin',firstName:'Child',lastName:'Test',emailVerified:true});
   for(const field of ['id','email','role','email_verified_at','neuro_types','onboarding_completed'])assert.equal(field in updates[0],false);
   checks++;
+  // Load the extracted reader itself, with only its backend boundary simulated.
+  const parentTaskCalls=[];
+  let parentTaskUnavailable=false;
+  const parentBackend={isSupabaseConfigured:true,getSupabaseClient:()=>({
+    rpc:async(name,args)=>{
+      parentTaskCalls.push({name,args});
+      return {data:parentTaskUnavailable?null:[],error:parentTaskUnavailable?{code:'PGRST202'}:null};
+    },
+    from:()=>{throw new Error('Raw parent task-table fallback is forbidden');},
+  })};
+  const parentReader=loadTs('src/features/parent/services/parentAssignmentSummaryService.ts',{
+    'services/supabase/client':parentBackend,
+  });
   const {ParentDashboardService:dashboard}=loadTs('src/features/parent/services/parentDashboardService.ts',{
-    'services/supabase/client':{isSupabaseConfigured:true},
+    'services/supabase/client':parentBackend,
+    './parentAssignmentSummaryService':parentReader,
   });
   dashboard.getChildren=async()=>[{childId:'child',childName:'Synthetic Child',neurotypes:[],totalEntries:0,entriesLast7Days:0,totalAlerts:0,highAlerts:0,trustedAdultsCount:0}];
   for(const method of ['getRecentEntriesForChildren','getAlertsForChildren','getMessagesForChildren','getMeetingsForChildren',
-    'getGoalsForChildren','getResourcesForChildren','getSignalsForChildren','getParentFeedbackThemes','getTeacherClassRequestsForChildren','getAssignmentSummariesForChildren'])
+    'getGoalsForChildren','getResourcesForChildren','getSignalsForChildren','getParentFeedbackThemes','getTeacherClassRequestsForChildren'])
     dashboard[method]=async()=>[];
   dashboard.getTrustedAdultsForChildren=async()=>{throw {code:'42703',message:'accepted_at missing'};};
   const summary=await dashboard.getDashboardSummary();
   assert.equal(summary.children.length,1);assert.equal(summary.trustedAdultsUnavailable,true);assert.equal(summary.trustedAdults.length,0);checks++;
+  assert.equal(summary.assignmentSummariesStatus,'available');assert.equal(summary.assignmentSummaries.length,0);
+  assert.equal(parentTaskCalls.length,1);assert.equal(parentTaskCalls[0].name,'parent_assignment_summaries');
+  assert.equal(JSON.stringify(parentTaskCalls[0].args),JSON.stringify({p_child_ids:['child']}));checks++;
+  parentTaskUnavailable=true;
+  const unavailableSummary=await dashboard.getDashboardSummary();
+  assert.equal(unavailableSummary.children.length,1);assert.equal(unavailableSummary.assignmentSummariesStatus,'unavailable');
+  assert.equal(unavailableSummary.assignmentSummaries.length,0);assert.equal(unavailableSummary.trustedAdultsUnavailable,true);checks++;
   const supportCalls=[];
   const supportService=loadTs('src/services/supabase/autismProfileService.ts',{...enabledCapabilities,'./client':{isSupabaseConfigured:true,getSupabaseClient:()=>({
     auth:{getUser:async()=>({data:{user:{id:'child'}},error:null})},
@@ -173,7 +194,7 @@ function fixture({initial=Promise.resolve(null), signIn=async()=>({data:{session
   });
   for(const id of ['child','another-child']){
     await assert.rejects(disabled.saveTrustedAdultForChild(id,{name:'Test',role:'parent',email:'test@example.invalid',phone:''}),/unavailable/);
-    await assert.rejects(disabled.requestTrustedAdultSupport(id,'mood-check-in',true,'test-request'),/unavailable/);
+    await assert.rejects(disabled.requestTrustedAdultSupport(id,'buddy-conversation',true,'test-request'),/unavailable/);
   }
   await assert.rejects(disabled.fetchTrustedAdultsForChild('child'),/unavailable/);
   await assert.rejects(disabled.saveJournalEntry({childId:'child',emotion:'sad',text:'private',isShared:true}),/Sharing journal entries is unavailable/);

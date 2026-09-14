@@ -1,4 +1,5 @@
 import { getSupabaseClient, isSupabaseConfigured } from 'services/supabase/client';
+import { readParentAssignmentSummaries } from './parentAssignmentSummaryService';
 
 export type RiskLevel = 'low' | 'medium' | 'high';
 export type TrustedAdultStatus = 'active' | 'connected' | 'pending' | 'inactive';
@@ -322,6 +323,7 @@ export const removeChildFromDashboard = (
     childSignals,
     teacherClassRequests,
     assignmentSummaries,
+    assignmentSummariesStatus: data.assignmentSummariesStatus,
     aiDigest: buildAiDigest(children, recentEntries, recentAlerts, goals),
     proactiveInsights: buildProactiveInsights(children, wellbeingTrends, recentAlerts, recentEntries),
     parentFeedbackThemes: data.parentFeedbackThemes,
@@ -350,6 +352,8 @@ export interface DashboardSummary {
   childSignals: ChildSignal[];
   teacherClassRequests: TeacherClassRequest[];
   assignmentSummaries: ParentAssignmentSummary[];
+  /** Absent/failed status must never be interpreted as a verified empty list. */
+  assignmentSummariesStatus?: 'available' | 'unavailable';
   aiDigest: ParentAiDigest;
   proactiveInsights: ProactiveInsight[];
   parentFeedbackThemes: ParentFeedbackTheme[];
@@ -541,28 +545,6 @@ interface ParentTeacherClassRequestRpcRow {
   created_at: string;
 }
 
-interface ParentAssignmentSummaryRpcRow {
-  assignment_id: string;
-  child_id: string;
-  child_name: string | null;
-  class_id: string;
-  class_name: string | null;
-  school_name: string | null;
-  teacher_id: string;
-  teacher_name: string | null;
-  teacher_email: string | null;
-  title: string;
-  description: string | null;
-  assignment_type: string | null;
-  support_tools: string[] | null;
-  due_at: string | null;
-  created_at: string;
-  status: string | null;
-  support_used: string[] | null;
-  mood_after_task: string | null;
-  updated_at: string | null;
-}
-
 const riskLevels: RiskLevel[] = ['low', 'medium', 'high'];
 const dayFormatter = new Intl.DateTimeFormat('en-GB', { weekday: 'short' });
 
@@ -657,29 +639,6 @@ const normalizeFeedbackSentiment = (value: unknown): ParentFeedbackTheme['sentim
   if (value === 'positive' || value === 'neutral' || value === 'concerned') return value;
   return 'neutral';
 };
-
-const parentAssignmentStatuses = ['not_started', 'in_progress', 'needs_help', 'completed', 'submitted'] as const;
-
-const normalizeAssignmentStatus = (value: unknown): ParentAssignmentStatus =>
-  parentAssignmentStatuses.includes(value as ParentAssignmentStatus)
-    ? (value as ParentAssignmentStatus)
-    : 'not_started';
-
-const parentAssignmentTypes = [
-  'reading',
-  'maths',
-  'writing',
-  'pronunciation',
-  'calm_break',
-  'visual_routine',
-  'social_story',
-  'task',
-] as const;
-
-const normalizeAssignmentType = (value: unknown): ParentAssignmentType =>
-  parentAssignmentTypes.includes(value as ParentAssignmentType)
-    ? (value as ParentAssignmentType)
-    : 'task';
 
 const defaultTeacherVisibilitySettings: TeacherClassVisibilitySettings = {
   childName: false,
@@ -967,31 +926,6 @@ const mapParentTeacherClassRequest = (row: ParentTeacherClassRequestRpcRow): Tea
   declinedAt: row.declined_at ?? null,
   declinedByName: row.declined_by_name ?? null,
   createdAt: row.created_at,
-});
-
-const mapParentAssignmentSummary = (
-  row: ParentAssignmentSummaryRpcRow,
-  childNames: Map<string, string>,
-): ParentAssignmentSummary => ({
-  id: row.assignment_id,
-  childId: row.child_id,
-  childName: row.child_name || childNames.get(row.child_id) || 'Child',
-  classId: row.class_id,
-  className: row.class_name || 'Class',
-  schoolName: row.school_name || '',
-  teacherId: row.teacher_id,
-  teacherName: row.teacher_name || row.teacher_email || 'Teacher',
-  teacherEmail: row.teacher_email || '',
-  title: row.title,
-  description: row.description ?? undefined,
-  assignmentType: normalizeAssignmentType(row.assignment_type),
-  supportTools: row.support_tools ?? [],
-  dueAt: row.due_at ?? undefined,
-  createdAt: row.created_at,
-  status: normalizeAssignmentStatus(row.status),
-  supportUsed: row.support_used ?? [],
-  moodAfterTask: row.mood_after_task ?? undefined,
-  updatedAt: row.updated_at ?? undefined,
 });
 
 const createEmptyTrendWindow = (): WellbeingTrendPoint[] => {
@@ -1409,7 +1343,7 @@ export class ParentDashboardService {
   }
 
   static async getChildren(): Promise<ChildSummary[]> {
-    if (!isSupabaseConfigured) return [];
+    if (!isSupabaseConfigured) throw new Error('Parent Hub is unavailable.');
 
     const { data, error } = await getSupabaseClient()
       .from('parent_dashboard_summary')
@@ -1417,7 +1351,8 @@ export class ParentDashboardService {
       .order('child_name', { ascending: true });
 
     if (error) throw error;
-    return ((data ?? []) as ParentSummaryRow[]).map(mapChildSummary);
+    if (!Array.isArray(data)) throw new Error('Parent Hub is unavailable.');
+    return (data as ParentSummaryRow[]).map(mapChildSummary);
   }
 
   static async getRecentEntries(childId: string, limit = 10): Promise<JournalEntry[]> {
@@ -1478,6 +1413,7 @@ export class ParentDashboardService {
         childSignals: [],
         teacherClassRequests: [],
         assignmentSummaries: [],
+        assignmentSummariesStatus: 'available',
         aiDigest: buildAiDigest([], [], [], []),
         proactiveInsights: [],
         parentFeedbackThemes: [],
@@ -1485,6 +1421,7 @@ export class ParentDashboardService {
     }
 
     let trustedAdultsUnavailable = false;
+    let assignmentSummariesUnavailable = false;
     const [
       recentEntries,
       recentAlerts,
@@ -1511,7 +1448,10 @@ export class ParentDashboardService {
       this.getSignalsForChildren(childIds),
       this.getParentFeedbackThemes(),
       this.getTeacherClassRequestsForChildren(childIds),
-      this.getAssignmentSummariesForChildren(childIds, childNames),
+      readParentAssignmentSummaries(childIds, childNames).catch(() => {
+        assignmentSummariesUnavailable = true;
+        return [] as ParentAssignmentSummary[];
+      }),
     ]);
 
     const wellbeingTrends = buildWellbeingTrends(recentEntries);
@@ -1536,6 +1476,7 @@ export class ParentDashboardService {
       childSignals,
       teacherClassRequests,
       assignmentSummaries,
+      assignmentSummariesStatus: assignmentSummariesUnavailable ? 'unavailable' : 'available',
       aiDigest: buildAiDigest(enrichedChildren, recentEntries, recentAlerts, goals),
       proactiveInsights: buildProactiveInsights(enrichedChildren, wellbeingTrends, recentAlerts, recentEntries),
       parentFeedbackThemes,
@@ -1808,29 +1749,6 @@ export class ParentDashboardService {
     }
 
     return ((data ?? []) as ParentTeacherClassRequestRpcRow[]).map(mapParentTeacherClassRequest);
-  }
-
-  private static async getAssignmentSummariesForChildren(
-    childIds: string[],
-    childNames: Map<string, string>,
-  ): Promise<ParentAssignmentSummary[]> {
-    if (!isSupabaseConfigured || childIds.length === 0) return [];
-
-    const { data, error } = await getSupabaseClient().rpc('parent_assignment_summaries', {
-      p_child_ids: childIds,
-    });
-
-    if (error) {
-      if (isSchemaUnavailableError(error)) {
-        logOptionalTableWarning('parent_assignment_summaries', error);
-        return [];
-      }
-      throw error;
-    }
-
-    return ((data ?? []) as ParentAssignmentSummaryRpcRow[]).map((row) =>
-      mapParentAssignmentSummary(row, childNames),
-    );
   }
 
   private static async getParentFeedbackThemes(): Promise<ParentFeedbackTheme[]> {

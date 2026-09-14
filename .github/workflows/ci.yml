@@ -94,5 +94,17 @@ jobs:
       - name: Safeguarding and privacy checks
         run: npm run test:safeguarding
 
+      - name: School task SQL candidate (synthetic database only)
+        run: node scripts/test-school-task-authority.cjs
+
+      - name: Preserve school authority rehearsal evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: school-task-authority-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/adaptbuddy-task-authority/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Production build
         run: npm run build

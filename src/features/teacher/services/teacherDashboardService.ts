@@ -1,4 +1,5 @@
 import { getSupabaseClient, isSupabaseConfigured } from 'services/supabase/client';
+import { readTeacherReportTaskSource } from './teacherReportTaskSource';
 
 export type TeacherRequestStatus =
   | 'pending'
@@ -108,6 +109,8 @@ export interface TeacherAssignmentProgressSummary {
 }
 
 export interface TeacherAssignmentLearnerProgress {
+  /** False means no submission row was returned, not verified lack of effort. */
+  hasRecordedUpdate?: boolean;
   childId: string;
   childName: string;
   buddyId: string | null;
@@ -538,6 +541,7 @@ const buildAssignmentProgress = (
 
     return {
       childId: membership.child_id,
+      hasRecordedUpdate: Boolean(submission),
       childName: visibilitySettings.childName ? getProfileName(profile) : 'Learner',
       buddyId: null,
       neurotypes: visibilitySettings.neuroProfile ? profile?.neuro_types ?? [] : [],
@@ -924,19 +928,31 @@ export class TeacherDashboardService {
     if (error) throw error;
   }
 
-  static async getDashboardSummary(options: { guest?: boolean } = {}): Promise<TeacherDashboardSummary> {
-    if (options.guest || !isSupabaseConfigured) return this.getGuestSummary();
+  static async getDashboardSummary(options: { guest?: boolean; reportOwnerId?: string } = {}): Promise<TeacherDashboardSummary> {
+    // Real Reports never silently fall back to demo or legacy archive semantics.
+    // Other existing dashboard callers retain their separate contract.
+    if (options.guest) return this.getGuestSummary();
+    const reportSource = options.reportOwnerId !== undefined
+      ? await readTeacherReportTaskSource(options.reportOwnerId)
+      : null;
+    if (!isSupabaseConfigured) return this.getGuestSummary();
 
     const client = getSupabaseClient();
-    const { data: userData } = await client.auth.getUser();
-    const teacherId = userData.user?.id ?? null;
-    const { data: classRows, error: classError } = await client
-      .from('teacher_classes')
-      .select('id, teacher_id, school_name, class_name, class_code, subject, year_group, created_at')
-      .order('created_at', { ascending: false });
-
-    if (classError) throw classError;
-    const rawClasses = (classRows ?? []) as TeacherClassRow[];
+    let teacherId: string | null;
+    let rawClasses: TeacherClassRow[];
+    if (reportSource) {
+      teacherId = reportSource.teacherId;
+      rawClasses = reportSource.classes;
+    } else {
+      const { data: userData } = await client.auth.getUser();
+      teacherId = userData.user?.id ?? null;
+      const { data: classRows, error: classError } = await client
+        .from('teacher_classes')
+        .select('id, teacher_id, school_name, class_name, class_code, subject, year_group, created_at')
+        .order('created_at', { ascending: false });
+      if (classError) throw classError;
+      rawClasses = (classRows ?? []) as TeacherClassRow[];
+    }
     const classIds = rawClasses.map((teacherClass) => teacherClass.id);
 
     if (classIds.length === 0) {
@@ -961,9 +977,9 @@ export class TeacherDashboardService {
     }
 
     const [membershipRows, requestRows, assignmentRows] = await Promise.all([
-      this.getMembershipRows(classIds),
+      reportSource ? Promise.resolve(reportSource.memberships) : this.getMembershipRows(classIds),
       this.getJoinRequestRows(classIds),
-      this.getAssignmentRows(classIds),
+      reportSource ? Promise.resolve(reportSource.assignments) : this.getAssignmentRows(classIds),
     ]);
 
     const activeMembershipRows = membershipRows.filter((membership) => membership.status === 'active');
@@ -983,7 +999,7 @@ export class TeacherDashboardService {
     );
     const [signals, submissionRows, familyMessages, careMeetings] = await Promise.all([
       this.getLiveSignals(signalChildIds, profiles, visibilityByChild),
-      this.getSubmissionRows(assignmentRows.map((assignment) => assignment.id)),
+      reportSource ? Promise.resolve(reportSource.submissions) : this.getSubmissionRows(assignmentRows.map((assignment) => assignment.id)),
       this.getFamilyMessages(signalChildIds, teacherId, profiles, visibilityByChild),
       this.getCareMeetings(signalChildIds, profiles, visibilityByChild),
     ]);
@@ -1369,6 +1385,7 @@ export class TeacherDashboardService {
               buddyId: 'AB-7K4M-23',
               neurotypes: ['autism', 'dyslexia'],
               status: 'needs_help',
+              hasRecordedUpdate: true,
               moodAfterTask: 'confused',
               supportUsed: ['teacher_help', 'read_aloud'],
               updatedAt: now,

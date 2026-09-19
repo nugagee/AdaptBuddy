@@ -11,6 +11,12 @@ export interface ProductFeedbackInput {
   feedbackText: string;
   childId?: string | null;
   metadata?: Record<string, unknown>;
+  isGuest?: boolean;
+  visitorKey?: string;
+  submitterName?: string;
+  submitterEmail?: string;
+  buddyId?: string | null;
+  path?: string;
 }
 
 export interface ProductFeedbackSubmitResult {
@@ -45,6 +51,15 @@ export interface ProductFeedbackItem {
   themes: string[];
   status: ProductFeedbackStatus;
   metadata: Record<string, unknown>;
+  submitterName?: string;
+  submitterEmail?: string;
+  visitorKey?: string;
+  isGuest?: boolean;
+  buddyId?: string | null;
+  path?: string | null;
+  adminResponse?: string | null;
+  adminRespondedAt?: string | null;
+  adminRespondedBy?: string | null;
   createdAt: string;
 }
 
@@ -60,7 +75,31 @@ interface ProductFeedbackRow {
   themes?: unknown;
   status?: ProductFeedbackStatus | null;
   metadata?: unknown;
+  submitter_name?: string | null;
+  submitter_email?: string | null;
+  visitor_key?: string | null;
+  is_guest?: boolean | null;
+  buddy_id?: string | null;
+  path?: string | null;
+  admin_response?: string | null;
+  admin_responded_at?: string | null;
+  admin_responded_by?: string | null;
   created_at?: string | null;
+  profiles?: {
+    full_name?: string | null;
+    email?: string | null;
+    buddy_id?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    child_name?: string | null;
+  } | Array<{
+    full_name?: string | null;
+    email?: string | null;
+    buddy_id?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    child_name?: string | null;
+  }> | null;
 }
 
 const feedbackTypes: ProductFeedbackType[] = ['idea', 'confusing', 'bug', 'safety', 'delight'];
@@ -126,6 +165,36 @@ function asMetadata(value: unknown): Record<string, unknown> {
 }
 
 function toItem(row: ProductFeedbackRow): ProductFeedbackItem {
+  const profileJoin = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+  const profile = profileJoin;
+  const meta = asMetadata(row.metadata);
+  const metaSubmitter = asMetadata(meta.submitter);
+  const submitterName =
+    row.submitter_name
+    || (typeof metaSubmitter.name === 'string' ? metaSubmitter.name : '')
+    || profile?.full_name
+    || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ')
+    || '';
+  const submitterEmail =
+    row.submitter_email
+    || (typeof metaSubmitter.email === 'string' ? metaSubmitter.email : '')
+    || profile?.email
+    || '';
+  const buddyId =
+    row.buddy_id
+    || (typeof metaSubmitter.buddyId === 'string' ? metaSubmitter.buddyId : null)
+    || profile?.buddy_id
+    || null;
+  const visitorKey =
+    row.visitor_key
+    || (typeof meta.visitorKey === 'string' ? meta.visitorKey : '')
+    || '';
+  const isGuest = Boolean(
+    row.is_guest
+    || meta.isGuest === true
+    || metaSubmitter.accountType === 'guest',
+  );
+
   return {
     id: row.id,
     userId: row.user_id ?? null,
@@ -137,7 +206,16 @@ function toItem(row: ProductFeedbackRow): ProductFeedbackItem {
     sentiment: normalizeSentiment(row.sentiment),
     themes: asThemeArray(row.themes),
     status: row.status ?? 'new',
-    metadata: asMetadata(row.metadata),
+    metadata: meta,
+    submitterName,
+    submitterEmail,
+    visitorKey,
+    isGuest,
+    buddyId,
+    path: row.path || (typeof meta.path === 'string' ? meta.path : null),
+    adminResponse: row.admin_response ?? null,
+    adminRespondedAt: row.admin_responded_at ?? null,
+    adminRespondedBy: row.admin_responded_by ?? null,
     createdAt: row.created_at ?? new Date().toISOString(),
   };
 }
@@ -192,16 +270,23 @@ function storeLocalFeedback(profile: Profile, input: ProductFeedbackInput, senti
     const next = [
       {
         id: crypto.randomUUID?.() ?? `local-${Date.now()}`,
-        userRole: profile.role,
-        sourceArea: input.sourceArea,
-        feedbackType: input.feedbackType,
+        user_id: input.isGuest ? null : profile.id,
+        user_role: profile.role,
+        source_area: input.sourceArea,
+        feedback_type: input.feedbackType,
         rating: clampRating(input.rating),
-        feedbackText: input.feedbackText.trim(),
+        feedback_text: input.feedbackText.trim(),
         sentiment,
         themes,
         status: 'new',
         metadata: input.metadata ?? {},
-        createdAt: new Date().toISOString(),
+        submitter_name: input.submitterName || profile.full_name || '',
+        submitter_email: input.submitterEmail || profile.email || '',
+        visitor_key: input.visitorKey || '',
+        is_guest: Boolean(input.isGuest),
+        buddy_id: input.buddyId || profile.buddy_id || null,
+        path: input.path || '/',
+        created_at: new Date().toISOString(),
       },
       ...existing,
     ].slice(0, 40);
@@ -230,27 +315,89 @@ export class ProductFeedbackService {
     const rating = clampRating(input.rating);
     const sentiment = inferSentiment(feedbackText, feedbackType, rating);
     const themes = extractThemes(feedbackText, input.sourceArea, feedbackType);
+    const isGuest = Boolean(input.isGuest);
+    const submitterName = (input.submitterName || profile.full_name || '').trim();
+    const submitterEmail = (input.submitterEmail || profile.email || '').trim();
+    const visitorKey = (input.visitorKey || '').trim();
+    const buddyId = input.buddyId || profile.buddy_id || null;
+    const path = input.path || '/';
+    const metadata = {
+      ...(input.metadata ?? {}),
+      isGuest,
+      visitorKey,
+      path,
+      submitter: {
+        ...asMetadata((input.metadata ?? {}).submitter),
+        name: submitterName,
+        email: submitterEmail,
+        buddyId,
+        userId: isGuest ? null : profile.id,
+        accountType: isGuest ? 'guest' : 'authenticated',
+      },
+    };
 
     if (!isSupabaseConfigured) {
-      storeLocalFeedback(profile, { ...input, feedbackType, rating, feedbackText }, sentiment, themes);
+      storeLocalFeedback(
+        profile,
+        {
+          ...input,
+          feedbackType,
+          rating,
+          feedbackText,
+          submitterName,
+          submitterEmail,
+          visitorKey,
+          buddyId,
+          path,
+          isGuest,
+          metadata,
+        },
+        sentiment,
+        themes,
+      );
       return { persisted: false, reason: 'Supabase is not configured.' };
     }
 
-    const { error } = await getSupabaseClient().from('product_feedback').insert({
-      user_id: profile.id,
-      user_role: profile.role,
-      child_id: input.childId ?? null,
-      source_area: input.sourceArea,
-      feedback_type: feedbackType,
-      rating,
-      feedback_text: feedbackText,
-      sentiment,
-      themes,
-      metadata: input.metadata ?? {},
+    const { error } = await getSupabaseClient().rpc('submit_product_feedback', {
+      p_data: {
+        user_id: isGuest ? null : profile.id,
+        user_role: profile.role,
+        child_id: input.childId ?? null,
+        source_area: input.sourceArea,
+        feedback_type: feedbackType,
+        rating,
+        feedback_text: feedbackText,
+        sentiment,
+        themes,
+        metadata,
+        is_guest: isGuest,
+        submitter_name: submitterName,
+        submitter_email: submitterEmail,
+        visitor_key: visitorKey,
+        buddy_id: buddyId,
+        path,
+      },
     });
 
     if (error) {
-      storeLocalFeedback(profile, { ...input, feedbackType, rating, feedbackText }, sentiment, themes);
+      storeLocalFeedback(
+        profile,
+        {
+          ...input,
+          feedbackType,
+          rating,
+          feedbackText,
+          submitterName,
+          submitterEmail,
+          visitorKey,
+          buddyId,
+          path,
+          isGuest,
+          metadata,
+        },
+        sentiment,
+        themes,
+      );
       return { persisted: false, reason: error.message };
     }
 
@@ -273,7 +420,7 @@ export class ProductFeedbackService {
 
     let query = getSupabaseClient()
       .from('product_feedback')
-      .select('id, user_id, user_role, source_area, feedback_type, rating, feedback_text, sentiment, themes, status, metadata, created_at')
+      .select('id, user_id, user_role, source_area, feedback_type, rating, feedback_text, sentiment, themes, status, metadata, submitter_name, submitter_email, visitor_key, is_guest, buddy_id, path, admin_response, admin_responded_at, admin_responded_by, created_at, profiles:user_id(full_name, email, buddy_id, first_name, last_name, child_name)')
       .order('created_at', { ascending: false })
       .limit(Math.max(1, Math.min(limit, 500)));
 
@@ -298,6 +445,31 @@ export class ProductFeedbackService {
     const { error } = await getSupabaseClient()
       .from('product_feedback')
       .update({ status })
+      .eq('id', feedbackId);
+
+    if (error) throw error;
+  }
+
+  static async respondToFeedback(
+    profile: Profile,
+    feedbackId: string,
+    responseText: string,
+    status: ProductFeedbackStatus = 'reviewing',
+  ): Promise<void> {
+    if (profile.role !== 'admin') throw new Error('Only admins can respond to feedback.');
+    if (!isSupabaseConfigured) throw new Error('Supabase is not configured.');
+
+    const adminResponse = responseText.trim();
+    if (!adminResponse) throw new Error('Please write a short reply before sending.');
+
+    const { error } = await getSupabaseClient()
+      .from('product_feedback')
+      .update({
+        admin_response: adminResponse,
+        admin_responded_at: new Date().toISOString(),
+        admin_responded_by: profile.id,
+        status,
+      })
       .eq('id', feedbackId);
 
     if (error) throw error;

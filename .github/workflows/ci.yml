@@ -1,0 +1,110 @@
+name: AdaptBuddy CI
+
+on:
+  push:
+    branches:
+      - upload/adaptbuddy-web
+      - 'codex/**'
+  pull_request:
+    branches:
+      - upload/adaptbuddy-web
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adaptbuddy-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Typecheck, tests, safety and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify dependency files stay unchanged
+        run: git diff --exit-code -- package.json package-lock.json
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Application regression tests
+        env:
+          CI: 'true'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/adaptbuddy-ci"
+          status=0
+          npm test -- --watchAll=false --runInBand --json --outputFile="$RUNNER_TEMP/adaptbuddy-ci/tests.json" > "$RUNNER_TEMP/adaptbuddy-ci/tests.log" 2>&1 || status=$?
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const dir = path.join(process.env.RUNNER_TEMP, 'adaptbuddy-ci');
+          const reportPath = path.join(dir, 'tests.json');
+          if (!fs.existsSync(reportPath)) {
+            console.error('Jest did not produce a JSON report. Last log excerpt:');
+            console.error(fs.readFileSync(path.join(dir, 'tests.log'), 'utf8').slice(-6000));
+          } else {
+            const r = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+            const lines = [
+              `Test suites: ${r.numPassedTestSuites} passed, ${r.numFailedTestSuites} failed, ${r.numTotalTestSuites} total`,
+              `Tests: ${r.numPassedTests} passed, ${r.numFailedTests} failed, ${r.numPendingTests} pending, ${r.numTotalTests} total`
+            ];
+            const failed = (r.testResults || []).filter(t => t.status === 'failed');
+            for (const suite of failed.slice(0, 8)) {
+              lines.push(`FAIL ${path.relative(process.cwd(), suite.name)}`);
+              const message = suite.message || (suite.assertionResults || [])
+                .filter(a => a.status === 'failed')
+                .map(a => `${a.fullName}\n${(a.failureMessages || []).join('\n')}`).join('\n');
+              lines.push(message.replace(/\u001b\[[0-9;]*m/g, '').slice(0, 1800));
+            }
+            if (failed.length > 8) lines.push(`${failed.length - 8} additional failing suites are recorded in the artifact.`);
+            const summary = lines.join('\n');
+            console.log(summary);
+            fs.writeFileSync(path.join(dir, 'summary.txt'), summary);
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Application regression tests\n\n\`\`\`text\n${summary}\n\`\`\`\n`);
+          }
+          NODE
+          exit "$status"
+
+      - name: Preserve CI diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/adaptbuddy-ci/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Safeguarding and privacy checks
+        run: npm run test:safeguarding
+
+      - name: School task SQL candidate (synthetic database only)
+        run: node scripts/test-school-task-authority.cjs
+
+      - name: Preserve school authority rehearsal evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: school-task-authority-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/adaptbuddy-task-authority/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Production build
+        run: npm run build

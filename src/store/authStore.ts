@@ -14,14 +14,13 @@ import {
   type UserRole,
 } from 'services/supabase/client';
 import { useChildSessionStore } from 'features/child/store/childSessionStore';
+import { useTrustedAdultStore } from 'features/child/store/trustedAdultStore';
 import {
   requestSignupOtp,
   resendSignupOtp,
   upsertUserProfile,
   verifySignupOtp,
   setSignupPassword,
-  buildFallbackProfile,
-  buildFallbackProfileFromUser,
   requestPasswordResetOtp,
   verifyPasswordResetOtp,
   resendPasswordResetOtp,
@@ -34,7 +33,33 @@ const GUEST_MODE_KEY = 'adaptbuddy-guest-mode';
 const GUEST_PROFILE_KEY = 'adaptbuddy-guest-profile';
 
 /** Prevents onAuthStateChange from clearing auth mid-signup verify / sign-in */
-let completingAuthFlow = false;
+let completingAuthFlow: number | null = null;
+let authTransitionVersion = 0;
+let localSignOutVersion: number | null = null;
+
+const assertCurrentTransition = (version: number) => {
+  if (version !== authTransitionVersion) {
+    throw new Error('This sign-in was cancelled by a newer account change.');
+  }
+};
+
+const finishAuthFlow = (version: number) => {
+  if (completingAuthFlow === version) completingAuthFlow = null;
+  if (version === authTransitionVersion) useAuthStore.setState({ loading: false });
+};
+
+// SIGNED_OUT from our own awaited signOut is already represented by the cleared UI.
+const clearAuthSession = async (version: number, localOnly = true) => {
+  assertCurrentTransition(version);
+  localSignOutVersion = version;
+  try {
+    const { error } = await getSupabaseClient().auth.signOut(localOnly ? { scope: 'local' } : undefined);
+    if (error) throw error;
+  } finally {
+    if (localSignOutVersion === version) localSignOutVersion = null;
+  }
+  assertCurrentTransition(version);
+};
 let authSubscription: Subscription | null = null;
 let initialSessionRequest: Promise<Session | null> | null = null;
 let authInitializeVersion = 0;
@@ -62,8 +87,8 @@ interface AuthState {
   /** @deprecated Use requestPasswordReset — kept for legacy modal */
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
-  setGuestMode: (role?: UserRole) => void;
-  restoreGuestMode: () => boolean;
+  setGuestMode: (role?: UserRole) => Promise<boolean>;
+  restoreGuestMode: () => Promise<boolean>;
   setProfile: (profile: Profile) => void;
   refreshProfile: () => Promise<Profile | null>;
   initialize: () => () => void;
@@ -96,9 +121,13 @@ const getInitialSession = () => {
   return initialSessionRequest;
 };
 
+type GuestRole = Exclude<UserRole, 'admin'>;
+
 const createGuestProfile = (role: UserRole = 'child'): Profile => {
+  const guestRole: GuestRole =
+    role === 'parent' || role === 'teacher' ? role : 'child';
   const now = new Date().toISOString();
-  const names: Record<UserRole, { first: string; last: string; full: string; email: string }> = {
+  const names: Record<GuestRole, { first: string; last: string; full: string; email: string }> = {
     child: {
       first: 'Alex',
       last: 'Guest',
@@ -117,27 +146,21 @@ const createGuestProfile = (role: UserRole = 'child'): Profile => {
       full: 'Teacher Guest',
       email: 'guest-teacher@adaptbuddy.local',
     },
-    admin: {
-      first: 'Admin',
-      last: 'Guest',
-      full: 'Admin Guest',
-      email: 'guest-admin@adaptbuddy.local',
-    },
   };
-  const name = names[role];
+  const name = names[guestRole];
 
   return {
-    id: `guest-${role}`,
+    id: `guest-${guestRole}`,
     email: name.email,
-    role,
+    role: guestRole,
     first_name: name.first,
     last_name: name.last,
     full_name: name.full,
-    child_name: role === 'parent' ? 'Alex' : null,
-    buddy_id: role === 'child' ? 'AB-GEST-01' : null,
+    child_name: guestRole === 'parent' ? 'Alex' : null,
+    buddy_id: guestRole === 'child' ? 'AB-GEST-01' : null,
     avatar_url: null,
     bio: null,
-    age: role === 'child' ? 10 : null,
+    age: guestRole === 'child' ? 10 : null,
     sex: null,
     gender: null,
     neuro_types: [],
@@ -153,6 +176,11 @@ const loadGuestProfile = (role?: UserRole): Profile | null => {
   try {
     const raw = localStorage.getItem(GUEST_PROFILE_KEY);
     const profile = raw ? (JSON.parse(raw) as Profile) : null;
+    if (profile?.role === 'admin') {
+      localStorage.removeItem(GUEST_PROFILE_KEY);
+      localStorage.removeItem(GUEST_MODE_KEY);
+      return null;
+    }
     if (role && profile?.role !== role) return null;
     return profile;
   } catch {
@@ -168,29 +196,27 @@ const saveGuestProfile = (profile: Profile) => {
 export const hasStoredGuestMode = () =>
   typeof window !== 'undefined' && localStorage.getItem(GUEST_MODE_KEY) === 'true';
 
-const applyAuthSession = async (session: Session) => {
-  if (hasStoredGuestMode()) {
-    applyNoSessionState();
-    return;
-  }
-
-  const profile =
-    (await loadProfile(session.user.id)) ?? buildFallbackProfileFromUser(session.user);
-
+const prepareAuthenticatedTransition = () => {
+  const version = ++authTransitionVersion;
+  useChildSessionStore.getState().resetSession();
+  useTrustedAdultStore.getState().clearTrustedAdults();
   localStorage.removeItem(GUEST_MODE_KEY);
   localStorage.removeItem(GUEST_PROFILE_KEY);
-
   useAuthStore.setState({
-    user: session.user,
-    profile,
-    session: toAuthSessionState(session),
-    loading: false,
+    user: null,
+    profile: null,
+    session: null,
+    loading: true,
     isGuest: false,
   });
+  return version;
 };
 
 const applySignedOutState = () => {
+  ++authTransitionVersion;
+  completingAuthFlow = null;
   useChildSessionStore.getState().resetSession();
+  useTrustedAdultStore.getState().clearTrustedAdults();
   localStorage.removeItem(GUEST_MODE_KEY);
   localStorage.removeItem(GUEST_PROFILE_KEY);
   useAuthStore.setState({
@@ -202,7 +228,79 @@ const applySignedOutState = () => {
   });
 };
 
+const rejectUnverifiedProfile = async (version: number): Promise<never> => {
+  assertCurrentTransition(version);
+  applySignedOutState();
+  const signedOutVersion = authTransitionVersion;
+  try {
+    await clearAuthSession(signedOutVersion);
+  } catch (error) {
+    console.error('Could not clear an unverified local session:', error);
+  }
+  throw new Error('Your account profile could not be verified. Please sign in again.');
+};
+
+const loadRequiredProfile = async (userId: string, version: number): Promise<Profile> => {
+  const profile = await loadProfile(userId);
+  assertCurrentTransition(version);
+  if (!profile || profile.id !== userId) return rejectUnverifiedProfile(version);
+  return profile;
+};
+
+const applyAuthSession = async (session: Session) => {
+  const current = useAuthStore.getState();
+  const canRefreshInPlace = (
+    !current.loading
+    && !current.isGuest
+    && !hasStoredGuestMode()
+    && current.user?.id === session.user.id
+    && current.profile?.id === session.user.id
+  );
+
+  // Supabase emits TOKEN_REFRESHED, USER_UPDATED, and sometimes repeated
+  // SIGNED_IN events for the account that is already active. Keep the verified
+  // account mounted while its profile is rechecked so child-scoped stores,
+  // drafts, and timers are not torn down as though another child signed in.
+  if (canRefreshInPlace) {
+    const version = ++authTransitionVersion;
+    const profile = await loadRequiredProfile(session.user.id, version);
+    assertCurrentTransition(version);
+    if (
+      profile.role !== current.profile?.role
+      || profile.status !== current.profile?.status
+      || profile.is_authorized !== current.profile?.is_authorized
+      || session.user.email !== current.user?.email
+      || session.user.email_confirmed_at !== current.user?.email_confirmed_at
+    ) {
+      useChildSessionStore.getState().resetSession();
+      useTrustedAdultStore.getState().clearTrustedAdults();
+    }
+    useAuthStore.setState({
+      user: session.user,
+      profile,
+      session: toAuthSessionState(session),
+      loading: false,
+      isGuest: false,
+    });
+    return;
+  }
+
+  const version = prepareAuthenticatedTransition();
+  const profile = await loadRequiredProfile(session.user.id, version);
+  assertCurrentTransition(version);
+  useAuthStore.setState({
+    user: session.user,
+    profile,
+    session: toAuthSessionState(session),
+    loading: false,
+    isGuest: false,
+  });
+};
+
 const applyNoSessionState = () => {
+  ++authTransitionVersion;
+  useChildSessionStore.getState().resetSession();
+  useTrustedAdultStore.getState().clearTrustedAdults();
   const isGuest = hasStoredGuestMode();
   const guestProfile = isGuest ? loadGuestProfile() ?? createGuestProfile('child') : null;
   if (guestProfile) saveGuestProfile(guestProfile);
@@ -219,6 +317,7 @@ const applyNoSessionState = () => {
 
 const handleAuthStateChange = async (event: AuthChangeEvent, session: Session | null) => {
   if (event === 'SIGNED_OUT') {
+    if (localSignOutVersion === authTransitionVersion) return;
     if (hasStoredGuestMode()) {
       applyNoSessionState();
     } else {
@@ -227,7 +326,7 @@ const handleAuthStateChange = async (event: AuthChangeEvent, session: Session | 
     return;
   }
 
-  if (completingAuthFlow) return;
+  if (completingAuthFlow !== null) return;
 
   if (session?.user) {
     await applyAuthSession(session);
@@ -250,7 +349,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signIn: async (email, password) => {
     if (!isSupabaseConfigured) throw new Error('Authentication is not configured on this deployment.');
 
-    completingAuthFlow = true;
+    const version = prepareAuthenticatedTransition();
+    completingAuthFlow = version;
     try {
       const client = getSupabaseClient();
       const { data, error } = await client.auth.signInWithPassword({ email, password });
@@ -263,11 +363,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Sign in succeeded but no user was returned.');
       }
 
-      const profile =
-        (await loadProfile(user.id)) ?? buildFallbackProfileFromUser(user);
-
-      localStorage.removeItem(GUEST_MODE_KEY);
-      localStorage.removeItem(GUEST_PROFILE_KEY);
+      assertCurrentTransition(version);
+      const profile = await loadRequiredProfile(user.id, version);
+      assertCurrentTransition(version);
 
       set({
         user,
@@ -279,9 +377,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       return user;
     } finally {
-      window.setTimeout(() => {
-        completingAuthFlow = false;
-      }, 300);
+      finishAuthFlow(version);
     }
   },
 
@@ -308,7 +404,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('Authentication is not configured on this deployment.');
     }
 
-    completingAuthFlow = true;
+    const version = prepareAuthenticatedTransition();
+    completingAuthFlow = version;
     try {
       const { session, user } = await verifySignupOtp(details.email, otp);
       const authUser = user ?? session?.user;
@@ -318,22 +415,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Verification succeeded but no user was returned.');
       }
 
-      localStorage.removeItem(GUEST_MODE_KEY);
-      localStorage.removeItem(GUEST_PROFILE_KEY);
-
-      const nextState: Pick<AuthState, 'user' | 'isGuest' | 'loading'> & {
-        session?: AuthSessionState;
-      } = {
-        user: authUser,
-        isGuest: false,
-        loading: false,
-      };
-
-      if (session) {
-        nextState.session = toAuthSessionState(session);
-      }
-
-      set(nextState);
+      assertCurrentTransition(version);
 
       try {
         const profile = await upsertUserProfile({
@@ -348,18 +430,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           age: details.age,
           emailVerified: true,
         });
-        set({ profile });
+        assertCurrentTransition(version);
+        set({
+          user: authUser,
+          profile,
+          session: session ? toAuthSessionState(session) : null,
+          isGuest: false,
+          loading: false,
+        });
       } catch (profileError) {
-        console.error('Profile save failed (using local fallback):', profileError);
-        set({ profile: buildFallbackProfile(details, userId) });
+        console.error('Profile save failed; closing the unverified session:', profileError);
+        await rejectUnverifiedProfile(version);
       }
 
-      // Password must not block routing - set after auth state is saved.
-      void setSignupPassword(details.password);
+      // Complete the credential update within this account transition.
+      assertCurrentTransition(version);
+      await setSignupPassword(details.password);
     } finally {
-      window.setTimeout(() => {
-        completingAuthFlow = false;
-      }, 300);
+      finishAuthFlow(version);
     }
   },
 
@@ -371,35 +459,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   saveSignupProfile: async (details, userId) => {
-    if (!isSupabaseConfigured) {
-      throw new Error('Authentication is not configured on this deployment.');
+    if (!isSupabaseConfigured) throw new Error('Authentication is not configured on this deployment.');
+    const version = prepareAuthenticatedTransition();
+    completingAuthFlow = version;
+    try {
+      const { data: { session } } = await getSupabaseClient().auth.getSession();
+      assertCurrentTransition(version);
+      if (!session?.user || session.user.id !== userId) return rejectUnverifiedProfile(version);
+      const profile = await upsertUserProfile({
+        id: userId, email: details.email, role: details.role,
+        firstName: details.firstName, lastName: details.lastName, childName: details.childName,
+        sex: details.sex, gender: details.gender, age: details.age,
+      }).catch(() => rejectUnverifiedProfile(version));
+      assertCurrentTransition(version);
+      set({ user: session.user, profile, session: toAuthSessionState(session), isGuest: false, loading: false });
+      return profile;
+    } finally {
+      finishAuthFlow(version);
     }
-
-    const profile = await upsertUserProfile({
-      id: userId,
-      email: details.email,
-      role: details.role,
-      firstName: details.firstName,
-      lastName: details.lastName,
-      childName: details.childName,
-      sex: details.sex,
-      gender: details.gender,
-      age: details.age,
-      emailVerified: true,
-    });
-
-    const { data: { session } } = await getSupabaseClient().auth.getSession();
-    localStorage.removeItem(GUEST_MODE_KEY);
-    localStorage.removeItem(GUEST_PROFILE_KEY);
-    set({
-      user: session?.user ?? null,
-      profile,
-      session: session ? toAuthSessionState(session) : null,
-      isGuest: false,
-      loading: false,
-    });
-
-    return profile;
   },
 
   signInWithGoogle: async () => {
@@ -424,7 +501,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('Authentication is not configured on this deployment.');
     }
 
-    completingAuthFlow = true;
+    const version = prepareAuthenticatedTransition();
+    completingAuthFlow = version;
     try {
       const { session, user } = await verifyPasswordResetOtp(email, otp);
       const authUser = user ?? session?.user;
@@ -433,19 +511,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Verification succeeded but no user was returned.');
       }
 
-      localStorage.removeItem(GUEST_MODE_KEY);
-      localStorage.removeItem(GUEST_PROFILE_KEY);
+      assertCurrentTransition(version);
+      const profile = await loadRequiredProfile(authUser.id, version);
+      assertCurrentTransition(version);
 
       set({
         user: authUser,
+        profile,
         session: session ? toAuthSessionState(session) : null,
         isGuest: false,
         loading: false,
       });
     } finally {
-      window.setTimeout(() => {
-        completingAuthFlow = false;
-      }, 300);
+      finishAuthFlow(version);
     }
   },
 
@@ -461,7 +539,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('Authentication is not configured on this deployment.');
     }
 
-    completingAuthFlow = true;
+    const version = prepareAuthenticatedTransition();
+    completingAuthFlow = version;
     try {
       await updatePasswordAfterReset(newPassword);
 
@@ -472,11 +551,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Password updated but no session was found. Please sign in.');
       }
 
-      const profile =
-        (await loadProfile(user.id)) ?? buildFallbackProfileFromUser(user);
-
-      localStorage.removeItem(GUEST_MODE_KEY);
-      localStorage.removeItem(GUEST_PROFILE_KEY);
+      assertCurrentTransition(version);
+      const profile = await loadRequiredProfile(user.id, version);
+      assertCurrentTransition(version);
 
       set({
         user,
@@ -488,9 +565,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       return user;
     } finally {
-      window.setTimeout(() => {
-        completingAuthFlow = false;
-      }, 300);
+      finishAuthFlow(version);
     }
   },
 
@@ -499,62 +574,68 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
-    useChildSessionStore.getState().resetSession();
-
-    if (!isSupabaseConfigured) {
-      applySignedOutState();
-      return;
-    }
-    const { error } = await getSupabaseClient().auth.signOut();
-    if (error) throw error;
     applySignedOutState();
+    const version = authTransitionVersion;
+    completingAuthFlow = version;
+    try {
+      if (isSupabaseConfigured) await clearAuthSession(version, false);
+    } finally {
+      finishAuthFlow(version);
+    }
   },
 
-  setGuestMode: (role = 'child') => {
-    const guestProfile = createGuestProfile(role);
-    localStorage.setItem(GUEST_MODE_KEY, 'true');
-    saveGuestProfile(guestProfile);
-    set({
-      isGuest: true,
-      user: null,
-      profile: guestProfile,
-      session: null,
-      loading: false,
-      initialized: true,
-    });
+  setGuestMode: async (role = 'child') => {
+    const version = prepareAuthenticatedTransition();
+    completingAuthFlow = version;
+    try {
+      if (isSupabaseConfigured) await clearAuthSession(version);
+      assertCurrentTransition(version);
+      const guestProfile = createGuestProfile(role);
+      localStorage.setItem(GUEST_MODE_KEY, 'true');
+      saveGuestProfile(guestProfile);
+      set({ isGuest: true, user: null, profile: guestProfile, session: null, loading: false, initialized: true });
+      return true;
+    } catch (error) {
+      console.error('Could not isolate guest mode from the signed-in session:', error);
+      return false;
+    } finally {
+      finishAuthFlow(version);
+    }
   },
 
-  restoreGuestMode: () => {
+  restoreGuestMode: async () => {
     if (!hasStoredGuestMode()) return false;
-
     const guestProfile = loadGuestProfile() ?? createGuestProfile('child');
-    saveGuestProfile(guestProfile);
-    set({
-      isGuest: true,
-      user: null,
-      profile: guestProfile,
-      session: null,
-      loading: false,
-      initialized: true,
-    });
-    return true;
+    const restored = await get().setGuestMode(guestProfile.role);
+    if (restored && get().isGuest && get().profile?.id === guestProfile.id) {
+      saveGuestProfile(guestProfile);
+      set({ profile: guestProfile });
+      return true;
+    }
+    return false;
   },
 
   setProfile: (profile) => {
+    if (profile.id !== get().profile?.id) return;
     if (get().isGuest) saveGuestProfile(profile);
     set({ profile });
   },
 
   refreshProfile: async () => {
+    const version = authTransitionVersion;
     const userId = get().user?.id;
     if (!userId || !isSupabaseConfigured) return null;
 
     try {
       const profile = await getProfile(userId);
+      if (version !== authTransitionVersion || get().user?.id !== userId) return null;
+      if (!profile || profile.id !== userId) return rejectUnverifiedProfile(version);
       set({ profile });
       return profile;
     } catch {
-      return get().profile;
+      if (version !== authTransitionVersion || get().user?.id !== userId) return null;
+      const currentProfile = get().profile;
+      return currentProfile?.id === userId ? currentProfile : null;
     }
   },
 
@@ -581,11 +662,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     set({ initialized: true, loading: true });
 
-    getInitialSession().then((session) => {
-      if (authInitializeVersion !== version) return;
+    const transitionAtInitialization = authTransitionVersion;
+    getInitialSession().then(async (session) => {
+      if (authInitializeVersion !== version || authTransitionVersion !== transitionAtInitialization) return;
 
-      if (session?.user && !hasStoredGuestMode()) {
-        void applyAuthSession(session);
+      if (session?.user && hasStoredGuestMode()) {
+        await get().restoreGuestMode();
+      } else if (session?.user) {
+        void applyAuthSession(session).catch((error) => {
+          console.error('Could not apply the authenticated session safely:', error);
+        });
       } else {
         applyNoSessionState();
       }
@@ -594,7 +680,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!authSubscription) {
       const { data: { subscription } } = getSupabaseClient().auth.onAuthStateChange(
         (event, session) => {
-          void handleAuthStateChange(event, session);
+          void handleAuthStateChange(event, session).catch((error) => {
+            console.error('Could not process the authentication change safely:', error);
+          });
         },
       );
 
@@ -603,6 +691,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     return () => {
       if (authInitializeVersion !== version) return;
+      ++authInitializeVersion;
+      ++authTransitionVersion;
+      completingAuthFlow = null;
       authSubscription?.unsubscribe();
       authSubscription = null;
       set({ initialized: false });

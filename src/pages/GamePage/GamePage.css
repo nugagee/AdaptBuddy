@@ -1,0 +1,192 @@
+.game-page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #050607;
+  color: #f9f4df;
+}
+
+.game-canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  cursor: crosshair;
+}
+
+.game-hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.game-topbar {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  right: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.game-title {
+  max-width: 460px;
+}
+
+.game-kicker {
+  margin: 0 0 4px;
+  color: #d6bd74;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.game-title h1 {
+  margin: 0;
+  color: #fff8d6;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(26px, 4vw, 52px);
+  font-weight: 800;
+  line-height: 0.96;
+  text-shadow: 0 6px 28px rgba(0, 0, 0, 0.65);
+}
+
+.game-objectives,
+.game-call,
+.game-controls,
+.game-meter {
+  border: 1px solid rgba(243, 214, 128, 0.22);
+  background: rgba(5, 7, 8, 0.68);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(16px);
+}
+
+.game-objectives {
+  width: min(350px, 42vw);
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.game-objectives h2 {
+  margin: 0 0 10px;
+  color: #f7eab5;
+  font-size: 15px;
+}
+
+.game-objectives p {
+  margin: 7px 0;
+  color: #e9dfc1;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.game-objectives .done {
+  color: #9ff0bc;
+}
+
+.game-bottom {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.game-call {
+  max-width: 560px;
+  padding: 18px;
+  border-radius: 8px;
+}
+
+.game-call p {
+  margin: 0;
+  color: #fff3c9;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(16px, 2vw, 23px);
+  line-height: 1.35;
+}
+
+.game-call span {
+  display: block;
+  margin-top: 10px;
+  color: #cdbf95;
+  font-size: 13px;
+}
+
+.game-controls {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  color: #efe5c6;
+  font-size: 12px;
+}
+
+.game-controls strong {
+  color: #fff8d6;
+}
+
+.game-meter {
+  position: absolute;
+  left: 18px;
+  top: 116px;
+  width: 220px;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.game-meter-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: #f8e8a9;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.game-meter-track {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.game-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffe37a, #8ef6ff);
+  box-shadow: 0 0 18px rgba(255, 227, 122, 0.85);
+  transition: width 160ms ease;
+}
+
+@media (max-width: 760px) {
+  .game-topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .game-objectives {
+    width: auto;
+  }
+
+  .game-meter {
+    top: auto;
+    bottom: 112px;
+  }
+
+  .game-bottom {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .game-controls {
+    flex-wrap: wrap;
+  }
+}

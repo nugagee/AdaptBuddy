@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import SupportRequestAction from 'components/support/SupportRequestAction';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Heart, Loader2 } from 'lucide-react';
 import { buildCompanionContext, isOpenAiConfigured, respondToMoodCheckIn } from 'services/ai';
-import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
-import { useChildProgressStore } from 'features/child/store/childProgressStore';
-import { useAuth } from 'hooks/useAuth';
+import {
+  getCurrentReadyChildSupportProfile,
+  useActiveChildSupportProfile,
+} from 'features/child/hooks/useActiveChildSupportProfile';
+import { getReadyChildProgressForOwner } from 'features/child/store/childProgressReadAccess';
 import { saveMoodCheckIn } from 'services/supabase/autismProfileService';
 
 const MOODS = [
@@ -16,9 +19,13 @@ const MOODS = [
 ];
 
 const MoodCheckInPanel: React.FC = () => {
-  const { profile: authProfile, user } = useAuth();
-  const autismProfile = useAutismProfileStore((s) => s.profile);
-  const setTodayMood = useChildProgressStore((s) => s.setTodayMood);
+  const {
+    age,
+    childId,
+    isReady,
+    preferredName,
+    supportProfile,
+  } = useActiveChildSupportProfile();
 
   const [mood, setMood] = useState('');
   const [note, setNote] = useState('');
@@ -26,44 +33,126 @@ const MoodCheckInPanel: React.FC = () => {
   const [error, setError] = useState('');
   const [response, setResponse] = useState('');
   const [suggestion, setSuggestion] = useState('');
-  const [saved, setSaved] = useState(false);
+  const [savedLocation, setSavedLocation] = useState<'guest' | 'account' | null>(null);
+  const [adultActionRequired, setAdultActionRequired] = useState(false);
+  const [urgent, setUrgent] = useState(false);
+  const [checkInAttempt, setCheckInAttempt] = useState(0);
+  const requestVersionRef = useRef(0);
 
-  const ctx = buildCompanionContext(
-    autismProfile,
-    authProfile?.first_name || 'friend',
-    authProfile?.age ?? null,
+  useEffect(() => {
+    requestVersionRef.current += 1;
+    setMood('');
+    setNote('');
+    setLoading(false);
+    setError('');
+    setResponse('');
+    setSuggestion('');
+    setSavedLocation(null);
+    setAdultActionRequired(false);
+    setUrgent(false);
+    setCheckInAttempt(0);
+  }, [childId, isReady]);
+
+  const context = useMemo(
+    () => buildCompanionContext(supportProfile, preferredName, age),
+    [age, preferredName, supportProfile],
   );
 
   const handleSubmit = async () => {
-    if (!mood) return;
+    if (!mood || loading) return;
+    const requestOwnerId = childId;
+    if (
+      !requestOwnerId
+      || !supportProfile
+      || !getCurrentReadyChildSupportProfile(requestOwnerId)
+      || !getReadyChildProgressForOwner(requestOwnerId)
+    ) {
+      setError('Your support profile is still getting ready. Please try again in a moment.');
+      return;
+    }
+
+    const requestVersion = ++requestVersionRef.current;
+    const requestIsGuest = requestOwnerId === 'guest-child';
+    const requestMood = mood;
+    const requestNote = note;
+    const requestContext = context;
+    setCheckInAttempt(attempt => attempt + 1);
+    setAdultActionRequired(false);
+    setResponse('');
+    setSuggestion('');
+    setUrgent(false);
     setLoading(true);
     setError('');
-    setSaved(false);
+    setSavedLocation(null);
     try {
-      const result = await respondToMoodCheckIn(mood, note, ctx);
+      const result = await respondToMoodCheckIn(requestMood, requestNote, requestContext);
+      if (
+        requestVersionRef.current !== requestVersion
+        || !getCurrentReadyChildSupportProfile(requestOwnerId)
+      ) {
+        return;
+      }
+
+      const progressState = getReadyChildProgressForOwner(requestOwnerId);
+      if (!progressState) {
+        setError('Your check-in was not saved because your support profile changed. Please try again.');
+        return;
+      }
+
       setResponse(result.response);
       setSuggestion(result.suggestion ?? '');
-      setTodayMood(mood);
-      if (user?.id) {
-        await saveMoodCheckIn(user.id, mood, note, result.response);
+      setAdultActionRequired(result.adultActionRequired === true);
+      setUrgent(result.riskLevel === 'urgent');
+
+      progressState.setTodayMood(requestMood);
+      if (requestIsGuest) {
+        setSavedLocation('guest');
+        return;
       }
-      setSaved(true);
+
+      await saveMoodCheckIn(
+        requestOwnerId,
+        requestMood,
+        requestNote,
+        result.response,
+      );
+      if (
+        requestVersionRef.current !== requestVersion
+        || !getCurrentReadyChildSupportProfile(requestOwnerId)
+        || !getReadyChildProgressForOwner(requestOwnerId)
+      ) {
+        return;
+      }
+      setSavedLocation('account');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not save your check-in.');
+      if (
+        requestVersionRef.current === requestVersion
+        && getCurrentReadyChildSupportProfile(requestOwnerId)
+      ) {
+        setError(err instanceof Error ? err.message : 'Could not save your check-in.');
+      }
     } finally {
-      setLoading(false);
+      if (requestVersionRef.current === requestVersion) setLoading(false);
     }
   };
+
 
   return (
     <div className="space-y-5">
       <p className="text-sm text-slate-600 dark:text-gray-400">
-        How are you feeling right now? AdaptBuddy listens without judging — this is your safe space.
+        How are you feeling right now? You choose what to share. Buddy is an AI helper and may
+        suggest asking a trusted adult when you need human support.
       </p>
 
       {!isOpenAiConfigured && (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          AI responses use a gentle fallback until OpenAI is configured.
+          AI Buddy is not connected right now. A gentle fallback will help instead.
+        </p>
+      )}
+
+      {!isReady && (
+        <p className="text-sm text-slate-500 dark:text-gray-400" role="status">
+          Your support profile is getting ready…
         </p>
       )}
 
@@ -73,6 +162,8 @@ const MoodCheckInPanel: React.FC = () => {
             key={m.value}
             type="button"
             onClick={() => setMood(m.value)}
+            disabled={loading || !isReady}
+            aria-pressed={mood === m.value}
             className={`flex flex-col items-center gap-1 rounded-2xl border-2 px-2 py-3 transition ${
               mood === m.value
                 ? 'border-adapt-indigo bg-adapt-indigo/10 dark:border-adapt-cyan dark:bg-adapt-cyan/10'
@@ -93,6 +184,8 @@ const MoodCheckInPanel: React.FC = () => {
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={3}
+          maxLength={1200}
+          disabled={!isReady}
           placeholder='e.g. "I am worried about school tomorrow."'
           className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
         />
@@ -101,14 +194,14 @@ const MoodCheckInPanel: React.FC = () => {
       <button
         type="button"
         onClick={() => void handleSubmit()}
-        disabled={loading || !mood}
+        disabled={loading || !mood || !isReady}
         className="inline-flex items-center gap-2 rounded-2xl bg-adapt-indigo px-5 py-3 text-sm font-semibold text-white disabled:opacity-50 dark:bg-adapt-cyan dark:text-gray-900"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Heart className="h-4 w-4" />}
         Share with AdaptBuddy
       </button>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>}
 
       {response && (
         <div className="rounded-2xl border border-pink-200/60 bg-pink-50/80 p-5 dark:border-pink-500/20 dark:bg-pink-950/20">
@@ -116,9 +209,12 @@ const MoodCheckInPanel: React.FC = () => {
           {suggestion && (
             <p className="mt-3 text-xs text-slate-600 dark:text-gray-400">{suggestion}</p>
           )}
-          {saved && (
+          {adultActionRequired && <SupportRequestAction source="mood-check-in" urgent={urgent} contextKey={String(checkInAttempt)} />}
+          {savedLocation && (
             <p className="mt-3 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-              Check-in saved ✓
+              {savedLocation === 'guest'
+                ? 'Saved for this guest session only ✓'
+                : 'Check-in saved ✓'}
             </p>
           )}
         </div>

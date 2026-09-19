@@ -16,6 +16,7 @@ import {
   type ProductFeedbackSummary,
   type ProductFeedbackType,
 } from 'services/supabase/productFeedbackService';
+import { getVisitorKey } from 'services/analytics/activityTracker';
 
 interface FeedbackPulsePanelProps {
   title?: string;
@@ -59,7 +60,7 @@ const FeedbackPulsePanel: React.FC<FeedbackPulsePanelProps> = ({
   compact = false,
   variant = 'light',
 }) => {
-  const { profile } = useAuth();
+  const { profile, isGuest } = useAuth();
   const [feedbackType, setFeedbackType] = useState<ProductFeedbackType>('idea');
   const [rating, setRating] = useState(4);
   const [feedbackText, setFeedbackText] = useState('');
@@ -115,8 +116,22 @@ const FeedbackPulsePanel: React.FC<FeedbackPulsePanelProps> = ({
         feedbackType,
         rating,
         feedbackText,
+        isGuest,
+        visitorKey: getVisitorKey(),
+        submitterName: profile.full_name || '',
+        submitterEmail: profile.email || '',
+        buddyId: profile.buddy_id || null,
+        path: typeof window !== 'undefined' ? window.location.pathname : sourceArea,
         metadata: {
           path: typeof window !== 'undefined' ? window.location.pathname : sourceArea,
+          isGuest,
+          submitter: {
+            name: profile.full_name || '',
+            email: profile.email || '',
+            buddyId: profile.buddy_id || null,
+            userId: isGuest ? null : profile.id,
+            accountType: isGuest ? 'guest' : 'authenticated',
+          },
         },
       });
       setFeedbackText('');

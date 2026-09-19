@@ -397,6 +397,7 @@ export function useYouTubeMusicPlayer({
       muted,
       error,
       progress,
+      currentStream,
       isLive,
       autoplayBlocked,
       loading,

@@ -1,6 +1,7 @@
 /** Central route paths — align with /app/* as features mature */
 export const ROUTES = {
   HOME: '/',
+  GAME: '/game',
   NEURO_SELECTOR: '/neuro-selector',
   COMPANION_ONBOARDING: '/companion-onboarding',
   COMPANION_BUDDY: '/companion-buddy',
@@ -8,6 +9,8 @@ export const ROUTES = {
   GUEST_ENTRY: '/guest',
   SIGNUP: '/signup',
   FORGOT_PASSWORD: '/forgot-password',
+  TRUST_AND_SAFETY: '/trust-and-safety',
+  EVIDENCE: '/evidence',
   CHILD_DASHBOARD: '/dashboard',
   CHILD_ACTIVITY_LOG: '/activity-log',
   AUTISM_SPACE: '/autism-space',
@@ -31,6 +34,7 @@ export const ROUTES = {
   ADMIN_LOGIN: '/admin/login',
   ADMIN_DASHBOARD: '/admin',
   ADMIN_USERS: '/admin/users',
+  ADMIN_ACTIVITY: '/admin/activity',
   ADMIN_AUDIT: '/admin/audit',
   ADMIN_SETTINGS: '/admin/settings',
 } as const;

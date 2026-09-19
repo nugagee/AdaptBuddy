@@ -45,7 +45,7 @@ export function companionContextPrompt(ctx: CompanionContext): string {
     worries,
     frustrations,
     'Use warm, simple, supportive language. Never diagnose. Never give medical advice.',
-    'AdaptBuddy is a trusted companion, not a therapist.',
+    'AdaptBuddy is an AI helper, not a person or therapist.',
   ]
     .filter(Boolean)
     .join(' ');

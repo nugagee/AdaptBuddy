@@ -16,7 +16,7 @@ const roles = [
   {
     icon: Heart,
     title: "I'm a Parent",
-    description: 'Gentle insights, alerts, and support for your family journey.',
+    description: 'In-app support requests and tools for supporting your child.',
     to: ROUTES.SIGNUP,
     accent: 'from-pink-50 to-rose-50 border-pink-100 hover:border-pink-200',
     iconBg: 'bg-pink-100 text-pink-600',
@@ -25,7 +25,7 @@ const roles = [
   {
     icon: GraduationCap,
     title: "I'm a Teacher",
-    description: 'Classroom heatmaps, assignments, and neuro-inclusive tools.',
+    description: 'Assignments, shared task progress, and neuro-inclusive tools.',
     to: ROUTES.TEACHER_LOGIN,
     accent: 'from-cyan-50 to-teal-50 border-cyan-100 hover:border-cyan-200',
     iconBg: 'bg-cyan-100 text-cyan-600',

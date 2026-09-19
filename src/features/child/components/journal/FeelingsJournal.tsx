@@ -1,9 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Smile, Meh, Frown, Angry, Moon, Mic, Keyboard, Lock } from 'lucide-react';
 import { EmotionDetector } from 'services/ai/nlpEmotionDetector';
 import { saveJournalEntry } from 'services/supabase/autismProfileService';
-import { useAuth } from 'hooks/useAuth';
+import { getReadyChildProgressForOwner } from 'features/child/store/childProgressReadAccess';
+import { useAuthStore } from 'store/authStore';
 import type { EmotionAnalysis } from 'types/ai.types';
 
 type JournalInputMode = 'voice' | 'text';
@@ -41,12 +42,17 @@ type SpeechWindow = Window & {
 };
 
 interface FeelingsJournalProps {
-  onClose: () => void;
-  onSave?: (mood: string, note: string, analysis: EmotionAnalysis | null) => void;
+  ownerId: string;
+  onClose: (ownerId: string) => void;
+  onSave?: (
+    ownerId: string,
+    mood: string,
+    note: string,
+    analysis: EmotionAnalysis | null,
+  ) => void;
 }
 
-const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) => {
-  const { user } = useAuth();
+const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ ownerId, onClose, onSave }) => {
   const [selectedFeeling, setSelectedFeeling] = useState<string>('');
   const [note, setNote] = useState('');
   const [inputMode, setInputMode] = useState<JournalInputMode>('text');
@@ -55,6 +61,25 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const sessionOwnerIdRef = useRef(ownerId);
+  const sessionActiveRef = useRef(true);
+
+  const isSessionOwnerReady = () => {
+    if (!sessionActiveRef.current) return false;
+    const expectedOwnerId = sessionOwnerIdRef.current;
+    return Boolean(getReadyChildProgressForOwner(expectedOwnerId));
+  };
+
+  useEffect(() => () => {
+    sessionActiveRef.current = false;
+    if (recognitionRef.current) {
+      recognitionRef.current.onresult = null;
+      recognitionRef.current.onerror = null;
+      recognitionRef.current.onend = null;
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+  }, []);
 
   const feelings = [
     { emoji: '😊', label: 'Happy', value: 'happy', icon: <Smile className="w-8 h-8" /> },
@@ -71,7 +96,13 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
   };
 
   const stopVoiceInput = () => {
-    recognitionRef.current?.stop();
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      recognition.onresult = null;
+      recognition.onerror = null;
+      recognition.onend = null;
+      recognition.stop();
+    }
     recognitionRef.current = null;
     setIsListening(false);
   };
@@ -98,6 +129,8 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
     recognition.interimResults = true;
     recognition.lang = 'en-GB';
     recognition.onresult = (event) => {
+      if (!sessionActiveRef.current || recognitionRef.current !== recognition) return;
+
       let transcript = '';
       for (let index = 0; index < event.results.length; index += 1) {
         transcript += event.results[index][0].transcript;
@@ -106,10 +139,14 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
       setVoiceStatus('Listening...');
     };
     recognition.onerror = () => {
+      if (!sessionActiveRef.current || recognitionRef.current !== recognition) return;
+
       setVoiceStatus('Voice could not hear clearly. Try again, or use Text.');
       setIsListening(false);
     };
     recognition.onend = () => {
+      if (!sessionActiveRef.current || recognitionRef.current !== recognition) return;
+
       setIsListening(false);
       setVoiceStatus((current) => (current === 'Listening...' ? 'Voice note paused.' : current));
     };
@@ -128,6 +165,13 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
   const handleSave = async () => {
     if (!selectedFeeling || isSaving) return;
     stopVoiceInput();
+
+    const expectedOwnerId = sessionOwnerIdRef.current;
+    if (!isSessionOwnerReady()) {
+      onClose(expectedOwnerId);
+      return;
+    }
+
     setIsSaving(true);
     setSaveError('');
 
@@ -141,22 +185,32 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
     }
 
     try {
-      if (user?.id) {
+      // Guest journals are a transient demo and must never be written to the
+      // registered-child backend. Registered child entries remain private by
+      // default in saveJournalEntry.
+      if (!useAuthStore.getState().isGuest) {
         await saveJournalEntry({
-          childId: user.id,
+          childId: expectedOwnerId,
           emotion: analysis?.emotion ?? selectedFeeling,
           text: note,
           analysis,
         });
       }
 
-      onSave?.(selectedFeeling, note, analysis);
-      onClose();
+      if (!isSessionOwnerReady()) {
+        return;
+      }
+
+      onSave?.(expectedOwnerId, selectedFeeling, note, analysis);
+      onClose(expectedOwnerId);
     } catch (error) {
+      if (!isSessionOwnerReady()) {
+        return;
+      }
       console.error('Failed to save journal entry:', error);
-      setSaveError('Your feeling is safe here, but it could not sync yet. Please try again.');
+      setSaveError('Your entry was not saved. Your words are still in this window so you can try again. No adult was contacted.');
     } finally {
-      setIsSaving(false);
+      if (sessionActiveRef.current) setIsSaving(false);
     }
   };
 
@@ -179,7 +233,7 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => onClose(sessionOwnerIdRef.current)}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm dark:bg-gray-800"
               aria-label="Close feelings journal"
             >
@@ -272,9 +326,10 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
             <div className="flex items-start gap-3">
               <Lock className="mt-1 h-5 w-5 shrink-0 text-green-600" aria-hidden />
               <div>
-                <p className="text-sm font-bold dark:text-gray-100">Private & Safe</p>
+                <p className="text-sm font-bold dark:text-gray-100">Your privacy</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  This is just for you. Trusted adults only see alerts if you&apos;re really upset.
+                  Your journal words stay private unless you choose to share them. If you ask for
+                  help or may be unsafe, speak to an adult you trust directly. This journal does not contact an adult. If there is immediate danger, call 999.
                 </p>
               </div>
             </div>
@@ -286,7 +341,7 @@ const FeelingsJournal: React.FC<FeelingsJournalProps> = ({ onClose, onSave }) =>
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => onClose(sessionOwnerIdRef.current)}
               className="flex-1 rounded-xl border-2 border-gray-300 py-3.5 font-bold text-gray-700 dark:border-gray-600 dark:text-gray-300 sm:py-4"
             >
               Maybe Later

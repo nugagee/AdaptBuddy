@@ -5,6 +5,7 @@ import ProtectedRoute from 'features/auth/components/ProtectedRoute';
 import AuthenticatedLayout from 'layouts/AuthenticatedLayout';
 import ChildOnboardedRoute from 'features/child/components/layout/ChildOnboardedRoute';
 import LandingPage from 'pages/LandingPage';
+import GamePage from 'pages/GamePage/GamePage';
 import NeuroSelectorPage from 'features/child/pages/NeuroSelectorPage';
 import CompanionOnboardingPage from 'features/child/pages/CompanionOnboardingPage';
 import CompanionBuddyPage from 'features/child/pages/CompanionBuddyPage';
@@ -12,7 +13,7 @@ import ChildDashboardPage from 'features/child/pages/ChildDashboardPage';
 import ActivityLogPage from 'features/child/pages/ActivityLogPage';
 import AutismSpacePage from 'features/child/pages/AutismSpacePage';
 import SettingsPage from 'features/child/pages/SettingsPage';
-import WritingPad from 'features/child/components/writing-pad/WritingPad';
+import WritingPadPage from 'features/child/pages/WritingPadPage';
 import PronunciationBuddyPage from 'features/child/pages/PronunciationBuddyPage';
 import ParentHubPage from 'features/parent/pages/ParentHubPage';
 import MusicMenu from 'features/child/components/music-menu/MusicMenu';
@@ -33,9 +34,12 @@ import LoginPage from 'pages/LoginPage';
 import GuestEntryPage from 'pages/GuestEntryPage';
 import SignupPage from 'pages/SignupPage';
 import ForgotPasswordPage from 'pages/ForgotPasswordPage';
+import TrustAndSafetyPage from 'pages/TrustAndSafetyPage';
+import EvidencePage from 'pages/EvidencePage';
 import AdminLoginPage from 'features/admin/pages/AdminLoginPage';
 import AdminDashboardPage from 'features/admin/pages/AdminDashboardPage';
 import AdminUsersPage from 'features/admin/pages/AdminUsersPage';
+import AdminActivityPage from 'features/admin/pages/AdminActivityPage';
 import AdminAuditPage from 'features/admin/pages/AdminAuditPage';
 import AdminSettingsPage from 'features/admin/pages/AdminSettingsPage';
 import RequireAdminRoute from 'features/admin/components/RequireAdminRoute';
@@ -66,13 +70,17 @@ const withTeacherAuth = (page: React.ReactNode) => (
 const AppRoutes: React.FC = () => (
   <Routes>
     <Route path={ROUTES.HOME} element={<LandingPage />} />
+    <Route path={ROUTES.GAME} element={<GamePage />} />
     <Route path={ROUTES.LOGIN} element={<LoginPage />} />
     <Route path={ROUTES.GUEST_ENTRY} element={<GuestEntryPage />} />
     <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
     <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
+    <Route path={ROUTES.TRUST_AND_SAFETY} element={<TrustAndSafetyPage />} />
+    <Route path={ROUTES.EVIDENCE} element={<EvidencePage />} />
     <Route path={ROUTES.ADMIN_LOGIN} element={<AdminLoginPage />} />
     <Route path={ROUTES.ADMIN_DASHBOARD} element={withAdmin(<AdminDashboardPage />)} />
     <Route path={ROUTES.ADMIN_USERS} element={withAdmin(<AdminUsersPage />)} />
+    <Route path={ROUTES.ADMIN_ACTIVITY} element={withAdmin(<AdminActivityPage />)} />
     <Route path={ROUTES.ADMIN_AUDIT} element={withAdmin(<AdminAuditPage />)} />
     <Route path={ROUTES.ADMIN_SETTINGS} element={withAdmin(<AdminSettingsPage />)} />
     <Route path={ROUTES.NEURO_SELECTOR} element={withAuth(<NeuroSelectorPage />)} />
@@ -83,7 +91,7 @@ const AppRoutes: React.FC = () => (
     <Route path={ROUTES.CHILD_CLASSROOM_LIVE} element={withChildAuth(<ChildLiveClassroomPage />)} />
     <Route path={ROUTES.AUTISM_SPACE} element={withChildAuth(<AutismSpacePage />)} />
     <Route path={ROUTES.CHILD_SETTINGS} element={withChildAuth(<SettingsPage />)} />
-    <Route path={ROUTES.WRITING_PAD} element={withChildAuth(<WritingPad />)} />
+    <Route path={ROUTES.WRITING_PAD} element={withChildAuth(<WritingPadPage />)} />
     <Route path={ROUTES.PRONUNCIATION_BUDDY} element={withChildAuth(<PronunciationBuddyPage />)} />
     <Route path={ROUTES.PARENT_HUB} element={withAuth(<ParentHubPage />)} />
     <Route path={ROUTES.MUSIC} element={withChildAuth(<MusicMenu />)} />

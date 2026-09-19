@@ -18,6 +18,7 @@ import {
   type ProductFeedbackStatus,
   type ProductFeedbackType,
 } from 'services/supabase/productFeedbackService';
+import { EXPERIENCE_SURVEY_SOURCE } from 'features/feedback/experienceSurvey';
 
 type FeedbackFilter<T extends string> = 'all' | T;
 
@@ -26,6 +27,7 @@ const sentimentFilters: FeedbackFilter<ProductFeedbackSentiment>[] = ['all', 'po
 const statusFilters: FeedbackFilter<ProductFeedbackStatus>[] = ['all', 'new', 'reviewing', 'planned', 'shipped', 'closed'];
 const statusOptions: ProductFeedbackStatus[] = ['new', 'reviewing', 'planned', 'shipped', 'closed'];
 const roleFilters = ['all', 'child', 'parent', 'teacher', 'admin'] as const;
+const sourceFilters = ['all', EXPERIENCE_SURVEY_SOURCE, 'child_settings', 'parent_review', 'teacher_settings', 'admin_settings'] as const;
 
 function labelize(value: string): string {
   return value.replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -48,17 +50,41 @@ function csvEscape(value: unknown): string {
 }
 
 function downloadFeedbackCsv(items: ProductFeedbackItem[]): void {
-  const header = ['created_at', 'role', 'source_area', 'type', 'rating', 'sentiment', 'status', 'themes', 'feedback'];
+  const header = [
+    'created_at',
+    'submitter_name',
+    'submitter_email',
+    'buddy_id',
+    'visitor_key',
+    'account_type',
+    'role',
+    'source_area',
+    'type',
+    'rating',
+    'sentiment',
+    'status',
+    'path',
+    'themes',
+    'feedback',
+    'admin_response',
+  ];
   const rows = items.map((item) => [
     item.createdAt,
+    item.submitterName || '',
+    item.submitterEmail || '',
+    item.buddyId || '',
+    item.visitorKey || '',
+    item.isGuest ? 'guest' : 'authenticated',
     item.userRole,
     item.sourceArea,
     item.feedbackType,
     item.rating,
     item.sentiment,
     item.status,
+    item.path || '',
     item.themes.join('; '),
     item.feedbackText,
+    item.adminResponse ?? '',
   ]);
   const csv = [header, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -98,7 +124,9 @@ const ProductFeedbackMonitor: React.FC = () => {
   const [sentimentFilter, setSentimentFilter] = useState<FeedbackFilter<ProductFeedbackSentiment>>('all');
   const [statusFilter, setStatusFilter] = useState<FeedbackFilter<ProductFeedbackStatus>>('all');
   const [roleFilter, setRoleFilter] = useState<(typeof roleFilters)[number]>('all');
+  const [sourceFilter, setSourceFilter] = useState<(typeof sourceFilters)[number]>('all');
   const [search, setSearch] = useState('');
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
 
   const loadItems = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
     if (!profile) return;
@@ -129,6 +157,7 @@ const ProductFeedbackMonitor: React.FC = () => {
       .filter((item) => sentimentFilter === 'all' || item.sentiment === sentimentFilter)
       .filter((item) => statusFilter === 'all' || item.status === statusFilter)
       .filter((item) => roleFilter === 'all' || item.userRole === roleFilter)
+      .filter((item) => sourceFilter === 'all' || item.sourceArea === sourceFilter)
       .filter((item) => {
         if (!term) return true;
         return [
@@ -138,15 +167,26 @@ const ProductFeedbackMonitor: React.FC = () => {
           item.sentiment,
           item.status,
           item.userRole,
+          item.submitterName || '',
+          item.submitterEmail || '',
+          item.buddyId || '',
+          item.visitorKey || '',
+          item.isGuest ? 'guest' : 'authenticated',
+          item.path || '',
           item.themes.join(' '),
+          item.adminResponse ?? '',
           String(item.metadata.path ?? ''),
+          String(item.metadata.improvements ?? ''),
+          String(item.metadata.wishedFeatures ?? ''),
         ].join(' ').toLowerCase().includes(term);
       });
-  }, [items, roleFilter, search, sentimentFilter, statusFilter, typeFilter]);
+  }, [items, roleFilter, search, sentimentFilter, sourceFilter, statusFilter, typeFilter]);
 
   const metrics = useMemo(() => {
     const openItems = items.filter((item) => !['shipped', 'closed'].includes(item.status));
     const concernItems = items.filter((item) => item.sentiment === 'concerned' || item.feedbackType === 'safety' || item.feedbackType === 'bug');
+    const surveyItems = items.filter((item) => item.sourceArea === EXPERIENCE_SURVEY_SOURCE);
+    const unrepliedSurveys = surveyItems.filter((item) => !item.adminResponse).length;
     const plannedItems = items.filter((item) => item.status === 'planned').length;
     const shippedItems = items.filter((item) => item.status === 'shipped').length;
     const averageRating = items.length
@@ -159,6 +199,8 @@ const ProductFeedbackMonitor: React.FC = () => {
     return {
       open: openItems.length,
       concerns: concernItems.length,
+      surveys: surveyItems.length,
+      unrepliedSurveys,
       planned: plannedItems,
       shipped: shippedItems,
       averageRating,
@@ -181,6 +223,46 @@ const ProductFeedbackMonitor: React.FC = () => {
       setStatusMessage(`Feedback marked ${labelize(status)}.`);
     } catch (statusError: unknown) {
       setError(statusError instanceof Error ? statusError.message : 'Could not update feedback status.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleReply = async (item: ProductFeedbackItem) => {
+    if (!profile || busyId) return;
+    const draft = (replyDrafts[item.id] ?? item.adminResponse ?? '').trim();
+    if (!draft) {
+      setError('Write a reply before sending.');
+      return;
+    }
+
+    setBusyId(item.id);
+    setError('');
+    setStatusMessage('');
+    try {
+      await ProductFeedbackService.respondToFeedback(profile, item.id, draft, item.status === 'new' ? 'reviewing' : item.status);
+      const respondedAt = new Date().toISOString();
+      setItems((current) =>
+        current.map((entry) =>
+          entry.id === item.id
+            ? {
+                ...entry,
+                adminResponse: draft,
+                adminRespondedAt: respondedAt,
+                adminRespondedBy: profile.id,
+                status: entry.status === 'new' ? 'reviewing' : entry.status,
+              }
+            : entry,
+        ),
+      );
+      setReplyDrafts((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      setStatusMessage('Reply sent and saved on this feedback.');
+    } catch (replyError: unknown) {
+      setError(replyError instanceof Error ? replyError.message : 'Could not send reply.');
     } finally {
       setBusyId(null);
     }
@@ -231,11 +313,12 @@ const ProductFeedbackMonitor: React.FC = () => {
         </p>
       )}
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {[
           { label: 'Open feedback', value: metrics.open, detail: `${items.length} total`, icon: Inbox },
+          { label: 'Surveys', value: metrics.surveys, detail: `${metrics.unrepliedSurveys} awaiting reply`, icon: Lightbulb },
           { label: 'Concerns', value: metrics.concerns, detail: 'Safety, bugs, confusion', icon: ShieldAlert },
-          { label: 'Planned', value: metrics.planned, detail: `${metrics.shipped} shipped`, icon: Lightbulb },
+          { label: 'Planned', value: metrics.planned, detail: `${metrics.shipped} shipped`, icon: CheckCircle2 },
           { label: 'Avg rating', value: metrics.averageRating ?? '-', detail: 'Across captured feedback', icon: CheckCircle2 },
         ].map((metric) => {
           const Icon = metric.icon;
@@ -263,6 +346,7 @@ const ProductFeedbackMonitor: React.FC = () => {
             <FilterSelect label="Sentiment" value={sentimentFilter} options={sentimentFilters} onChange={(value) => setSentimentFilter(value as FeedbackFilter<ProductFeedbackSentiment>)} />
             <FilterSelect label="Status" value={statusFilter} options={statusFilters} onChange={(value) => setStatusFilter(value as FeedbackFilter<ProductFeedbackStatus>)} />
             <FilterSelect label="Role" value={roleFilter} options={[...roleFilters]} onChange={(value) => setRoleFilter(value as (typeof roleFilters)[number])} />
+            <FilterSelect label="Source" value={sourceFilter} options={[...sourceFilters]} onChange={(value) => setSourceFilter(value as (typeof sourceFilters)[number])} />
             <div className="sm:col-span-2 lg:col-span-1">
               <label className="text-xs font-black uppercase tracking-[0.12em] text-gray-500" htmlFor="feedback-monitor-search">
                 Search
@@ -316,6 +400,11 @@ const ProductFeedbackMonitor: React.FC = () => {
                         <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-black text-gray-200">
                           {labelize(item.userRole)}
                         </span>
+                        {item.isGuest && (
+                          <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-black text-amber-200 ring-1 ring-amber-500/20">
+                            Guest
+                          </span>
+                        )}
                         <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-black text-gray-200">
                           {labelize(item.feedbackType)}
                         </span>
@@ -326,7 +415,54 @@ const ProductFeedbackMonitor: React.FC = () => {
                           {labelize(item.status)}
                         </span>
                       </div>
-                      <p className="mt-3 text-sm leading-6 text-gray-200">{item.feedbackText}</p>
+                      <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2 text-xs text-gray-300">
+                        <p className="font-black text-white">
+                          {item.submitterName || (item.isGuest ? 'Anonymous guest' : 'Unknown user')}
+                        </p>
+                        {item.submitterEmail ? (
+                          <a href={`mailto:${item.submitterEmail}`} className="mt-0.5 block text-indigo-300 hover:text-indigo-200">
+                            {item.submitterEmail}
+                          </a>
+                        ) : (
+                          <p className="mt-0.5 text-gray-500">No email provided</p>
+                        )}
+                        <p className="mt-1 text-[11px] text-gray-500">
+                          {item.isGuest ? 'Guest session' : 'Signed-in account'}
+                          {item.buddyId ? ` · Buddy ID ${item.buddyId}` : ''}
+                          {item.userId ? ` · User ${item.userId.slice(0, 8)}…` : ''}
+                          {item.visitorKey ? ` · Visitor ${item.visitorKey.slice(0, 12)}…` : ''}
+                          {item.path ? ` · ${item.path}` : ''}
+                        </p>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-gray-200 whitespace-pre-wrap">{item.feedbackText}</p>
+                      {item.sourceArea === EXPERIENCE_SURVEY_SOURCE && (
+                        <div className="mt-3 grid gap-2 rounded-xl border border-cyan-400/20 bg-cyan-500/5 p-3 text-xs text-cyan-100 sm:grid-cols-2">
+                          <p>
+                            <span className="font-black uppercase tracking-wide text-cyan-300">Avg comfort</span>
+                            <br />
+                            {String(item.metadata.averageComfort ?? '—')}/5
+                          </p>
+                          <p>
+                            <span className="font-black uppercase tracking-wide text-cyan-300">Overall</span>
+                            <br />
+                            {String(item.metadata.experienceRating ?? item.rating)}/5
+                          </p>
+                          {typeof item.metadata.improvements === 'string' && item.metadata.improvements && (
+                            <p className="sm:col-span-2">
+                              <span className="font-black uppercase tracking-wide text-cyan-300">Improvements</span>
+                              <br />
+                              {item.metadata.improvements}
+                            </p>
+                          )}
+                          {typeof item.metadata.wishedFeatures === 'string' && item.metadata.wishedFeatures && (
+                            <p className="sm:col-span-2">
+                              <span className="font-black uppercase tracking-wide text-cyan-300">Requested features</span>
+                              <br />
+                              {item.metadata.wishedFeatures}
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <div className="mt-3 flex flex-wrap gap-2">
                         {item.themes.map((theme) => (
                           <span key={theme} className="rounded-full bg-indigo-500/10 px-2.5 py-1 text-xs font-bold text-indigo-200">
@@ -338,6 +474,40 @@ const ProductFeedbackMonitor: React.FC = () => {
                         {formatDate(item.createdAt)} · Rating {item.rating}/5 · {labelize(item.sourceArea)}
                         {typeof item.metadata.path === 'string' ? ` · ${item.metadata.path}` : ''}
                       </p>
+
+                      {item.adminResponse && (
+                        <div className="mt-3 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-emerald-300">Admin reply</p>
+                          <p className="mt-1 whitespace-pre-wrap">{item.adminResponse}</p>
+                          {item.adminRespondedAt && (
+                            <p className="mt-1 text-[11px] text-emerald-200/70">{formatDate(item.adminRespondedAt)}</p>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="mt-3 space-y-2">
+                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-500" htmlFor={`reply-${item.id}`}>
+                          Respond to user
+                        </label>
+                        <textarea
+                          id={`reply-${item.id}`}
+                          rows={3}
+                          value={replyDrafts[item.id] ?? item.adminResponse ?? ''}
+                          onChange={(event) =>
+                            setReplyDrafts((current) => ({ ...current, [item.id]: event.target.value }))
+                          }
+                          className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none focus:border-indigo-400"
+                          placeholder="Share thanks, next steps, or how their idea will be used…"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleReply(item)}
+                          disabled={busyId === item.id}
+                          className="rounded-xl bg-indigo-500 px-3 py-2 text-xs font-black text-white transition hover:bg-indigo-400 disabled:opacity-60"
+                        >
+                          {busyId === item.id ? 'Saving…' : item.adminResponse ? 'Update reply' : 'Send reply'}
+                        </button>
+                      </div>
                     </div>
                     <label className="shrink-0 text-xs font-black uppercase tracking-[0.12em] text-gray-500">
                       Status

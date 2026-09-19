@@ -1,26 +1,33 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { BookOpen, Heart, MessageCircle, Sparkles } from 'lucide-react';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import LanguageSimplifierPanel from 'features/child/components/companion/LanguageSimplifierPanel';
 import MoodCheckInPanel from 'features/child/components/companion/MoodCheckInPanel';
 import SocialStoryGeneratorPanel from 'features/child/components/companion/SocialStoryGeneratorPanel';
-import { useAutismProfileStore } from 'features/child/store/autismProfileStore';
-import { useAuth } from 'hooks/useAuth';
+import BuddyConversationPanel from 'features/child/components/companion/BuddyConversationPanel';
+import { useActiveChildSupportProfile } from 'features/child/hooks/useActiveChildSupportProfile';
 
-type BuddyTab = 'simplify' | 'mood' | 'story';
+type BuddyTab = 'talk' | 'simplify' | 'mood' | 'story';
 
 const tabs: { id: BuddyTab; label: string; icon: React.ElementType; description: string }[] = [
   {
+    id: 'talk',
+    label: 'Talk to Buddy',
+    icon: MessageCircle,
+    description: 'Ask for help in your own words',
+  },
+  {
     id: 'simplify',
     label: 'Language Buddy',
-    icon: MessageCircle,
+    icon: Sparkles,
     description: 'Turn confusing words into clear steps',
   },
   {
     id: 'mood',
     label: 'Mood Check-In',
     icon: Heart,
-    description: 'Share how you feel in your safe space',
+    description: 'A private check-in with clear support choices',
   },
   {
     id: 'story',
@@ -31,10 +38,13 @@ const tabs: { id: BuddyTab; label: string; icon: React.ElementType; description:
 ];
 
 const CompanionBuddyPage: React.FC = () => {
-  const { profile } = useAuth();
-  const autismProfile = useAutismProfileStore((s) => s.profile);
-  const [tab, setTab] = useState<BuddyTab>('mood');
-  const name = autismProfile.aboutMe?.preferredName || profile?.first_name || 'friend';
+  const location = useLocation();
+  const { childId, preferredName } = useActiveChildSupportProfile();
+  const [tab, setTab] = useState<BuddyTab>('talk');
+
+  useEffect(() => {
+    setTab('talk');
+  }, [childId]);
 
   const active = tabs.find((t) => t.id === tab)!;
 
@@ -42,20 +52,23 @@ const CompanionBuddyPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/30 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
       <ChildDashboardNavbar />
 
-      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <main
+        key={childId ?? 'no-child'}
+        className="mx-auto max-w-3xl px-4 py-8 sm:px-6"
+      >
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-adapt-indigo/15 text-adapt-indigo dark:bg-adapt-cyan/15 dark:text-adapt-cyan">
             <Sparkles className="h-7 w-7" aria-hidden />
           </div>
           <h1 className="text-2xl font-extrabold text-adapt-navy dark:text-gray-100 sm:text-3xl">
-            Hi {name}, I&apos;m here with you
+            Hi {preferredName}, I&apos;m here with you
           </h1>
           <p className="mt-2 text-sm text-slate-600 dark:text-gray-400">
-            Your AI companion — not just tools, but someone who understands you.
+            A calm AI helper for words, feelings, next steps and asking an adult.
           </p>
         </div>
 
-        <div className="mb-6 grid gap-2 sm:grid-cols-3">
+        <div className="mb-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {tabs.map(({ id, label, icon: Icon, description }) => {
             const selected = tab === id;
             return (
@@ -63,6 +76,7 @@ const CompanionBuddyPage: React.FC = () => {
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
+                aria-pressed={selected}
                 className={`rounded-2xl border-2 px-4 py-4 text-left transition ${
                   selected
                     ? 'border-adapt-indigo bg-adapt-indigo/10 dark:border-adapt-cyan dark:bg-adapt-cyan/10'
@@ -84,6 +98,11 @@ const CompanionBuddyPage: React.FC = () => {
           <h2 className="mb-1 text-lg font-bold text-adapt-navy dark:text-gray-100">{active.label}</h2>
           <p className="mb-6 text-sm text-slate-500 dark:text-gray-400">{active.description}</p>
 
+          {tab === 'talk' && (
+            <BuddyConversationPanel
+              initialMessage={(location.state as { quickMessage?: string } | null)?.quickMessage}
+            />
+          )}
           {tab === 'simplify' && <LanguageSimplifierPanel />}
           {tab === 'mood' && <MoodCheckInPanel />}
           {tab === 'story' && <SocialStoryGeneratorPanel />}

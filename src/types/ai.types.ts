@@ -30,7 +30,7 @@ export interface LearningRecommendation {
   difficulty: number;
   estimatedTime: number;
   neuroProfileMatch: string[];
-  aiConfidence: number;
+  baseWeight: number;
   tags: string[];
 }
 

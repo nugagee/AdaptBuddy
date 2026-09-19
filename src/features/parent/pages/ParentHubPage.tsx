@@ -1,3 +1,4 @@
+import SupportConnectionsPanel from 'components/support/SupportConnectionsPanel';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -48,6 +49,9 @@ import SupportActionQueue from 'components/support/SupportActionQueue';
 import SupportPlanDraftPanel from 'components/support/SupportPlanDraftPanel';
 import SupportTimelinePanel from 'components/support/SupportTimelinePanel';
 import ParentHubNavbar from 'features/parent/components/layout/ParentHubNavbar';
+import ParentAssignmentSummaryPanel, { getParentTaskEvidence } from '../components/ParentAssignmentSummaryPanel';
+import { useParentHubSession, type ParentHubSession } from '../hooks/useParentHubSession';
+import { useParentDashboardLoad } from '../hooks/useParentDashboardLoad';
 import {
   ParentDashboardService,
   mergeLinkedChildIntoDashboard,
@@ -55,7 +59,6 @@ import {
   type CareMeeting,
   type ChildSummary,
   type DashboardSummary,
-  type ParentAssignmentSummary,
   type ParentMessage,
   type RiskLevel,
   type TeacherClassRequest,
@@ -92,33 +95,6 @@ const adultStatusStyles: Record<TrustedAdult['status'], string> = {
   connected: 'border-blue-200 bg-blue-50 text-blue-800',
   pending: 'border-amber-200 bg-amber-50 text-amber-800',
   inactive: 'border-slate-200 bg-slate-50 text-slate-700',
-};
-
-const assignmentStatusLabels: Record<ParentAssignmentSummary['status'], string> = {
-  not_started: 'Not started',
-  in_progress: 'In progress',
-  needs_help: 'Needs help',
-  completed: 'Completed',
-  submitted: 'Submitted',
-};
-
-const assignmentStatusStyles: Record<ParentAssignmentSummary['status'], string> = {
-  not_started: 'bg-slate-100 text-slate-700 dark:bg-gray-800 dark:text-gray-200',
-  in_progress: 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-100',
-  needs_help: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-100',
-  completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100',
-  submitted: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100',
-};
-
-const assignmentTypeLabels: Record<ParentAssignmentSummary['assignmentType'], string> = {
-  reading: 'Reading',
-  maths: 'Maths',
-  writing: 'Writing',
-  pronunciation: 'Pronunciation',
-  calm_break: 'Calm break',
-  visual_routine: 'Visual routine',
-  social_story: 'Social story',
-  task: 'Task',
 };
 
 const supportToolLabels: Record<string, string> = {
@@ -161,18 +137,6 @@ const formatRelativeTime = (isoDate: string): string => {
     day: 'numeric',
     month: 'short',
   }).format(new Date(isoDate));
-};
-
-const formatAssignmentDate = (isoDate?: string): string => {
-  if (!isoDate) return 'No due date';
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) return 'Due soon';
-
-  return new Intl.DateTimeFormat('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  }).format(date);
 };
 
 const getEmotionEmoji = (emotion: string): string => {
@@ -252,11 +216,11 @@ const EmptyState: React.FC<{ title: string; detail: string }> = ({ title, detail
 
 const defaultTeacherVisibility: TeacherClassVisibilitySettings = {
   childName: false,
-  neuroProfile: true,
-  dailyMood: 'summary',
+  neuroProfile: false,
+  dailyMood: 'hidden',
   worryDiaryText: false,
-  safeguardingAlerts: true,
-  academicTasks: true,
+  safeguardingAlerts: false,
+  academicTasks: false,
   personalNotes: false,
 };
 
@@ -752,13 +716,21 @@ const createGuestDashboardSummary = (): DashboardSummary => {
 };
 
 const ParentHubPage: React.FC = () => {
+  const session = useParentHubSession();
+  if (!session) return <div className="min-h-screen bg-white p-6 dark:bg-gray-950 dark:text-gray-100">
+    <ParentHubNavbar />
+    <p role="status" className="mx-auto mt-8 max-w-xl">Parent Hub is waiting for a valid adult account. Sign in as an active parent or teacher, or select the Parent demo.</p>
+  </div>;
+  return <ParentHubContent key={session.key} session={session} />;
+};
+
+const ParentHubContent: React.FC<{ session: ParentHubSession }> = ({ session }) => {
   const navigate = useNavigate();
   const { profile, user, isGuest, signOut } = useAuth();
-  const [dashboardData, setDashboardData] = useState<DashboardSummary | null>(null);
-  const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { dashboardData, setDashboardData, selectedChildId, setSelectedChildId,
+    loading, refreshing, error, setError, loadDashboard } = useParentDashboardLoad(
+    Boolean(isGuest), session.isCurrent, createGuestDashboardSummary,
+  );
   const [acknowledgingAlertId, setAcknowledgingAlertId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ParentDashboardTab>('overview');
   const [messageDraft, setMessageDraft] = useState('');
@@ -783,74 +755,6 @@ const ParentHubPage: React.FC = () => {
     profile?.full_name ||
     user?.email?.split('@')[0] ||
     'Parent';
-
-  const applyDashboardData = useCallback((data: DashboardSummary, preferredChildId?: string | null) => {
-    setDashboardData(data);
-    setSelectedChildId((current) => {
-      const nextChildId = preferredChildId ?? current;
-      if (nextChildId && data.children.some((child) => child.childId === nextChildId)) {
-        return nextChildId;
-      }
-      return data.children[0]?.childId ?? null;
-    });
-  }, []);
-
-  const loadDashboard = useCallback(
-    async (mode: 'initial' | 'refresh' = 'initial', preferredChildId?: string | null) => {
-      if (mode === 'initial') setLoading(true);
-      else setRefreshing(true);
-      setError(null);
-
-      try {
-        if (isGuest) {
-          applyDashboardData(createGuestDashboardSummary(), preferredChildId);
-          return;
-        }
-
-        const data = await ParentDashboardService.getDashboardSummary();
-        applyDashboardData(data, preferredChildId);
-      } catch (loadError) {
-        console.error('Error loading parent dashboard:', loadError);
-        setError(getErrorMessage(loadError, 'Could not load the parent dashboard.'));
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [applyDashboardData, isGuest],
-  );
-
-  useEffect(() => {
-    let active = true;
-
-    const loadInitialDashboard = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        if (isGuest) {
-          applyDashboardData(createGuestDashboardSummary());
-          return;
-        }
-
-        const data = await ParentDashboardService.getDashboardSummary();
-        if (active) applyDashboardData(data);
-      } catch (loadError) {
-        console.error('Error loading parent dashboard:', loadError);
-        if (active) {
-          setError(getErrorMessage(loadError, 'Could not load the parent dashboard.'));
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-
-    loadInitialDashboard();
-
-    return () => {
-      active = false;
-    };
-  }, [applyDashboardData, isGuest]);
 
   const currentChild = useMemo(
     () => dashboardData?.children.find((child) => child.childId === selectedChildId) ?? null,
@@ -939,12 +843,13 @@ const ParentHubPage: React.FC = () => {
     [childTeacherClassRequests],
   );
 
+  const assignmentsAvailable = Boolean(isGuest || dashboardData?.assignmentSummariesStatus === 'available');
   const childAssignments = useMemo(
     () =>
-      currentChild
+      currentChild && assignmentsAvailable
         ? dashboardData?.assignmentSummaries.filter((assignment) => assignment.childId === currentChild.childId) ?? []
         : [],
-    [currentChild, dashboardData],
+    [assignmentsAvailable, currentChild, dashboardData],
   );
 
   const childInsights = useMemo(
@@ -974,14 +879,7 @@ const ParentHubPage: React.FC = () => {
   const calmEvidenceCount =
     childEntries.filter((entry) => ['calm', 'good', 'happy'].includes((entry.signalLabel ?? entry.emotion).toLowerCase())).length +
     childAssignments.filter((assignment) => assignment.moodAfterTask === 'calm').length;
-  const supportToolsUsed = Array.from(
-    new Set(
-      childAssignments.flatMap((assignment) => [
-        ...assignment.supportUsed,
-        ...assignment.supportTools,
-      ]),
-    ),
-  ).slice(0, 6);
+  const supportToolsUsed = getParentTaskEvidence(childAssignments, assignmentsAvailable).recordedTools.slice(0, 6);
   const latestReviewSignal = [...childEntries]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   const reviewGeneratedAt = new Intl.DateTimeFormat('en-GB', {
@@ -989,6 +887,7 @@ const ParentHubPage: React.FC = () => {
     timeStyle: 'short',
   }).format(new Date());
   const reviewNextSteps = [
+    ...(!assignmentsAvailable ? ['Refresh school-task data before interpreting task progress or help requests.'] : []),
     ...(highAlertsCount > 0
       ? [`Acknowledge ${highAlertsCount} high-priority alert${highAlertsCount === 1 ? '' : 's'} today.`]
       : []),
@@ -1670,7 +1569,7 @@ const ParentHubPage: React.FC = () => {
     );
   };
 
-  if (loading) {
+  if (loading || (refreshing && !dashboardData)) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
         <ParentHubNavbar />
@@ -1683,6 +1582,12 @@ const ParentHubPage: React.FC = () => {
       </div>
     );
   }
+
+  if (error && !dashboardData) return <div className="min-h-screen bg-white p-6 dark:bg-gray-950 dark:text-gray-100">
+    <ParentHubNavbar />
+    <div role="alert" className="mx-auto mt-8 max-w-xl"><h1 className="text-xl font-bold">Parent Hub unavailable</h1><p className="mt-3">{error}</p></div>
+    <button type="button" className="mt-4 min-h-12 rounded-xl border-2 p-3 font-bold" onClick={() => { void loadDashboard('initial'); }}>Retry Parent Hub</button>
+  </div>;
 
   const isAdultDashboardUser =
     isGuest || profile?.role === 'parent' || profile?.role === 'teacher' || profile?.role === 'admin';
@@ -1792,6 +1697,7 @@ const ParentHubPage: React.FC = () => {
       </section>
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        <SupportConnectionsPanel />
         {error && (
           <div
             role="alert"
@@ -1810,6 +1716,11 @@ const ParentHubPage: React.FC = () => {
           </div>
         )}
 
+        {dashboardData?.trustedAdultsUnavailable && (
+          <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+            Older family links have not been verified. Manage new support connections in the inbox above.
+          </p>
+        )}
         {dashboardData && dashboardData.children.length > 0 && renderChildSwitcher(dashboardData.children)}
 
         {!currentChild ? (
@@ -1820,8 +1731,7 @@ const ParentHubPage: React.FC = () => {
                 No child space connected yet
               </h2>
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500 dark:text-gray-400">
-                Connect with the child&apos;s Buddy ID to see profile progress, wellbeing trends, journal entries,
-                alerts, and the trusted support circle.
+                New support invitations and requests are available in the inbox above. A support connection does not grant access to the full child dashboard.
               </p>
             </div>
             {renderBuddyIdLinkCard()}
@@ -1900,102 +1810,13 @@ const ParentHubPage: React.FC = () => {
               compact
             />
 
-            <section className="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-adapt-indigo/10 text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
-                    <ClipboardCheck className="h-6 w-6" aria-hidden />
-                  </span>
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
-                      School Tasks
-                    </p>
-                    <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
-                      Teacher assignment summary
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
-                      Parent view of approved class tasks, support used, and help signals.
-                    </p>
-                  </div>
-                </div>
-                <span className="rounded-full bg-adapt-indigo/10 px-3 py-1 text-xs font-black text-adapt-indigo dark:bg-adapt-cyan/10 dark:text-adapt-cyan">
-                  {childAssignments.length} task{childAssignments.length === 1 ? '' : 's'}
-                </span>
-              </div>
-
-              <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                {childAssignments.length > 0 ? (
-                  childAssignments.slice(0, 6).map((assignment) => (
-                    <article
-                      key={assignment.id}
-                      className="rounded-2xl border border-slate-100 bg-slate-50/75 p-4 dark:border-gray-800 dark:bg-gray-950/40"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-500 shadow-sm dark:bg-gray-900 dark:text-gray-300">
-                            {assignmentTypeLabels[assignment.assignmentType]}
-                          </span>
-                          <h3 className="mt-3 line-clamp-2 text-base font-extrabold text-adapt-navy dark:text-gray-100">
-                            {assignment.title}
-                          </h3>
-                        </div>
-                        <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-black ${assignmentStatusStyles[assignment.status]}`}>
-                          {assignmentStatusLabels[assignment.status]}
-                        </span>
-                      </div>
-
-                      <p className="mt-3 text-xs font-bold text-slate-500 dark:text-gray-400">
-                        {assignment.className}
-                        {assignment.teacherName ? ` · ${assignment.teacherName}` : ''}
-                      </p>
-                      <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-slate-400">
-                        <Calendar className="h-3.5 w-3.5" aria-hidden />
-                        {formatAssignmentDate(assignment.dueAt)}
-                      </p>
-
-                      {assignment.description && (
-                        <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-gray-400">
-                          {assignment.description}
-                        </p>
-                      )}
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {assignment.supportTools.slice(0, 3).map((tool) => (
-                          <span
-                            key={tool}
-                            className="rounded-full bg-white px-2 py-1 text-xs font-black text-adapt-indigo shadow-sm dark:bg-gray-900 dark:text-adapt-cyan"
-                          >
-                            {supportToolLabels[tool] ?? tool.replace(/_/g, ' ')}
-                          </span>
-                        ))}
-                      </div>
-
-                      {(assignment.moodAfterTask || assignment.supportUsed.length > 0) && (
-                        <div className="mt-4 rounded-xl bg-white/75 p-3 text-xs font-semibold text-slate-600 dark:bg-gray-900/80 dark:text-gray-300">
-                          {assignment.moodAfterTask && (
-                            <p>
-                              After task: {getEmotionEmoji(assignment.moodAfterTask)} {assignment.moodAfterTask}
-                            </p>
-                          )}
-                          {assignment.supportUsed.length > 0 && (
-                            <p className="mt-1">
-                              Support used: {assignment.supportUsed.map((tool) => supportToolLabels[tool] ?? tool.replace(/_/g, ' ')).join(', ')}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </article>
-                  ))
-                ) : (
-                  <div className="lg:col-span-3">
-                    <EmptyState
-                      title="No teacher tasks yet"
-                      detail="Once an approved teacher assigns work, parents will see status, support used, and mood-after-task here."
-                    />
-                  </div>
-                )}
-              </div>
-            </section>
+            <ParentAssignmentSummaryPanel
+              assignments={childAssignments}
+              available={assignmentsAvailable}
+              refreshing={refreshing}
+              isDemo={Boolean(isGuest)}
+              onRefresh={() => { void loadDashboard('refresh'); }}
+            />
 
             <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <article className="rounded-3xl border border-adapt-indigo/15 bg-gradient-to-br from-adapt-indigo/10 via-white to-adapt-teal/10 p-6 shadow-card dark:border-adapt-cyan/20 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950">
@@ -2322,18 +2143,20 @@ const ParentHubPage: React.FC = () => {
                       },
                       {
                         label: 'School task progress',
-                        value: childAssignments.length ? `${completedAssignmentsCount}/${childAssignments.length}` : '--',
+                        value: !assignmentsAvailable ? 'Unavailable' : childAssignments.length ? `${completedAssignmentsCount}/${childAssignments.length}` : '--',
                         detail:
-                          assignmentCompletionRate === null
-                            ? 'No teacher tasks yet'
-                            : `${assignmentCompletionRate}% complete`,
+                          !assignmentsAvailable
+                            ? 'School-task data could not be loaded'
+                            : assignmentCompletionRate === null
+                              ? 'No tasks returned in this snapshot'
+                              : `${assignmentCompletionRate}% marked completed/submitted, not an ability score`,
                         icon: ClipboardCheck,
                         tone: 'bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-100',
                       },
                       {
                         label: 'Needs attention',
-                        value: supportSignalsCount + newAlertsCount,
-                        detail: `${assignmentNeedsHelpCount} task help signal${assignmentNeedsHelpCount === 1 ? '' : 's'}`,
+                        value: assignmentsAvailable ? supportSignalsCount + newAlertsCount : 'Incomplete',
+                        detail: assignmentsAvailable ? `${assignmentNeedsHelpCount} recorded task help signal${assignmentNeedsHelpCount === 1 ? '' : 's'}` : 'Task help requests could not be checked',
                         icon: AlertTriangle,
                         tone: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-100',
                       },
@@ -2411,13 +2234,15 @@ const ParentHubPage: React.FC = () => {
 
                   <article className="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-card backdrop-blur-sm dark:border-gray-800 dark:bg-gray-900/75">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-adapt-indigo dark:text-adapt-cyan">
-                      What Helped
+                      Recorded Supports
                     </p>
                     <h2 className="mt-1 text-xl font-extrabold text-adapt-navy dark:text-gray-100">
-                      Supports used recently
+                      Support use recorded in tasks
                     </h2>
                     <div className="mt-5 flex flex-wrap gap-2">
-                      {supportToolsUsed.length > 0 ? (
+                      {!assignmentsAvailable ? (
+                        <p className="text-sm dark:text-gray-200">School-task support records are unavailable. Suggested tools are not counted as used.</p>
+                      ) : supportToolsUsed.length > 0 ? (
                         supportToolsUsed.map((tool) => (
                           <span
                             key={tool}

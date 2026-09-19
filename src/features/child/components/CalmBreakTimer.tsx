@@ -246,13 +246,13 @@ const CalmBreakTimer: React.FC<CalmBreakTimerProps> = ({
             emotion: signal.emotion,
             text,
             analysis,
-            isShared: true,
+            isShared: false,
           });
           saved = true;
         }
       } catch (error) {
         console.warn('Calm break mood saved locally only:', error);
-        setSaveMessage('Saved on this device. Sync will catch up when available.');
+        setSaveMessage('Saved on this device only. No adult was contacted.');
       } finally {
         setSaving(false);
       }
@@ -461,6 +461,7 @@ const CalmBreakTimer: React.FC<CalmBreakTimerProps> = ({
                 <Sparkles className="mx-auto h-9 w-9" aria-hidden />
                 <h3 className="mt-2 text-2xl font-black">Calm break complete.</h3>
                 <p className="mt-1 text-sm font-semibold opacity-80">How are you feeling now?</p>
+                <p className="mt-2 text-sm">Your check-in is private. Please speak to a safe adult directly if you need help.</p>
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-3">

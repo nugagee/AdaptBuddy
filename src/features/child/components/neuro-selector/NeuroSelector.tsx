@@ -132,27 +132,30 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
   submitLabel = 'Create My Calm Space',
   saving = false,
 }) => {
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(
-    initialSelected[0] ?? 'autism',
+  const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>(
+    initialSelected.filter((id) => ACTIVE_NEURO_IDS.has(id)),
   );
   const reducedMotion = useUiStore((s) => s.reducedMotion);
 
-  const selected = selectedProfileId ? [selectedProfileId] : [];
   const selectedOptions = useMemo(
-    () => NEURO_OPTIONS.filter((o) => o.id === selectedProfileId),
-    [selectedProfileId],
+    () => NEURO_OPTIONS.filter((o) => selectedProfileIds.includes(o.id)),
+    [selectedProfileIds],
   );
 
   const toggleSelection = (id: string) => {
     if (!ACTIVE_NEURO_IDS.has(id)) return;
-    setSelectedProfileId((currentId) => (currentId === id ? null : id));
+    setSelectedProfileIds((currentIds) =>
+      currentIds.includes(id)
+        ? currentIds.filter((currentId) => currentId !== id)
+        : [...currentIds, id],
+    );
   };
 
   const availableCount = NEURO_OPTIONS.filter((o) => ACTIVE_NEURO_IDS.has(o.id)).length;
 
-  const encouragement = selectedProfileId
-    ? 'Great start. You can continue, or choose a different main support profile.'
-    : 'Choose one main support profile to begin. You can refine this later.';
+  const encouragement = selectedProfileIds.length
+    ? 'Great start. Choose every support profile that fits how you learn.'
+    : 'Choose at least one support profile to begin. You can refine this later.';
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-adapt-cloud dark:bg-gray-950 sepia:bg-sepia-50">
@@ -180,7 +183,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
 
           <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-adapt-indigo/20 bg-white/60 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-adapt-indigo backdrop-blur-sm dark:border-adapt-cyan/25 dark:bg-gray-900/60 dark:text-adapt-cyan sepia:border-amber-300/50 sepia:bg-amber-50/80 sepia:text-amber-900">
             <Sparkles className="h-3.5 w-3.5" aria-hidden />
-            {availableCount} available · more coming soon
+            {availableCount} available · choose what fits
           </p>
 
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-adapt-navy sm:text-4xl md:text-5xl dark:text-gray-100 sepia:text-amber-950">
@@ -191,21 +194,21 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-gray-300 sepia:text-amber-900/80 sm:text-lg">
-            We&apos;re starting with Autism support. Choose it to begin — other profiles are on
-            the way.
+            Pick one or more support profiles. AdaptBuddy will shape the dashboard missions,
+            calm tools, reading/writing supports, and daily progress around your choices.
           </p>
 
           <div className="mx-auto mt-6 flex max-w-md flex-col items-center gap-3">
             <div className="flex w-full items-center gap-3 rounded-2xl border border-white/60 bg-white/50 px-4 py-3 backdrop-blur-md dark:border-white/10 dark:bg-gray-900/50 sepia:border-amber-200/60 sepia:bg-amber-50/70">
               <div
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-adapt-indigo to-adapt-teal text-sm font-bold text-white shadow-md"
-                aria-label={`${selectedProfileId ? 1 : 0} of 1 selected`}
+                aria-label={`${selectedProfileIds.length} selected`}
               >
-                {selectedProfileId ? 1 : 0}
+                {selectedProfileIds.length}
               </div>
               <div className="min-w-0 text-left">
                 <p className="text-sm font-semibold text-adapt-navy dark:text-gray-100">
-                  {selectedProfileId ? 1 : 0} of 1 picked
+                  {selectedProfileIds.length} picked
                 </p>
                 <p className="text-xs text-slate-500 dark:text-gray-400">{encouragement}</p>
               </div>
@@ -215,11 +218,11 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
 
         <div
           className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-slide-up delay-100"
-          role="radiogroup"
+          role="group"
           aria-label="Support profile options"
         >
           {NEURO_OPTIONS.map((option) => {
-            const isSelected = selectedProfileId === option.id;
+            const isSelected = selectedProfileIds.includes(option.id);
             const isAvailable = ACTIVE_NEURO_IDS.has(option.id);
             const accent = CARD_ACCENTS[option.id] ?? defaultAccent;
             const IconComponent = option.icon;
@@ -228,7 +231,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
               <button
                 key={option.id}
                 type="button"
-                role="radio"
+                role="checkbox"
                 aria-checked={isSelected}
                 aria-disabled={!isAvailable}
                 disabled={!isAvailable}
@@ -297,7 +300,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
                     {isSelected ? (
                       <span className="inline-flex items-center gap-1 font-medium">
                         <Star className="h-3 w-3 fill-current" aria-hidden />
-                        Selected as your starting profile
+                        Selected for your learning space
                       </span>
                     ) : (
                       option.longDescription
@@ -347,7 +350,7 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
         </section>
 
         <p className="mt-8 text-center text-xs text-slate-400 dark:text-gray-500">
-          Private & safe · Built for every brain · You can change this anytime in Settings
+          Support choices, not a diagnosis · You can change this anytime in Settings
         </p>
       </div>
 
@@ -355,17 +358,17 @@ const NeuroSelector: React.FC<NeuroSelectorProps> = ({
         <div className="mx-auto flex max-w-3xl flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="hidden sm:block">
             <p className="text-sm font-semibold text-adapt-navy dark:text-gray-100">
-              {selectedProfileId ? 'Ready when you are' : 'Pick one profile to continue'}
+              {selectedProfileIds.length ? 'Ready when you are' : 'Pick at least one profile to continue'}
             </p>
             <p className="text-xs text-slate-500 dark:text-gray-400">
-              We&apos;ll save this starting profile to your account
+              We&apos;ll use these choices to shape your support space
             </p>
           </div>
 
           <button
             type="button"
-            onClick={() => void onContinue(selected)}
-            disabled={!selectedProfileId || saving}
+            onClick={() => void onContinue(selectedProfileIds)}
+            disabled={!selectedProfileIds.length || saving}
             className="neuro-cta-shimmer inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-adapt-indigo via-adapt-purple to-adapt-teal px-8 py-4 text-base font-bold text-white shadow-[0_8px_32px_-8px_rgba(99,102,241,0.55)] transition hover:scale-[1.02] hover:shadow-[0_12px_40px_-8px_rgba(99,102,241,0.65)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 sm:w-auto"
           >
             {saving ? (

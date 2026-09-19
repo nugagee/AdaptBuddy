@@ -10,12 +10,13 @@ interface MainLayoutProps {
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { pathname } = useLocation();
   const isMarketing = pathname === ROUTES.HOME;
+  const isImmersive = pathname === ROUTES.GAME;
 
   return (
     <div
-      className={`min-h-screen pb-[var(--music-player-offset,0px)] ${isMarketing ? '' : 'bg-white dark:bg-gray-900 sepia:bg-sepia-50'} transition-colors duration-300`}
+      className={`min-h-screen ${isImmersive ? '' : 'pb-[var(--music-player-offset,0px)]'} ${isMarketing || isImmersive ? '' : 'bg-white dark:bg-gray-900 sepia:bg-sepia-50'} transition-colors duration-300`}
     >
-      {!isMarketing && <ThemeToggle variant="floating" />}
+      {!isMarketing && !isImmersive && <ThemeToggle variant="floating" />}
       {children}
     </div>
   );

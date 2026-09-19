@@ -1,6 +1,6 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Layers, Mic2, Rocket, Sparkles, Volume2 } from 'lucide-react';
+import { BookOpen, Hand, Heart, Mic2, Settings2, Sparkles } from 'lucide-react';
 import ChildDashboardNavbar from 'features/child/components/layout/ChildDashboardNavbar';
 import FeelingsJournal from 'features/child/components/journal/FeelingsJournal';
 import DashboardHero from 'features/child/components/dashboard/DashboardHero';
@@ -10,63 +10,173 @@ import MetricsConstellation from 'features/child/components/dashboard/MetricsCon
 import AccessibilityDock from 'features/child/components/dashboard/AccessibilityDock';
 import SmartRecommendationsPanel from 'features/child/components/dashboard/SmartRecommendationsPanel';
 import FocusTimerModal from 'features/child/components/dashboard/FocusTimerModal';
-import ActivitySessionModal from 'features/child/components/dashboard/ActivitySessionModal';
+import ActivitySessionModal, {
+  type ActivitySessionResult,
+} from 'features/child/components/dashboard/ActivitySessionModal';
+import AdhdSupportSignalsPanel from 'features/child/components/dashboard/AdhdSupportSignalsPanel';
+import AdhdEnergyPacingPanel from 'features/child/components/dashboard/AdhdEnergyPacingPanel';
+import AchievementBadgesPanel from 'features/child/components/dashboard/AchievementBadgesPanel';
+import DyslexiaReadingProgressPanel from 'features/child/components/dashboard/DyslexiaReadingProgressPanel';
+import DyscalculiaProgressPanel from 'features/child/components/dashboard/DyscalculiaProgressPanel';
+import DyspraxiaProgressPanel from 'features/child/components/dashboard/DyspraxiaProgressPanel';
+import DysgraphiaWordBankProgressPanel from 'features/child/components/dashboard/DysgraphiaWordBankProgressPanel';
+import SensoryComfortProgressPanel from 'features/child/components/dashboard/SensoryComfortProgressPanel';
 import ChildClassroomPanel from 'features/child/components/dashboard/ChildClassroomPanel';
 import TeacherAssignmentsPanel from 'features/child/components/dashboard/TeacherAssignmentsPanel';
 import NowNextLaterBoard from 'features/child/components/NowNextLaterBoard';
 import AuthSuccessBanner from 'components/auth/AuthSuccessBanner';
 import {
   getActivitiesForNeuros,
-  getDailyActivitiesForNeuro,
+  getAllActivitiesForNeuro,
   type NeuroActivity,
 } from 'features/child/data/neuroDashboardContent';
 import { useChildProgressStore } from 'features/child/store/childProgressStore';
+import {
+  getReadyChildProgressForOwner,
+  useChildProgressReadAccess,
+} from 'features/child/store/childProgressReadAccess';
+import { syncAdhdSupportSignal } from 'features/child/services/adhdSupportSignalService';
+import { useActiveChildSupportProfile } from 'features/child/hooks/useActiveChildSupportProfile';
+import { adaptAdhdActivitiesForEnergy } from 'features/child/utils/adhdEnergyPacing';
+import {
+  getDailyMissionCompletions,
+  getDailyMissionProgress,
+} from 'features/child/utils/dailyMissionProgress';
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
+import { buildActivityLaunchPath } from 'features/child/routing/routedActivityCompletion';
 import '../components/dashboard/child-dashboard.css';
 
 const ChildDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile } = useAuth();
+  const { profile, user, isGuest } = useAuth();
+  const { preferredName } = useActiveChildSupportProfile();
+  const authenticatedChildId =
+    !isGuest && user?.id && profile?.role === 'child' && profile.id === user.id
+      ? user.id
+      : null;
 
   const [showJournal, setShowJournal] = useState(false);
   const [activeActivity, setActiveActivity] = useState<NeuroActivity | null>(null);
   const [showFocusTimer, setShowFocusTimer] = useState(false);
   const [celebration, setCelebration] = useState<string | null>(null);
+  const journalOwnerIdRef = useRef<string | null>(null);
+  const activityOwnerIdRef = useRef<string | null>(null);
+  const focusOwnerIdRef = useRef<string | null>(null);
+  const celebrationTimeoutRef = useRef<number | null>(null);
 
-  const completeActivity = useChildProgressStore((s) => s.completeActivity);
-  const setTodayMood = useChildProgressStore((s) => s.setTodayMood);
-  const completions = useChildProgressStore((s) => s.completions);
+  const storedAdhdEnergyPacing = useChildProgressStore((s) => s.adhdEnergyPacing);
+  const storedCompletions = useChildProgressStore((s) => s.completions);
+  const { isReady: isProgressReady } = useChildProgressReadAccess();
+  const adhdEnergyPacing = isProgressReady ? storedAdhdEnergyPacing : null;
+  const completions = isProgressReady ? storedCompletions : [];
 
-  const firstName = profile?.first_name || 'Friend';
-  const childId = profile?.id ?? 'guest-child';
+  const firstName = preferredName;
+  const childId = authenticatedChildId ?? profile?.id ?? 'guest-child';
   const neuroTypes = useMemo(
-    () => (profile?.neuro_types?.length ? profile.neuro_types : ['autism']),
+    () => profile?.neuro_types ?? [],
     [profile?.neuro_types],
   );
-  const dailyActivities = useMemo(() => getActivitiesForNeuros(neuroTypes), [neuroTypes]);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayEnergyPacing = adhdEnergyPacing?.checkedAt.startsWith(todayKey)
+    ? adhdEnergyPacing
+    : null;
+  const dailyActivities = useMemo(
+    () => adaptAdhdActivitiesForEnergy(getActivitiesForNeuros(neuroTypes), todayEnergyPacing),
+    [neuroTypes, todayEnergyPacing],
+  );
+  const dailyActivityIds = useMemo(
+    () => dailyActivities.map((activity) => activity.id),
+    [dailyActivities],
+  );
   const welcomeMessage = (location.state as { message?: string } | null)?.message;
 
   const today = new Date().toISOString().slice(0, 10);
-  const todayCompletedCount = completions.filter((c) => c.completedAt.startsWith(today)).length;
-  const todayProgress =
-    dailyActivities.length > 0
-      ? Math.min(100, Math.round((todayCompletedCount / dailyActivities.length) * 100))
-      : 0;
+  const todayCompletedCount = getDailyMissionCompletions(
+    completions,
+    dailyActivityIds,
+    today,
+  ).length;
+  const todayProgress = getDailyMissionProgress(todayCompletedCount, dailyActivities.length);
+
+  useEffect(() => {
+    journalOwnerIdRef.current = null;
+    activityOwnerIdRef.current = null;
+    focusOwnerIdRef.current = null;
+    setShowJournal(false);
+    setActiveActivity(null);
+    setShowFocusTimer(false);
+    setCelebration(null);
+    if (celebrationTimeoutRef.current !== null) {
+      window.clearTimeout(celebrationTimeoutRef.current);
+      celebrationTimeoutRef.current = null;
+    }
+
+    return () => {
+      if (celebrationTimeoutRef.current !== null) {
+        window.clearTimeout(celebrationTimeoutRef.current);
+        celebrationTimeoutRef.current = null;
+      }
+    };
+  }, [childId]);
+
+  const showCelebrationForOwner = useCallback((
+    expectedOwnerId: string | null,
+    message: string,
+    durationMs: number,
+  ) => {
+    if (!getReadyChildProgressForOwner(expectedOwnerId)) return;
+    if (celebrationTimeoutRef.current !== null) {
+      window.clearTimeout(celebrationTimeoutRef.current);
+    }
+    setCelebration(message);
+    const timeout = window.setTimeout(() => {
+      if (getReadyChildProgressForOwner(expectedOwnerId)) setCelebration(null);
+      if (celebrationTimeoutRef.current === timeout) celebrationTimeoutRef.current = null;
+    }, durationMs);
+    celebrationTimeoutRef.current = timeout;
+  }, []);
+
+  const openJournal = useCallback(() => {
+    const expectedOwnerId = childId;
+    if (!getReadyChildProgressForOwner(expectedOwnerId)) return;
+
+    journalOwnerIdRef.current = expectedOwnerId;
+    setShowJournal(true);
+  }, [childId]);
+
+  const closeActivity = useCallback((expectedOwnerId: string) => {
+    if (activityOwnerIdRef.current !== expectedOwnerId) return;
+
+    activityOwnerIdRef.current = null;
+    setActiveActivity(null);
+  }, []);
+
+  const closeFocusTimer = useCallback((expectedOwnerId: string) => {
+    if (focusOwnerIdRef.current !== expectedOwnerId) return;
+
+    focusOwnerIdRef.current = null;
+    setShowFocusTimer(false);
+  }, []);
 
   const handleStartActivity = useCallback(
     (activity: NeuroActivity) => {
+      if (activity.availability === 'planned') return;
       if (activity.action === 'journal') {
-        setShowJournal(true);
+        openJournal();
         return;
       }
       if (activity.action === 'focus-timer') {
+        const expectedOwnerId = childId;
+        if (!getReadyChildProgressForOwner(expectedOwnerId)) return;
+
+        focusOwnerIdRef.current = expectedOwnerId;
         setShowFocusTimer(true);
         return;
       }
       if (activity.route) {
-        navigate(activity.route);
+        navigate(buildActivityLaunchPath(activity) ?? activity.route);
         return;
       }
       if (activity.action === 'music') {
@@ -77,46 +187,127 @@ const ChildDashboardPage: React.FC = () => {
         navigate(ROUTES.WRITING_PAD);
         return;
       }
+
+      const expectedOwnerId = childId;
+      if (!getReadyChildProgressForOwner(expectedOwnerId)) return;
+
+      activityOwnerIdRef.current = expectedOwnerId;
       setActiveActivity(activity);
     },
-    [navigate],
+    [childId, navigate, openJournal],
   );
 
-  const handleActivityComplete = useCallback(() => {
-    if (!activeActivity) return;
-    completeActivity(
-      activeActivity.id,
-      activeActivity.neuroId,
-      activeActivity.starsReward,
-      activeActivity.durationMinutes,
-    );
-    setCelebration(`+${activeActivity.starsReward} stars! Great job on "${activeActivity.title}"`);
-    setActiveActivity(null);
-    window.setTimeout(() => setCelebration(null), 4000);
-  }, [activeActivity, completeActivity]);
-
-  const handleFocusComplete = useCallback(() => {
-    completeActivity('adhd-focus-sprint', 'adhd', 5, 12);
-    setShowFocusTimer(false);
-    setCelebration('Focus sprint complete! +5 stars');
-    window.setTimeout(() => setCelebration(null), 4000);
-  }, [completeActivity]);
-
-  const handleJournalClose = useCallback(() => {
-    setShowJournal(false);
-    const moodActivity = dailyActivities.find((a) => a.action === 'journal');
-    if (moodActivity && !useChildProgressStore.getState().isActivityCompletedToday(moodActivity.id)) {
-      completeActivity(moodActivity.id, moodActivity.neuroId, moodActivity.starsReward, moodActivity.durationMinutes);
+  const handleActivityComplete = useCallback((
+    expectedOwnerId: string,
+    activity: NeuroActivity,
+    result?: ActivitySessionResult,
+  ) => {
+    const progress = getReadyChildProgressForOwner(expectedOwnerId);
+    if (activityOwnerIdRef.current !== expectedOwnerId || !progress) {
+      closeActivity(expectedOwnerId);
+      return;
     }
-  }, [dailyActivities, completeActivity]);
 
-  const handleRecommendation = useCallback(
-    (_id: string, title: string) => {
-      setCelebration(`"${title}" is queued for your next session!`);
-      window.setTimeout(() => setCelebration(null), 3000);
-    },
-    [],
-  );
+    // Reopening support is allowed without duplicate records or star claims.
+    if (activity.neuroId === 'tourettes'
+      && (activity.id === 'tourettes-flex-flow' || activity.id === 'tourettes-tic-break')
+      && progress.isActivityCompletedToday(activity.id)) {
+      showCelebrationForOwner(expectedOwnerId, 'Your support tool stays available. The first practice today was already recorded; no extra stars were added.', 4000);
+      closeActivity(expectedOwnerId);
+      return;
+    }
+
+    progress.completeActivity(
+      activity.id,
+      activity.neuroId,
+      activity.starsReward,
+      typeof result?.durationMinutes === 'number' && Number.isFinite(result.durationMinutes) && result.durationMinutes >= 0
+        ? result.durationMinutes
+        : activity.durationMinutes,
+    );
+    if (activity.neuroId === 'adhd' && result?.adhdSupportSignal) {
+      progress.addAdhdSupportSignal(activity.id, result.adhdSupportSignal);
+      void syncAdhdSupportSignal({
+        childId: expectedOwnerId,
+        activityId: activity.id,
+        activityTitle: activity.title,
+        signal: result.adhdSupportSignal,
+      }).catch((syncError) => {
+        console.warn('ADHD support signal saved locally only:', syncError);
+      });
+    }
+    if (result?.achievementBadge) {
+      progress.unlockAchievementBadge(result.achievementBadge);
+    }
+    if (result?.adhdEnergyPacing) {
+      progress.setAdhdEnergyPacing(result.adhdEnergyPacing);
+    }
+    if (result?.dyslexiaReadingSession) {
+      progress.addDyslexiaReadingSession(result.dyslexiaReadingSession);
+    }
+    if (result?.dyslexiaReaderPreferences) {
+      progress.setDyslexiaReaderPreferences(result.dyslexiaReaderPreferences);
+    }
+    if (result?.dyslexiaPhonicsSession) {
+      progress.addDyslexiaPhonicsSession(result.dyslexiaPhonicsSession);
+    }
+    if (result?.dyscalculiaSession) {
+      progress.addDyscalculiaSession(result.dyscalculiaSession);
+    }
+    if (result?.dyspraxiaPlanningSession) {
+      progress.addDyspraxiaPlanningSession(result.dyspraxiaPlanningSession);
+    }
+    if (result?.dysgraphiaWordBankSession) {
+      progress.addDysgraphiaWordBankSession(result.dysgraphiaWordBankSession);
+    }
+    if (result?.sensoryComfortSession) {
+      progress.addSensoryComfortSession(result.sensoryComfortSession);
+    }
+    showCelebrationForOwner(
+      expectedOwnerId,
+      result?.achievementBadge
+        ? `${result.achievementBadge.emoji} ${result.achievementBadge.title} badge unlocked! +${activity.starsReward} stars`
+        : `+${activity.starsReward} stars! Great job on "${activity.title}"`,
+      4000,
+    );
+    closeActivity(expectedOwnerId);
+  }, [closeActivity, showCelebrationForOwner]);
+
+  const handleFocusComplete = useCallback((
+    expectedOwnerId: string,
+    sessionDurationMinutes: number,
+  ) => {
+    const progress = getReadyChildProgressForOwner(expectedOwnerId);
+    if (focusOwnerIdRef.current !== expectedOwnerId || !progress) {
+      closeFocusTimer(expectedOwnerId);
+      return;
+    }
+
+    progress.completeActivity('adhd-focus-sprint', 'adhd', 5, sessionDurationMinutes);
+    closeFocusTimer(expectedOwnerId);
+    showCelebrationForOwner(expectedOwnerId, 'Focus sprint complete! +5 stars', 4000);
+  }, [closeFocusTimer, showCelebrationForOwner]);
+
+  const handleJournalClose = useCallback((expectedOwnerId: string) => {
+    if (journalOwnerIdRef.current !== expectedOwnerId) return;
+
+    const progress = getReadyChildProgressForOwner(expectedOwnerId);
+    journalOwnerIdRef.current = null;
+    setShowJournal(false);
+    if (!progress) return;
+
+    const moodActivity = dailyActivities.find((a) => a.action === 'journal');
+    if (moodActivity && !progress.isActivityCompletedToday(moodActivity.id)) {
+      progress.completeActivity(moodActivity.id, moodActivity.neuroId, moodActivity.starsReward, moodActivity.durationMinutes);
+    }
+  }, [dailyActivities]);
+
+  const handleJournalSave = useCallback((expectedOwnerId: string, mood: string) => {
+    const progress = getReadyChildProgressForOwner(expectedOwnerId);
+    if (journalOwnerIdRef.current !== expectedOwnerId || !progress) return;
+
+    progress.setTodayMood(mood);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/30 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
@@ -133,162 +324,132 @@ const ChildDashboardPage: React.FC = () => {
         </div>
       )}
 
-      <main className="mx-auto max-w-6xl space-y-6 p-4 pb-16 sm:p-6 sm:pb-20">
+      <main className="mx-auto max-w-5xl space-y-6 p-4 pb-16 sm:p-6 sm:pb-20">
         <DashboardHero
           firstName={firstName}
           neuroTypes={neuroTypes}
           todayProgress={todayProgress}
         />
 
-        <DailyOrbitProgress
-          totalActivities={dailyActivities.length}
-          onMoodCheck={() => navigate(ROUTES.COMPANION_BUDDY)}
-        />
+        <section aria-labelledby="start-here-title">
+          <div className="mb-3">
+            <p className="text-sm font-bold uppercase tracking-wide text-adapt-indigo dark:text-adapt-cyan">Start here</p>
+            <h2 id="start-here-title" className="text-2xl font-extrabold text-adapt-navy dark:text-gray-100">What do you need right now?</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button type="button" onClick={() => navigate(ROUTES.COMPANION_BUDDY)} className="child-launch-action child-launch-action--buddy">
+              <Sparkles className="h-7 w-7" aria-hidden />
+              <span><strong>Talk to Buddy</strong><small>Ask for help with words or a next step</small></span>
+            </button>
+            <button type="button" onClick={openJournal} className="child-launch-action child-launch-action--mood">
+              <Heart className="h-7 w-7" aria-hidden />
+              <span><strong>How I feel</strong><small>Choose a feeling or share in your own way</small></span>
+            </button>
+            <button type="button" onClick={() => navigate(ROUTES.PRONUNCIATION_BUDDY)} className="child-launch-action child-launch-action--learn">
+              <Mic2 className="h-7 w-7" aria-hidden />
+              <span><strong>My learning tools</strong><small>Speak, read, write or practise</small></span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(ROUTES.COMPANION_BUDDY, { state: { quickMessage: 'I need help from an adult' } })}
+              className="child-launch-action child-launch-action--help"
+            >
+              <Hand className="h-7 w-7" aria-hidden />
+              <span><strong>I need help</strong><small>Ask a trusted adult to check in</small></span>
+            </button>
+          </div>
+        </section>
 
-        {neuroTypes.includes('autism') && (
-          <NowNextLaterBoard
-            childId={childId}
-            mode="child"
-            compact
-            onActivityComplete={(activity) => {
-              setCelebration(`${activity.emoji} ${activity.label} complete! Great transition.`);
-              window.setTimeout(() => setCelebration(null), 3500);
-            }}
-          />
-        )}
-
-        <ChildClassroomPanel childId={childId} />
-
-        <TeacherAssignmentsPanel
+        <NowNextLaterBoard
           childId={childId}
-          onCelebrate={(message) => {
-            setCelebration(message);
-            window.setTimeout(() => setCelebration(null), 3500);
+          mode="child"
+          compact
+          onActivityComplete={(activity) => {
+            showCelebrationForOwner(
+              childId,
+              `${activity.emoji} ${activity.label} complete! Great transition.`,
+              3500,
+            );
           }}
         />
 
-        <section className="overflow-hidden rounded-3xl border border-adapt-indigo/20 bg-gradient-to-br from-adapt-indigo/10 via-white to-adapt-purple/10 p-6 shadow-sm dark:border-adapt-cyan/20 dark:from-adapt-cyan/10 dark:via-gray-900 dark:to-adapt-purple/10 sm:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-adapt-indigo/15 text-adapt-indigo dark:bg-adapt-cyan/15 dark:text-adapt-cyan">
-                <Sparkles className="h-6 w-6" aria-hidden />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">
-                  Your AI companion
-                </h2>
-                <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
-                  Simplify confusing words, check in on your mood, or create a social story —
-                  AdaptBuddy understands you.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate(ROUTES.COMPANION_BUDDY)}
-              className="shrink-0 rounded-2xl bg-adapt-indigo px-5 py-3 text-sm font-semibold text-white hover:bg-adapt-purple dark:bg-adapt-cyan dark:text-gray-900"
-            >
-              Open AdaptBuddy
-            </button>
-          </div>
-        </section>
+        {neuroTypes.includes('adhd') && (
+          <>
+            <AdhdEnergyPacingPanel />
+            <AdhdSupportSignalsPanel />
+            <AchievementBadgesPanel />
+          </>
+        )}
 
-        <section className="overflow-hidden rounded-3xl border border-adapt-teal/25 bg-gradient-to-br from-white via-adapt-teal/10 to-adapt-indigo/10 p-6 shadow-sm dark:border-adapt-cyan/20 dark:from-gray-900 dark:via-adapt-cyan/10 dark:to-adapt-indigo/15 sm:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-adapt-teal/15 text-adapt-teal dark:bg-adapt-cyan/15 dark:text-adapt-cyan">
-                <Mic2 className="h-6 w-6" aria-hidden />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-bold text-adapt-navy dark:text-gray-100">
-                    Pronunciation Buddy
-                  </h2>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-xs font-bold text-adapt-indigo shadow-sm dark:bg-gray-950/70 dark:text-adapt-cyan">
-                    <Volume2 className="h-3.5 w-3.5" aria-hidden />
-                    Listen & repeat
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
-                  Practise letters, names, classroom words, and helpful sentences with calm
-                  read-aloud and microphone feedback.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate(ROUTES.PRONUNCIATION_BUDDY)}
-              className="shrink-0 rounded-2xl bg-adapt-teal px-5 py-3 text-sm font-semibold text-white hover:bg-adapt-indigo dark:bg-adapt-cyan dark:text-gray-900"
-            >
-              Start speaking
-            </button>
-          </div>
-        </section>
+        {neuroTypes.includes('dyslexia') && <DyslexiaReadingProgressPanel />}
+        {neuroTypes.includes('dyscalculia') && <DyscalculiaProgressPanel />}
+        {neuroTypes.includes('dyspraxia') && <DyspraxiaProgressPanel />}
+        {neuroTypes.includes('dysgraphia') && <DysgraphiaWordBankProgressPanel />}
+        {neuroTypes.includes('spd') && <SensoryComfortProgressPanel />}
+        <DailyOrbitProgress activityIds={dailyActivityIds} onMoodCheck={openJournal} />
 
-        <section>
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-adapt-indigo/10">
-              <Rocket className="h-5 w-5 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-adapt-navy dark:text-gray-100">
-                Your Neuro Zones
-              </h2>
-              <p className="text-sm text-slate-500 dark:text-gray-400">
-                Daily missions tailored to each profile you selected
-              </p>
-            </div>
+        <details className="child-dashboard-drawer">
+          <summary><BookOpen className="h-5 w-5" aria-hidden /> Classroom and assignments</summary>
+          <div className="space-y-5 pt-5">
+            <ChildClassroomPanel childId={childId} />
+            <TeacherAssignmentsPanel
+              childId={childId}
+              onCelebrate={(message) => {
+                showCelebrationForOwner(childId, message, 3500);
+              }}
+            />
           </div>
+        </details>
 
-          <div className="space-y-6">
+        <details className="child-dashboard-drawer">
+          <summary><Settings2 className="h-5 w-5" aria-hidden /> More tools and progress</summary>
+          <div className="space-y-6 pt-5">
             {neuroTypes.map((neuroId) => (
               <NeuroZoneCard
                 key={neuroId}
                 neuroId={neuroId}
-                activities={getDailyActivitiesForNeuro(neuroId)}
+                activities={adaptAdhdActivitiesForEnergy(
+                  getAllActivitiesForNeuro(neuroId),
+                  todayEnergyPacing,
+                )}
                 onStartActivity={handleStartActivity}
               />
             ))}
+            <MetricsConstellation neuroTypes={neuroTypes} />
+            <AccessibilityDock neuroTypes={neuroTypes} />
+            <SmartRecommendationsPanel
+              neuroTypes={neuroTypes}
+              onTryRecommendation={handleStartActivity}
+            />
           </div>
-        </section>
-
-        <MetricsConstellation neuroTypes={neuroTypes} />
-
-        <AccessibilityDock neuroTypes={neuroTypes} />
-
-        <SmartRecommendationsPanel
-          neuroTypes={neuroTypes}
-          onTryRecommendation={handleRecommendation}
-        />
-
-        <section className="rounded-3xl border border-dashed border-adapt-indigo/25 bg-adapt-indigo/5 p-6 text-center dark:border-adapt-cyan/25 dark:bg-adapt-cyan/5">
-          <Layers className="mx-auto mb-2 h-8 w-8 text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
-          <p className="text-sm font-medium text-slate-600 dark:text-gray-400">
-            Your dashboard reshapes every day based on mood, progress, and neuro profile —
-            inspired by UDL, Lexy, Vedyx, and AAC best practices.
-          </p>
-        </section>
+        </details>
       </main>
 
-      {showJournal && (
+      {showJournal && journalOwnerIdRef.current && (
         <FeelingsJournal
+          ownerId={journalOwnerIdRef.current}
           onClose={handleJournalClose}
-          onSave={(mood) => setTodayMood(mood)}
+          onSave={handleJournalSave}
         />
       )}
 
-      {activeActivity && (
+      {activeActivity && activityOwnerIdRef.current && (
         <ActivitySessionModal
           activity={activeActivity}
-          onClose={() => setActiveActivity(null)}
-          onComplete={handleActivityComplete}
+          onClose={closeActivity.bind(null, activityOwnerIdRef.current)}
+          onComplete={handleActivityComplete.bind(
+            null,
+            activityOwnerIdRef.current,
+            activeActivity,
+          )}
         />
       )}
 
-      {showFocusTimer && (
+      {showFocusTimer && focusOwnerIdRef.current && (
         <FocusTimerModal
-          durationMinutes={12}
-          onClose={() => setShowFocusTimer(false)}
+          ownerId={focusOwnerIdRef.current}
+          durationMinutes={dailyActivities.find((activity) => activity.id === 'adhd-focus-sprint')?.durationMinutes ?? 12}
+          onClose={closeFocusTimer}
           onComplete={handleFocusComplete}
         />
       )}

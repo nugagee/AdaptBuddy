@@ -17,6 +17,8 @@ import {
   X,
 } from 'lucide-react';
 import TeacherHubNav from 'features/teacher/components/TeacherHubNav';
+import AssignmentSupportAssistant from './AssignmentSupportAssistant';
+import supportOptions from 'features/teacher/data/assignmentSupportCatalog.json';
 import { useAuth } from 'hooks/useAuth';
 import {
   TeacherDashboardService,
@@ -35,16 +37,6 @@ const assignmentTypes: Array<{ id: TeacherAssignmentType; label: string }> = [
   { id: 'visual_routine', label: 'Visual routine' },
   { id: 'social_story', label: 'Social story' },
   { id: 'task', label: 'General task' },
-];
-
-const supportOptions = [
-  { id: 'read_aloud', label: 'Read aloud' },
-  { id: 'line_focus', label: 'Line focus' },
-  { id: 'visual_steps', label: 'Visual steps' },
-  { id: 'task_breaker', label: 'Task breaker' },
-  { id: 'calm_break', label: 'Calm break' },
-  { id: 'writing_support', label: 'Writing support' },
-  { id: 'pronunciation_practice', label: 'Pronunciation practice' },
 ];
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
@@ -266,7 +258,7 @@ const ProgressModal: React.FC<{
 );
 
 const Assignments: React.FC = () => {
-  const { isGuest } = useAuth();
+  const { isGuest, user } = useAuth();
   const [summary, setSummary] = useState<TeacherDashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -276,6 +268,7 @@ const Assignments: React.FC = () => {
   const [selectedAssignment, setSelectedAssignment] = useState<TeacherAssignment | null>(null);
   const [editingAssignment, setEditingAssignment] = useState<TeacherAssignment | null>(null);
   const [archivingAssignmentId, setArchivingAssignmentId] = useState<string | null>(null);
+  const [assistantRevision, setAssistantRevision] = useState(0);
   const [form, setForm] = useState({
     classId: '',
     title: '',
@@ -315,6 +308,7 @@ const Assignments: React.FC = () => {
 
   const resetForm = useCallback(() => {
     setEditingAssignment(null);
+    setAssistantRevision((current) => current + 1);
     setForm((current) => ({
       ...current,
       title: '',
@@ -519,6 +513,7 @@ const Assignments: React.FC = () => {
               )}
 
               <select
+                aria-label="Class"
                 value={form.classId}
                 onChange={(event) => setForm((current) => ({ ...current, classId: event.target.value }))}
                 disabled={Boolean(editingAssignment) || !hasClasses}
@@ -531,6 +526,7 @@ const Assignments: React.FC = () => {
               </select>
 
               <input
+                aria-label="Assignment title"
                 value={form.title}
                 onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
                 placeholder="Read page 5 and choose one favourite word"
@@ -538,6 +534,7 @@ const Assignments: React.FC = () => {
               />
 
               <textarea
+                aria-label="Assignment instructions"
                 value={form.description}
                 onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
                 placeholder={
@@ -551,6 +548,7 @@ const Assignments: React.FC = () => {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <select
+                  aria-label="Task type"
                   value={form.assignmentType}
                   onChange={(event) => handleAssignmentTypeChange(event.target.value as TeacherAssignmentType)}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
@@ -561,11 +559,24 @@ const Assignments: React.FC = () => {
                 </select>
                 <input
                   type="datetime-local"
+                  aria-label="Due date"
                   value={form.dueAt}
                   onChange={(event) => setForm((current) => ({ ...current, dueAt: event.target.value }))}
                   className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-adapt-navy outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                 />
               </div>
+
+              <AssignmentSupportAssistant
+                key={`${user?.id ?? 'guest'}:${editingAssignment?.id ?? 'new'}:${assistantRevision}`}
+                assignment={form}
+                selectedTools={form.supportTools}
+                isGuest={isGuest}
+                disabled={saving || !hasClasses}
+                onAddTool={(toolId) => setForm((current) => ({
+                  ...current,
+                  supportTools: Array.from(new Set([...current.supportTools, toolId])),
+                }))}
+              />
 
               <div className="rounded-2xl bg-slate-50 p-4 dark:bg-gray-950">
                 <div className="mb-3 flex items-center gap-2">

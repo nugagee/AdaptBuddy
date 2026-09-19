@@ -1,4 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTeacherReportSession, type TeacherReportSession } from '../hooks/useTeacherReportSession';
+import { useTeacherReportLoad } from '../hooks/useTeacherReportLoad';
+import TeacherTaskRecordList from './TeacherTaskRecordList';
+import { buildTeacherTaskCsv, mostRecordedSupport, taskRecordTotals, taskStatusLabel, REPORT_SCOPE_NOTE, REPORT_STATUS_NOTE } from '../services/teacherTaskReport';
 import {
   AlertTriangle,
   BarChart3,
@@ -18,21 +22,10 @@ import TeacherHubNav from 'features/teacher/components/TeacherHubNav';
 import WeeklyDigestSchedulerPanel from 'components/digest/WeeklyDigestSchedulerPanel';
 import EvidencePackPanel from 'components/support/EvidencePackPanel';
 import {
-  TeacherDashboardService,
   type TeacherAssignment,
-  type TeacherDashboardSummary,
   type TeacherStudent,
   type TeacherSupportSignal,
 } from 'features/teacher/services/teacherDashboardService';
-
-const getErrorMessage = (error: unknown, fallback: string): string => {
-  if (error instanceof Error && error.message) return error.message;
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) return message;
-  }
-  return fallback;
-};
 
 const supportLabel = (value: string): string =>
   value
@@ -40,11 +33,6 @@ const supportLabel = (value: string): string =>
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
-
-const escapeCsvValue = (value: string | number | null | undefined): string => {
-  const text = value === null || value === undefined ? '' : String(value);
-  return `"${text.replace(/"/g, '""')}"`;
-};
 
 const downloadTextFile = (filename: string, contents: string, mimeType: string) => {
   const blob = new Blob([contents], { type: mimeType });
@@ -69,7 +57,7 @@ type ReportRange = 'this_week' | 'last_week' | 'all';
 const rangeLabels: Record<ReportRange, string> = {
   this_week: 'This week',
   last_week: 'Last week',
-  all: 'All time',
+  all: 'All returned task dates',
 };
 
 const getWeekStart = (date: Date): Date => {
@@ -102,40 +90,21 @@ const isAssignmentInRange = (assignment: TeacherAssignment, range: ReportRange):
   return timestamp >= lastWeekStart.getTime() && timestamp < thisWeekStart.getTime();
 };
 
-const getCompletionRate = (assignments: TeacherAssignment[]): number => {
-  const assigned = assignments.reduce((total, assignment) => total + assignment.progress.assignedCount, 0);
-  if (assigned === 0) return 0;
-  const completed = assignments.reduce(
-    (total, assignment) => total + assignment.progress.completed + assignment.progress.submitted,
-    0,
-  );
-  return Math.round((completed / assigned) * 100);
-};
-
-const getMostUsedSupport = (assignments: TeacherAssignment[]): string => {
-  const counts = new Map<string, number>();
-  assignments.forEach((assignment) => {
-    assignment.learnerProgress.forEach((learner) => {
-      learner.supportUsed.forEach((support) => counts.set(support, (counts.get(support) ?? 0) + 1));
-    });
-  });
-
-  const [top] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-  return top ? supportLabel(top[0]) : 'No supports used yet';
-};
+const getCompletionRate = (assignments: TeacherAssignment[]) => taskRecordTotals(assignments).completionRate;
+const getMostUsedSupport = (assignments: TeacherAssignment[]) => mostRecordedSupport(assignments);
 
 const getMoodSummary = (assignments: TeacherAssignment[]): string => {
   const counts = new Map<string, number>();
   assignments.forEach((assignment) => {
     assignment.learnerProgress.forEach((learner) => {
-      if (learner.moodAfterTask) {
+      if (learner.hasRecordedUpdate === true && learner.moodAfterTask) {
         counts.set(learner.moodAfterTask, (counts.get(learner.moodAfterTask) ?? 0) + 1);
       }
     });
   });
 
   const [top] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-  return top ? supportLabel(top[0]) : 'No mood check-ins yet';
+  return top ? supportLabel(top[0]) : 'No shared task feeling returned';
 };
 
 const formatNeurotypes = (values: string[]): string =>
@@ -160,29 +129,19 @@ const getLearnerAssignments = (assignments: TeacherAssignment[], childId: string
     }))
     .filter((row) => row.progress);
 
-const getLearnerMostUsedSupport = (assignments: TeacherAssignment[], childId: string): string => {
-  const counts = new Map<string, number>();
-
-  getLearnerAssignments(assignments, childId).forEach(({ assignment, progress }) => {
-    const supports = progress?.supportUsed.length ? progress.supportUsed : assignment.supportTools;
-    supports.forEach((support) => counts.set(support, (counts.get(support) ?? 0) + 1));
-  });
-
-  const [top] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-  return top ? supportLabel(top[0]) : 'Visual steps';
-};
+const getLearnerMostUsedSupport = (assignments: TeacherAssignment[], childId: string): string => mostRecordedSupport(assignments, childId);
 
 const getLearnerMoodSummary = (assignments: TeacherAssignment[], childId: string): string => {
   const counts = new Map<string, number>();
 
   getLearnerAssignments(assignments, childId).forEach(({ progress }) => {
-    if (progress?.moodAfterTask) {
+    if (progress?.hasRecordedUpdate === true && progress.moodAfterTask) {
       counts.set(progress.moodAfterTask, (counts.get(progress.moodAfterTask) ?? 0) + 1);
     }
   });
 
   const [top] = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-  return top ? supportLabel(top[0]) : 'No mood check-ins yet';
+  return top ? supportLabel(top[0]) : 'No shared task feeling returned';
 };
 
 const getPlanRecommendations = (
@@ -247,37 +206,13 @@ const ReportMetric: React.FC<{
   </article>
 );
 
-const Reports: React.FC = () => {
-  const [summary, setSummary] = useState<TeacherDashboardSummary | null>(null);
-  const [selectedClassId, setSelectedClassId] = useState('');
+const ReportsForSession: React.FC<{ session: TeacherReportSession }> = ({ session }) => {
+  const { summary, selectedClassId, setSelectedClassId, loading, refreshing, error, setError, loadReports, loadedAt } = useTeacherReportLoad(session);
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedRange, setSelectedRange] = useState<ReportRange>('this_week');
   const [printMode, setPrintMode] = useState<'class' | 'support' | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadReports = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
-    if (mode === 'initial') setLoading(true);
-    else setRefreshing(true);
-    setError(null);
-
-    try {
-      const data = await TeacherDashboardService.getDashboardSummary();
-      setSummary(data);
-      setSelectedClassId((current) => current || data.classes[0]?.id || '');
-    } catch (loadError) {
-      console.error('Error loading teacher reports:', loadError);
-      setError(getErrorMessage(loadError, 'Could not load reports.'));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadReports();
-  }, [loadReports]);
+  const printCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => { printCleanup.current?.(); }, []);
 
   const selectedClass = useMemo(
     () => summary?.classes.find((teacherClass) => teacherClass.id === selectedClassId) ?? null,
@@ -335,106 +270,48 @@ const Reports: React.FC = () => {
   );
 
   const learnerCompleted = learnerAssignmentRows.filter(({ progress }) =>
-    progress?.status === 'completed' || progress?.status === 'submitted',
+    progress?.hasRecordedUpdate === true && (progress.status === 'completed' || progress.status === 'submitted'),
   ).length;
-  const learnerNeedsHelp = learnerAssignmentRows.filter(({ progress }) => progress?.status === 'needs_help').length;
+  const learnerNeedsHelp = learnerAssignmentRows.filter(({ progress }) => progress?.hasRecordedUpdate === true && progress.status === 'needs_help').length;
   const learnerMostUsedSupport = selectedStudent
     ? getLearnerMostUsedSupport(classAssignments, selectedStudent.childId)
-    : 'Visual steps';
+    : 'No support use returned';
   const learnerMoodSummary = selectedStudent
     ? getLearnerMoodSummary(classAssignments, selectedStudent.childId)
-    : 'No mood check-ins yet';
+    : 'No shared task feeling returned';
   const learnerRecommendations = getPlanRecommendations(selectedStudent, classAssignments, learnerSignals);
 
-  const helpRequests = classAssignments.reduce((total, assignment) => total + assignment.progress.needsHelp, 0);
-  const completed = classAssignments.reduce(
-    (total, assignment) => total + assignment.progress.completed + assignment.progress.submitted,
-    0,
-  );
-  const assigned = classAssignments.reduce((total, assignment) => total + assignment.progress.assignedCount, 0);
-  const reportGeneratedAt = new Intl.DateTimeFormat('en-GB', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date());
+  const taskTotals = taskRecordTotals(classAssignments);
+  const { needsHelp: helpRequests, completed, visiblePairs: assigned } = taskTotals;
+  const reportGeneratedAt = loadedAt ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(loadedAt)) : 'Not loaded';
 
   const handleExportCsv = () => {
-    if (!selectedClass) {
-      setError('Choose a class before exporting a report.');
-      return;
-    }
-
-    const headers = [
-      'Class',
-      'Range',
-      'Assignment',
-      'Learner',
-      'Buddy ID',
-      'Neurotypes',
-      'Status',
-      'Mood after task',
-      'Support used',
-      'Updated at',
-    ];
-    const rows = classAssignments.flatMap((assignment) => {
-      if (assignment.learnerProgress.length === 0) {
-        return [[
-          selectedClass.className,
-          rangeLabels[selectedRange],
-          assignment.title,
-          '',
-          '',
-          '',
-          'not_started',
-          '',
-          assignment.supportTools.map(supportLabel).join('; '),
-          assignment.createdAt,
-        ]];
-      }
-
-      return assignment.learnerProgress.map((learner) => [
-        selectedClass.className,
-        rangeLabels[selectedRange],
-        assignment.title,
-        learner.childName,
-        learner.buddyId ?? '',
-        learner.neurotypes.join('; '),
-        learner.status,
-        learner.moodAfterTask ?? '',
-        learner.supportUsed.map(supportLabel).join('; '),
-        learner.updatedAt ?? assignment.createdAt,
-      ]);
-    });
-
-    const csv = [
-      ['AdaptBuddy teacher class support report'],
-      [`Generated: ${reportGeneratedAt}`],
-      [`Class: ${selectedClass.className}`],
-      [`Range: ${rangeLabels[selectedRange]}`],
-      [],
-      headers,
-      ...rows,
-    ]
-      .map((row) => row.map(escapeCsvValue).join(','))
-      .join('\n');
-
-    downloadTextFile(
-      `${slugify(selectedClass.className)}-${selectedRange}-support-report.csv`,
-      csv,
-      'text/csv;charset=utf-8',
-    );
+    if (!session.isCurrent() || !summary || !selectedClass || loading || refreshing) return;
+    const csv = buildTeacherTaskCsv(selectedClass.className, rangeLabels[selectedRange], loadedAt, classAssignments, session.guest);
+    downloadTextFile(`${slugify(selectedClass.className)}-${selectedRange}-task-records.csv`, csv, 'text/csv;charset=utf-8');
   };
 
+  const printContext = useRef('');
+  printContext.current = summary && selectedClass && !loading && !refreshing ? JSON.stringify([loadedAt, selectedClassId, selectedStudentId, selectedRange]) : '';
+
   const handlePrint = (mode: 'class' | 'support') => {
+    if (!session.isCurrent() || !summary || !selectedClass || loading || refreshing) return;
+    printCleanup.current?.();
+    const expectedContext = printContext.current;
     setPrintMode(mode);
-    window.setTimeout(() => {
-      const resetPrintMode = () => setPrintMode(null);
-      window.addEventListener('afterprint', resetPrintMode, { once: true });
+    let resetTimer: ReturnType<typeof setTimeout> | undefined;
+    const reset = () => { if (session.isCurrent()) setPrintMode(null); };
+    const launch = setTimeout(() => {
+      if (!session.isCurrent() || !expectedContext || printContext.current !== expectedContext) return;
+      window.addEventListener('afterprint', reset, { once: true });
       window.print();
-      window.setTimeout(resetPrintMode, 1000);
+      resetTimer = setTimeout(reset, 1000);
     }, 0);
+    printCleanup.current = () => { clearTimeout(launch); if (resetTimer) clearTimeout(resetTimer); window.removeEventListener('afterprint', reset); };
   };
 
   const handleExportSupportPlan = () => {
+    if (!session.isCurrent() || !summary || loading || refreshing) return;
     if (!selectedClass || !selectedStudent) {
       setError('Choose a learner before exporting a support plan.');
       return;
@@ -442,15 +319,17 @@ const Reports: React.FC = () => {
 
     const assignmentLines = learnerAssignmentRows.length
       ? learnerAssignmentRows.map(({ assignment, progress }) =>
-          `- ${assignment.title}: ${supportLabel(progress?.status ?? 'not_started')}`
+          `- ${assignment.title}: ${progress ? taskStatusLabel(progress) : 'No status returned'}`
         )
-      : ['- No assignment activity yet.'];
+      : ['- No learner-task rows returned for this filter.'];
     const signalLines = learnerSignals.length
       ? learnerSignals.map((signal) => `- ${getSignalLabel(signal)} (${signal.riskLevel})`)
       : ['- No shared support signals in this range.'];
 
     const plan = [
-      'AdaptBuddy Learner Support Plan',
+      session.guest ? 'AdaptBuddy Learner Support Plan — FICTIONAL DEMO' : 'AdaptBuddy Learner Support Plan',
+      REPORT_SCOPE_NOTE,
+      REPORT_STATUS_NOTE,
       `Generated: ${reportGeneratedAt}`,
       `Class: ${selectedClass.className}`,
       `Learner: ${selectedStudent.childName}`,
@@ -458,10 +337,10 @@ const Reports: React.FC = () => {
       `Support profile: ${selectedStudent.visibilitySettings.neuroProfile ? formatNeurotypes(selectedStudent.neurotypes) : 'Hidden by family'}`,
       '',
       'Current Snapshot',
-      `- Assignments completed: ${learnerCompleted}/${learnerAssignmentRows.length}`,
+      `- Completed/submitted records: ${learnerCompleted}/${learnerAssignmentRows.length}`,
       `- Needs help: ${learnerNeedsHelp}`,
-      `- Most useful support: ${learnerMostUsedSupport}`,
-      `- Common mood after tasks: ${learnerMoodSummary}`,
+      `- Most recorded support: ${learnerMostUsedSupport}`,
+      `- Most returned optional task feeling: ${learnerMoodSummary}`,
       '',
       'Recommended Classroom Adjustments',
       ...learnerRecommendations.map((recommendation) => `- ${recommendation}`),
@@ -473,7 +352,7 @@ const Reports: React.FC = () => {
       ...signalLines,
       '',
       'Privacy Boundary',
-      'This plan uses parent-approved visibility. Private journal text and personal notes remain hidden unless explicitly shared.',
+      'This plan uses returned records and configured visibility; it does not certify guardian authority. Private journal text and personal notes remain hidden unless explicitly shared.',
     ].join('\n');
 
     downloadTextFile(
@@ -483,16 +362,28 @@ const Reports: React.FC = () => {
     );
   };
 
-  if (loading) {
+  if (loading || refreshing) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
         <TeacherHubNav />
-        <div className="flex items-center justify-center px-4 py-16">
+        <div role="status" className="flex items-center justify-center gap-3 px-4 py-16">
+          <span>Loading teacher reports...</span>
           <Loader2 className="h-10 w-10 animate-spin text-adapt-indigo dark:text-adapt-cyan" aria-hidden />
         </div>
       </div>
     );
   }
+
+  if (!summary) return (
+    <div className="min-h-screen bg-slate-50 p-4 dark:bg-gray-950 dark:text-gray-100">
+      <TeacherHubNav />
+      <main className="mx-auto max-w-4xl rounded-2xl border border-slate-300 p-6">
+        <h1 className="text-2xl font-bold">Teacher reports unavailable</h1>
+        <p role="alert" className="my-4">{error ?? 'Report data is not available. No empty report is being inferred.'}</p>
+        <button type="button" className="min-h-12 rounded-xl border-2 p-3 font-semibold" onClick={() => void loadReports('refresh')}>Retry teacher reports</button>
+      </main>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist/40 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900">
@@ -500,6 +391,10 @@ const Reports: React.FC = () => {
         <TeacherHubNav />
       </div>
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        {session.guest && <p role="status" className="rounded-xl border-2 border-sky-300 p-4 font-bold">Teacher demo — fictional records, no real school task reads.</p>}
+        <p className="rounded-xl border border-slate-300 p-4 text-sm dark:text-slate-200">{REPORT_SCOPE_NOTE} Snapshot loaded: {reportGeneratedAt}.</p>
+        <p className="rounded-xl border border-slate-300 p-4 text-sm dark:text-slate-200">{REPORT_STATUS_NOTE}</p>
+        {!summary.classes.length && <p role="status">No classes returned for this account. This does not establish that no other school connection exists.</p>}
         <section className={`${printMode === 'support' ? 'adaptbuddy-no-print' : 'adaptbuddy-report-print'} space-y-6`}>
         <header className="rounded-3xl border border-white/70 bg-white/85 p-6 shadow-card dark:border-gray-800 dark:bg-gray-900/80">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -511,8 +406,8 @@ const Reports: React.FC = () => {
                 Class support snapshot
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 dark:text-gray-400">
-                Privacy-aware reports built from assignments, learner progress, support tools, and parent-approved
-                visibility.
+                A snapshot of returned task records, configured visibility and existing support-planning information.
+                Refresh to request current data; this page does not certify school or guardian authority.
               </p>
               <p className="mt-3 text-xs font-bold text-slate-500 dark:text-gray-400">
                 Generated {reportGeneratedAt}
@@ -615,16 +510,16 @@ const Reports: React.FC = () => {
             tone="bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-200"
           />
           <ReportMetric
-            label="Completion"
-            value={`${getCompletionRate(classAssignments)}%`}
-            detail={`${completed}/${assigned || 0} learner tasks completed`}
+            label="Recorded completion"
+            value={getCompletionRate(classAssignments) === null ? '—' : `${getCompletionRate(classAssignments)}%`}
+            detail={`${completed}/${assigned} visible learner-task pairs; ${taskTotals.unreturned} with no status returned`}
             icon={CheckCircle2}
             tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
           />
           <ReportMetric
             label="Need help"
             value={helpRequests}
-            detail="Assignment help requests"
+            detail="Returned help statuses—not a seen receipt"
             icon={AlertTriangle}
             tone="bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
           />
@@ -644,35 +539,7 @@ const Reports: React.FC = () => {
               <h2 className="text-xl font-extrabold text-adapt-navy dark:text-gray-100">Assignment progress</h2>
             </div>
             <div className="mt-4 space-y-3">
-              {classAssignments.length ? (
-                classAssignments.map((assignment) => {
-                  const rate = assignment.progress.assignedCount
-                    ? Math.round(((assignment.progress.completed + assignment.progress.submitted) / assignment.progress.assignedCount) * 100)
-                    : 0;
-                  return (
-                    <article key={assignment.id} className="rounded-2xl bg-slate-50 p-4 dark:bg-gray-950">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="font-black text-adapt-navy dark:text-gray-100">{assignment.title}</h3>
-                          <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
-                            {assignment.progress.needsHelp} need help · {assignment.progress.inProgress} in progress
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-white px-3 py-1 text-sm font-black text-adapt-indigo shadow-sm dark:bg-gray-900 dark:text-adapt-cyan">
-                          {rate}%
-                        </span>
-                      </div>
-                      <div className="mt-3 h-3 overflow-hidden rounded-full bg-white dark:bg-gray-900">
-                        <div className="h-full rounded-full bg-adapt-indigo dark:bg-adapt-cyan" style={{ width: `${rate}%` }} />
-                      </div>
-                    </article>
-                  );
-                })
-              ) : (
-                <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm font-semibold text-slate-500 dark:border-gray-800 dark:text-gray-400">
-                  No assignments have been sent to this class yet.
-                </p>
-              )}
+              <TeacherTaskRecordList assignments={classAssignments} classSelected={Boolean(selectedClass)} />
             </div>
           </div>
 
@@ -681,10 +548,10 @@ const Reports: React.FC = () => {
               <h2 className="text-xl font-extrabold text-adapt-navy dark:text-gray-100">Support insight</h2>
               <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600 dark:text-gray-300">
                 <p>
-                  Most used support: <span className="font-black text-adapt-navy dark:text-gray-100">{getMostUsedSupport(classAssignments)}</span>
+                  Most recorded support: <span className="font-black text-adapt-navy dark:text-gray-100">{getMostUsedSupport(classAssignments)}</span>
                 </p>
                 <p>
-                  Common mood after tasks: <span className="font-black text-adapt-navy dark:text-gray-100">{getMoodSummary(classAssignments)}</span>
+                  Most returned optional task feeling: <span className="font-black text-adapt-navy dark:text-gray-100">{getMoodSummary(classAssignments)}</span>
                 </p>
                 <p>
                   Suggested classroom response: keep tasks short, use visual steps first, and follow up quickly on
@@ -696,8 +563,8 @@ const Reports: React.FC = () => {
             <div className="rounded-3xl border border-adapt-indigo/15 bg-adapt-indigo/5 p-5 dark:border-adapt-cyan/20 dark:bg-adapt-cyan/10">
               <h2 className="text-lg font-extrabold text-adapt-navy dark:text-gray-100">Privacy note</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-gray-300">
-                Reports use parent-approved visibility only. Worry diary text and private child notes remain hidden
-                unless the family explicitly shares them.
+                Reports display the records returned under existing server permissions and configured visibility. Worry diary text and private child notes remain hidden
+                unless explicitly shared through the approved safeguarding process.
               </p>
             </div>
           </aside>
@@ -792,7 +659,7 @@ const Reports: React.FC = () => {
                   <p className="mt-2 text-2xl font-black text-adapt-navy dark:text-gray-100">
                     {learnerCompleted}/{learnerAssignmentRows.length}
                   </p>
-                  <p className="text-xs font-bold text-slate-500 dark:text-gray-400">Tasks complete</p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-gray-400">Recorded complete/submitted</p>
                 </div>
                 <div className="rounded-2xl bg-amber-50 p-4 dark:bg-amber-950/20">
                   <AlertTriangle className="h-5 w-5 text-amber-700 dark:text-amber-200" aria-hidden />
@@ -807,7 +674,7 @@ const Reports: React.FC = () => {
                 <div className="rounded-2xl bg-violet-50 p-4 dark:bg-violet-950/20">
                   <Brain className="h-5 w-5 text-violet-700 dark:text-violet-200" aria-hidden />
                   <p className="mt-2 text-lg font-black text-adapt-navy dark:text-gray-100">{learnerMostUsedSupport}</p>
-                  <p className="text-xs font-bold text-slate-500 dark:text-gray-400">Most useful support</p>
+                  <p className="text-xs font-bold text-slate-500 dark:text-gray-400">Most recorded support</p>
                 </div>
               </section>
 
@@ -861,12 +728,12 @@ const Reports: React.FC = () => {
                         <div key={assignment.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 text-sm dark:bg-gray-900">
                           <p className="font-semibold text-slate-700 dark:text-gray-300">{assignment.title}</p>
                           <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-adapt-indigo dark:bg-gray-950 dark:text-adapt-cyan">
-                            {supportLabel(progress?.status ?? 'not_started')}
+                            {progress ? taskStatusLabel(progress) : 'No status returned'}
                           </span>
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm font-semibold text-slate-500 dark:text-gray-400">No learner assignment activity yet.</p>
+                      <p className="text-sm font-semibold text-slate-500 dark:text-gray-400">No learner-task records returned for this filter.</p>
                     )}
                   </div>
                 </div>
@@ -886,9 +753,9 @@ const Reports: React.FC = () => {
               </section>
 
               <p className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-xs font-semibold leading-5 text-slate-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
-                Privacy boundary: this support plan uses parent-approved visibility only. It is a classroom support aid,
+                Privacy boundary: this support plan uses returned records and configured visibility; it does not certify guardian authority. It is a classroom support aid,
                 not a diagnostic document. Private journal text, personal notes, and hidden profile information remain
-                excluded unless the family explicitly shares them.
+                excluded unless explicitly shared through the approved safeguarding process.
               </p>
             </article>
           ) : (
@@ -902,4 +769,9 @@ const Reports: React.FC = () => {
   );
 };
 
+const Reports: React.FC = () => {
+  const session = useTeacherReportSession();
+  if (!session) return <main className="min-h-screen bg-slate-50 p-6 dark:bg-gray-950 dark:text-gray-100"><p role="status">A current, authorised teacher session is needed to view reports.</p></main>;
+  return <ReportsForSession key={session.key} session={session} />;
+};
 export default Reports;

@@ -4,10 +4,8 @@ import { Sparkles, Shield, Accessibility } from 'lucide-react';
 import { ROUTES } from 'constants/routes';
 import adaptbuddyLogo from 'assets/Adaptbuddy_logo.png';
 import TypingBuddyMessage from 'components/animations/TypingBuddyMessage';
-import { useAuthStore } from 'store/authStore';
 
 const HeroSection: React.FC = () => {
-  const setGuestMode = useAuthStore((s) => s.setGuestMode);
 
   return (
     <section className="relative overflow-hidden pt-8 pb-16 sm:pt-12 sm:pb-24">
@@ -38,8 +36,7 @@ const HeroSection: React.FC = () => {
               Start gently
             </Link>
             <Link
-              to={`${ROUTES.GUEST_ENTRY}?role=child`}
-              onClick={() => setGuestMode('child')}
+              to={ROUTES.GUEST_ENTRY}
               className="rounded-full border-2 border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-adapt-navy transition hover:border-adapt-indigo/30 hover:bg-adapt-mist"
             >
               Enter as guest
@@ -49,11 +46,11 @@ const HeroSection: React.FC = () => {
           <span className="mt-8 flex flex-wrap gap-6 text-sm text-slate-500 block">
             <span className="inline-flex items-center gap-2">
               <Accessibility className="h-4 w-4 text-adapt-teal" aria-hidden />
-              WCAG-friendly
+              Designed for accessibility
             </span>
             <span className="inline-flex items-center gap-2">
               <Shield className="h-4 w-4 text-adapt-indigo" aria-hidden />
-              Co-designed with families
+              Ready for family-led testing
             </span>
           </span>
         </span>

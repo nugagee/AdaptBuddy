@@ -1,6 +1,7 @@
 import { EmotionAnalysis, EmotionType, RiskLevel } from 'types/ai.types';
 
-// Mock NLP model - In production, connect to Hugging Face/OpenAI
+// Local keyword heuristic; no trained NLP model or external AI call.
+// Legacy confidence values are fixed rule weights, not calibrated probabilities.
 export class EmotionDetector {
   private static positiveWords = [
     'happy', 'good', 'great', 'excited', 'love', 'awesome', 'fun', 'joy',

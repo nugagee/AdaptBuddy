@@ -35,10 +35,11 @@ type StepId = 'welcome' | 'comfort' | 'overall' | 'improve' | 'wish' | 'details'
 
 const ExperienceSurveyModal: React.FC<ExperienceSurveyModalProps> = ({ open, onClose }) => {
   const { profile, isGuest } = useAuth();
-  const role = profile?.role === 'child' || profile?.role === 'teacher' || profile?.role === 'parent'
+  const role = profile?.role === 'child' || profile?.role === 'adult' || profile?.role === 'teacher' || profile?.role === 'parent'
     ? profile.role
     : 'parent';
   const isChild = role === 'child';
+  const isAdultLearner = role === 'adult';
   const features = useMemo(() => surveyFeaturesForRole(role), [role]);
   const visitorKey = useMemo(() => getVisitorKey(), []);
 
@@ -104,17 +105,29 @@ const ExperienceSurveyModal: React.FC<ExperienceSurveyModalProps> = ({ open, onC
         successTitle: 'Thank you for sharing',
         successBody: 'Your ideas help us make AdaptBuddy kinder and clearer for every buddy.',
       }
-    : {
-        welcomeTitle: 'Shape AdaptBuddy with us',
-        welcomeBody: 'A short, calm survey about comfort with key features, your experience, and what you want improved next.',
-        overallTitle: 'How would you rate your overall experience?',
-        improveTitle: 'What should we improve?',
-        wishTitle: 'What features would you like to see?',
-        improvePlaceholder: 'Navigation, language load, classroom flow, reporting…',
-        wishPlaceholder: 'Expected features, integrations, or support tools…',
-        successTitle: 'Thank you — we heard you',
-        successBody: 'Your feedback helps us prioritise clearer, calmer, more inclusive experiences.',
-      };
+    : isAdultLearner
+      ? {
+          welcomeTitle: 'How is Independent Buddy working?',
+          welcomeBody: 'A short check-in about comfort, clarity, and what would help you work more independently.',
+          overallTitle: 'How would you rate your overall experience?',
+          improveTitle: 'What should we improve?',
+          wishTitle: 'What would you like next?',
+          improvePlaceholder: 'Language load, focus tools, optional support, navigation…',
+          wishPlaceholder: 'Workplace supports, study tools, quieter modes…',
+          successTitle: 'Thank you — we heard you',
+          successBody: 'Your feedback helps us keep Independent Buddy calm, clear, and adult-paced.',
+        }
+      : {
+          welcomeTitle: 'Shape AdaptBuddy with us',
+          welcomeBody: 'A short, calm survey about comfort with key features, your experience, and what you want improved next.',
+          overallTitle: 'How would you rate your overall experience?',
+          improveTitle: 'What should we improve?',
+          wishTitle: 'What features would you like to see?',
+          improvePlaceholder: 'Navigation, language load, classroom flow, reporting…',
+          wishPlaceholder: 'Expected features, integrations, or support tools…',
+          successTitle: 'Thank you — we heard you',
+          successBody: 'Your feedback helps us prioritise clearer, calmer, more inclusive experiences.',
+        };
 
   const goNextFromComfort = () => {
     if (!currentFeature || !currentFeatureScore) return;

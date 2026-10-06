@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { LockFunc } from '@supabase/auth-js';
 
 // Types
-export type UserRole = 'child' | 'parent' | 'teacher' | 'admin';
+export type UserRole = 'child' | 'adult' | 'parent' | 'teacher' | 'admin';
 
 export type UserSex = 'male' | 'female' | 'intersex' | 'prefer_not_to_say';
 

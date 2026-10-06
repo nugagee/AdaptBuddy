@@ -45,6 +45,8 @@ import {
 import { useAuth } from 'hooks/useAuth';
 import { ROUTES } from 'constants/routes';
 import { buildActivityLaunchPath } from 'features/child/routing/routedActivityCompletion';
+import { isAdultLearnerRole, isLearnerRole } from 'constants/roles';
+import IndependentBuddyBanner from 'features/child/components/dashboard/IndependentBuddyBanner';
 import '../components/dashboard/child-dashboard.css';
 
 const ChildDashboardPage: React.FC = () => {
@@ -53,7 +55,7 @@ const ChildDashboardPage: React.FC = () => {
   const { profile, user, isGuest } = useAuth();
   const { preferredName } = useActiveChildSupportProfile();
   const authenticatedChildId =
-    !isGuest && user?.id && profile?.role === 'child' && profile.id === user.id
+    !isGuest && user?.id && isLearnerRole(profile?.role) && profile?.id === user.id
       ? user.id
       : null;
 
@@ -325,6 +327,8 @@ const ChildDashboardPage: React.FC = () => {
       )}
 
       <main className="mx-auto max-w-5xl space-y-6 p-4 pb-16 sm:p-6 sm:pb-20">
+        {isAdultLearnerRole(profile?.role) && <IndependentBuddyBanner firstName={firstName} />}
+
         <DashboardHero
           firstName={firstName}
           neuroTypes={neuroTypes}

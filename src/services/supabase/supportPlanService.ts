@@ -250,7 +250,7 @@ async function getProfiles(ids: string[]): Promise<Map<string, ProfileRow>> {
 }
 
 async function getScopedChildIds(profile: Profile): Promise<string[]> {
-  if (profile.role === 'child') return [profile.id];
+  if (profile.role === 'child' || profile.role === 'adult') return [profile.id];
 
   if (profile.role === 'parent') {
     const [relationships, trustedAdults] = await Promise.all([

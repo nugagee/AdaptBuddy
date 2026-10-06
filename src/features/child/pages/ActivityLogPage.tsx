@@ -17,6 +17,7 @@ import { useChildProgressStore } from 'features/child/store/childProgressStore';
 import { useChildProgressReadAccess } from 'features/child/store/childProgressReadAccess';
 import { ClassLiveSessionService } from 'features/classroom/services/classLiveSessionService';
 import { useAuth } from 'hooks/useAuth';
+import { isLearnerRole } from 'constants/roles';
 import {
   ACTIVITY_MODE_LABELS,
   MOOD_PULSE_OPTIONS,
@@ -74,8 +75,8 @@ const ActivityLogPage: React.FC = () => {
   const guestHistoryChildId =
     isGuest
     && !user
-    && profile?.role === 'child'
-    && profile.id === 'guest-child'
+    && isLearnerRole(profile?.role)
+    && (profile?.id === 'guest-child' || profile?.id === 'guest-adult')
       ? profile.id
       : null;
   const historyChildId = progressChildId ?? guestHistoryChildId;

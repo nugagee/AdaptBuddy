@@ -1,23 +1,32 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Smile, Heart, GraduationCap, ArrowRight } from 'lucide-react';
+import { Smile, Heart, GraduationCap, ArrowRight, Sparkles } from 'lucide-react';
 import { ROUTES } from 'constants/routes';
 
 const roles = [
   {
     icon: Smile,
     title: "I'm a Child",
-    description: 'Playful learning, calm tools, and a buddy who gets you.',
-    to: ROUTES.SIGNUP,
+    description: 'Playful learning, calm tools, and a buddy who gets you (ages 4–17).',
+    to: `${ROUTES.SIGNUP}?role=child`,
     accent: 'from-violet-50 to-indigo-50 border-violet-100 hover:border-violet-200',
     iconBg: 'bg-violet-100 text-violet-600',
     iconBgHover: 'group-hover:bg-violet-200 group-hover:text-violet-700',
   },
   {
+    icon: Sparkles,
+    title: "I'm an Adult learner",
+    description: 'Independent Buddy — the same calm tools, adult pace, optional support (18+).',
+    to: `${ROUTES.SIGNUP}?role=adult`,
+    accent: 'from-teal-50 to-cyan-50 border-teal-100 hover:border-teal-200',
+    iconBg: 'bg-teal-100 text-teal-700',
+    iconBgHover: 'group-hover:bg-teal-200 group-hover:text-teal-800',
+  },
+  {
     icon: Heart,
     title: "I'm a Parent",
     description: 'In-app support requests and tools for supporting your child.',
-    to: ROUTES.SIGNUP,
+    to: `${ROUTES.SIGNUP}?role=parent`,
     accent: 'from-pink-50 to-rose-50 border-pink-100 hover:border-pink-200',
     iconBg: 'bg-pink-100 text-pink-600',
     iconBgHover: 'group-hover:bg-pink-200 group-hover:text-pink-700',
@@ -43,7 +52,10 @@ const RoleSection: React.FC = () => (
         <h2 className="mt-3 text-3xl font-bold text-adapt-navy sm:text-4xl">
           A door for everyone in the room.
         </h2>
-        <span className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600">
+          Growing past 17? Step into Independent Buddy — same support tools, adult language, and you stay in control.
+        </p>
+        <span className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {roles.map((role) => (
             <Link
               key={role.title}

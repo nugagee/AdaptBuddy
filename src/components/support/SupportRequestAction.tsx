@@ -56,6 +56,14 @@ function RequestForm({ childId, source, urgent }: { childId: string; source: Sou
 export default function SupportRequestAction({ source, urgent, contextKey }: Props) {
   const { user, isGuest, profile } = useAuth();
   if (!SUPPORT_RECORDING_ENABLED) return <p className="mt-3 text-sm">{DIRECT_ADULT_GUIDANCE}</p>;
-  if (!user?.id || isGuest || profile?.role !== 'child') return <p className="mt-3 text-sm">Please show this screen to a safe adult nearby. Sign in as a child to keep a support record.</p>;
+  if (!user?.id || isGuest || (profile?.role !== 'child' && profile?.role !== 'adult')) {
+    return (
+      <p className="mt-3 text-sm">
+        {profile?.role === 'adult'
+          ? 'Sign in as an adult learner to keep a support record.'
+          : 'Please show this screen to a safe adult nearby. Sign in as a child to keep a support record.'}
+      </p>
+    );
+  }
   return <RequestForm key={`${user.id}:${contextKey}`} childId={user.id} source={source} urgent={urgent} />;
 }

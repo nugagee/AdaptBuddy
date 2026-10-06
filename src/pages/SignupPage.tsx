@@ -1,12 +1,14 @@
-import React, { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Check, GraduationCap, Heart, Smile, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Check, GraduationCap, Heart, Sparkles, Smile, X } from 'lucide-react';
 import { useAuth } from 'hooks/useAuth';
 import { UserRole, isSupabaseConfigured, type UserGender, type UserSex } from 'services/supabase/client';
 import { getPostSignupRoute, getRouteForUser, type SignupDetails } from 'services/supabase/authService';
 import { useAuthStore } from 'store/authStore';
 import { ROUTES } from 'constants/routes';
 import {
+  ADULT_LEARNER_MAX_AGE,
+  ADULT_LEARNER_MIN_AGE,
   CHILD_MAX_AGE,
   CHILD_MIN_AGE,
   UK_GENDER_FIELD_HINT,
@@ -15,8 +17,10 @@ import {
   UK_SEX_FIELD_HINT,
   UK_SEX_FIELD_LABEL,
   UK_SEX_OPTIONS,
-  isValidChildAge,
-  parseChildAge,
+  isLearnerRole,
+  isValidLearnerAgeForRole,
+  parseLearnerAge,
+  shouldSuggestAdultLane,
 } from 'constants/signup';
 import { toAuthErrorMessage } from 'services/supabase/authErrors';
 import { isPasswordValid } from 'utils/passwordValidation';
@@ -33,15 +37,28 @@ import {
 } from 'pages/auth/authForm';
 
 const roles: {
-  value: UserRole;
+  value: Exclude<UserRole, 'admin'>;
   label: string;
+  hint: string;
   icon: React.ReactNode;
 }[] = [
-  { value: 'child', label: 'Child', icon: <Smile className="h-6 w-6" aria-hidden /> },
-  { value: 'parent', label: 'Parent', icon: <Heart className="h-6 w-6" aria-hidden /> },
+  {
+    value: 'child',
+    label: 'Child',
+    hint: 'Ages 4–17',
+    icon: <Smile className="h-6 w-6" aria-hidden />,
+  },
+  {
+    value: 'adult',
+    label: 'Adult learner',
+    hint: '18+ independent',
+    icon: <Sparkles className="h-6 w-6" aria-hidden />,
+  },
+  { value: 'parent', label: 'Parent', hint: 'Support circle', icon: <Heart className="h-6 w-6" aria-hidden /> },
   {
     value: 'teacher',
     label: 'Teacher',
+    hint: 'Classroom tools',
     icon: <GraduationCap className="h-6 w-6" aria-hidden />,
   },
 ];
@@ -72,6 +89,7 @@ const emptyRoleForm = (): RoleSignupForm => ({
 
 const initialFormsByRole = (): Record<UserRole, RoleSignupForm> => ({
   child: emptyRoleForm(),
+  adult: emptyRoleForm(),
   parent: emptyRoleForm(),
   teacher: emptyRoleForm(),
   admin: emptyRoleForm(),
@@ -79,16 +97,23 @@ const initialFormsByRole = (): Record<UserRole, RoleSignupForm> => ({
 
 const namePlaceholders: Record<UserRole, { first: string; last: string }> = {
   child: { first: 'e.g. Alex', last: 'e.g. Morgan' },
+  adult: { first: 'e.g. Jordan', last: 'e.g. Adeyemi' },
   parent: { first: 'e.g. Sarah', last: 'e.g. Johnson' },
   teacher: { first: 'e.g. James', last: 'e.g. Okonkwo' },
   admin: { first: 'e.g. Admin', last: 'e.g. User' },
 };
 
+function parseSignupRole(raw: string | null): UserRole {
+  if (raw === 'child' || raw === 'adult' || raw === 'parent' || raw === 'teacher') return raw;
+  return 'parent';
+}
+
 const SignupPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { requestSignupVerification, verifySignupAndCreateProfile, resendSignupVerification, saveSignupProfile } =
     useAuth();
-  const [role, setRole] = useState<UserRole>('parent');
+  const [role, setRole] = useState<UserRole>(() => parseSignupRole(searchParams.get('role')));
   const [formsByRole, setFormsByRole] = useState(initialFormsByRole);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -98,9 +123,15 @@ const SignupPage: React.FC = () => {
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState('');
   const [pendingSignup, setPendingSignup] = useState<SignupDetails | null>(null);
+  const [laneNotice, setLaneNotice] = useState('');
 
   const form = formsByRole[role];
   const { firstName, lastName, childName, sex, gender, age, email, password, confirmPassword } = form;
+
+  useEffect(() => {
+    const fromQuery = parseSignupRole(searchParams.get('role'));
+    setRole(fromQuery);
+  }, [searchParams]);
 
   const updateForm = <K extends keyof RoleSignupForm>(field: K, value: RoleSignupForm[K]) => {
     setFormsByRole((prev) => ({
@@ -113,8 +144,30 @@ const SignupPage: React.FC = () => {
     if (nextRole === role) return;
     setRole(nextRole);
     setError('');
+    setLaneNotice('');
     setShowPassword(false);
     setShowConfirmPassword(false);
+  };
+
+  const switchToAdultLane = () => {
+    const current = formsByRole.child;
+    setFormsByRole((prev) => ({
+      ...prev,
+      adult: {
+        ...prev.adult,
+        firstName: current.firstName || prev.adult.firstName,
+        lastName: current.lastName || prev.adult.lastName,
+        sex: current.sex || prev.adult.sex,
+        gender: current.gender || prev.adult.gender,
+        age: current.age || prev.adult.age,
+        email: current.email || prev.adult.email,
+        password: current.password || prev.adult.password,
+        confirmPassword: current.confirmPassword || prev.adult.confirmPassword,
+      },
+    }));
+    setRole('adult');
+    setLaneNotice('Switched to the Independent Buddy path — same tools, adult-paced support.');
+    setError('');
   };
 
   const passwordValid = useMemo(() => isPasswordValid(password), [password]);
@@ -122,17 +175,24 @@ const SignupPage: React.FC = () => {
   const confirmTouched = confirmPassword.length > 0;
   const confirmMismatch = confirmTouched && !passwordsMatch;
 
-  const parsedChildAge = role === 'child' ? parseChildAge(age) : null;
-  const childAgeValid = role !== 'child' || (parsedChildAge !== null && isValidChildAge(parsedChildAge));
-  const childAgeTouched = role === 'child' && age.trim().length > 0;
-  const childAgeInvalid = role === 'child' && childAgeTouched && !childAgeValid;
+  const parsedAge = isLearnerRole(role) ? parseLearnerAge(age) : null;
+  const ageValid =
+    !isLearnerRole(role) || (parsedAge !== null && isValidLearnerAgeForRole(role, parsedAge));
+  const ageTouched = isLearnerRole(role) && age.trim().length > 0;
+  const ageInvalid = isLearnerRole(role) && ageTouched && !ageValid;
+  const suggestAdult = role === 'child' && shouldSuggestAdultLane(parsedAge);
+
+  const ageBounds =
+    role === 'adult'
+      ? { min: ADULT_LEARNER_MIN_AGE, max: ADULT_LEARNER_MAX_AGE }
+      : { min: CHILD_MIN_AGE, max: CHILD_MAX_AGE };
 
   const canSubmit =
     firstName.trim().length > 0 &&
     lastName.trim().length > 0 &&
     sex !== '' &&
     gender !== '' &&
-    childAgeValid &&
+    ageValid &&
     passwordValid &&
     passwordsMatch &&
     !loading;
@@ -145,7 +205,7 @@ const SignupPage: React.FC = () => {
     childName: childName.trim() || undefined,
     sex: sex as UserSex,
     gender: gender as UserGender,
-    age: role === 'child' && parsedChildAge !== null ? parsedChildAge : undefined,
+    age: isLearnerRole(role) && parsedAge !== null ? parsedAge : undefined,
     role,
   });
 
@@ -156,7 +216,12 @@ const SignupPage: React.FC = () => {
 
     navigate(destination, {
       replace: true,
-      state: { message: 'Welcome! Your account is ready.' },
+      state: {
+        message:
+          signupRole === 'adult'
+            ? 'Welcome to Independent Buddy — your adult learner space is ready.'
+            : 'Welcome! Your account is ready.',
+      },
     });
   };
 
@@ -205,267 +270,265 @@ const SignupPage: React.FC = () => {
       await verifySignupAndCreateProfile(signupDetails, otp);
       setOtpModalOpen(false);
       setPendingSignup(null);
-      setOtpLoading(false);
       finishSignup(signupRole);
     } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message?: string }).message)
-          : 'Invalid or expired code. Please try again.';
-      setOtpError(message);
+      setOtpError(toAuthErrorMessage(err, 'Could not verify that code'));
+    } finally {
       setOtpLoading(false);
     }
   };
 
   const handleResendOtp = async () => {
     if (!pendingSignup) return;
-
     setOtpError('');
     try {
       await resendSignupVerification(pendingSignup.email);
     } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message?: string }).message)
-          : 'Failed to resend code';
-      setOtpError(message);
+      setOtpError(toAuthErrorMessage(err, 'Could not resend the code'));
     }
   };
 
-  const handleCloseOtpModal = () => {
-    if (otpLoading) return;
-    setOtpModalOpen(false);
-    setOtpError('');
-    setPendingSignup(null);
-  };
-
   const placeholders = namePlaceholders[role];
+  const isAdultLane = role === 'adult';
 
   return (
     <AuthBackground variant="signup">
       <div className="mx-auto flex min-h-screen max-w-lg flex-col px-4 py-8 sm:px-6">
-        <AuthLogo className="mb-8" />
+        <div className={`relative flex-1 overflow-hidden ${authCardClass}`}>
+          {isAdultLane && (
+            <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-teal-400/20 blur-3xl" />
+          )}
+          <div className="relative mb-6 flex items-center justify-between">
+            <AuthLogo />
+            <Link to={ROUTES.LOGIN} className="text-sm font-semibold text-adapt-indigo hover:underline">
+              Sign in
+            </Link>
+          </div>
 
-        <div className={`flex-1 ${authCardClass}`}>
-          <h1 className="text-2xl font-extrabold tracking-tight text-adapt-navy sm:text-3xl dark:text-gray-100 sepia:text-amber-950">
-            Create your gentle space.
-          </h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-gray-300 sepia:text-amber-900/80">
-            Built for kids, parents, and teachers — choose your role to begin.
+        <h1 className="relative text-2xl font-bold text-adapt-navy dark:text-white">
+          {isAdultLane ? 'Create your Independent Buddy space' : 'Create your account'}
+        </h1>
+        <p className="relative mt-2 text-sm text-slate-600 dark:text-gray-300">
+          {isAdultLane
+            ? 'Self-paced tools for neurodiverse adults and young adults — calm, clear, and in your control.'
+            : 'Choose the space that fits you. You can always get support later.'}
+        </p>
+
+        <div className="relative mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {roles.map((item) => {
+            const active = role === item.value;
+            return (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => handleRoleChange(item.value)}
+                className={`flex flex-col items-center gap-1 rounded-2xl border px-2 py-3 text-center transition ${
+                  active
+                    ? item.value === 'adult'
+                      ? 'border-teal-500 bg-teal-50 text-teal-900 shadow-sm dark:border-teal-400 dark:bg-teal-950/40 dark:text-teal-100'
+                      : 'border-adapt-indigo bg-indigo-50 text-adapt-indigo shadow-sm dark:border-adapt-cyan dark:bg-adapt-cyan/10 dark:text-adapt-cyan'
+                    : 'border-slate-200 bg-white/70 text-slate-600 hover:border-slate-300 dark:border-white/10 dark:bg-white/5 dark:text-gray-300'
+                }`}
+              >
+                <span className={active ? '' : 'opacity-70'}>{item.icon}</span>
+                <span className="text-xs font-bold leading-tight">{item.label}</span>
+                <span className="text-[10px] font-medium opacity-70">{item.hint}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {laneNotice && (
+          <p className="relative mt-4 rounded-2xl border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-900 dark:border-teal-500/30 dark:bg-teal-950/40 dark:text-teal-100">
+            {laneNotice}
           </p>
+        )}
 
-          <fieldset className="mt-8">
-            <legend className="sr-only">Choose your role</legend>
-            <div className="grid grid-cols-3 gap-3">
-              {roles.map(({ value, label, icon }) => {
-                const selected = role === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => handleRoleChange(value)}
-                    aria-pressed={selected}
-                    className={`flex flex-col items-center gap-2 rounded-2xl border-2 px-3 py-4 text-sm font-semibold backdrop-blur-sm transition ${
-                      selected
-                        ? 'border-adapt-indigo/80 bg-white/60 text-adapt-navy shadow-[0_0_24px_-6px_rgba(99,102,241,0.4)] dark:border-adapt-cyan/60 dark:bg-gray-800/60 dark:text-gray-100'
-                        : 'border-white/50 bg-white/40 text-slate-600 hover:border-adapt-indigo/40 hover:bg-white/55 dark:border-white/10 dark:bg-gray-800/35 dark:text-gray-300 sepia:border-amber-200/60 sepia:bg-amber-50/40'
-                    }`}
-                  >
-                    <span
-                      className={
-                        selected ? 'text-adapt-indigo dark:text-adapt-cyan' : 'text-slate-400'
-                      }
-                    >
-                      {icon}
-                    </span>
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
+        {isAdultLane && (
+          <div className="relative mt-4 rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50/90 to-cyan-50/60 p-4 text-sm text-slate-700 dark:border-teal-500/20 dark:from-teal-950/30 dark:to-slate-900 dark:text-gray-200">
+            <p className="font-semibold text-teal-900 dark:text-teal-100">What Independent Buddy includes</p>
+            <ul className="mt-2 space-y-1.5 text-xs leading-relaxed">
+              <li>Learning tools at an adult pace — no talking-down copy</li>
+              <li>Optional support circle (you choose who can help)</li>
+              <li>Same calm sensory & focus tools, framed for independence</li>
+            </ul>
+          </div>
+        )}
 
-          {error && (
-            <p className={`mt-6 ${authErrorClass}`} role="alert">
-              {error}
-            </p>
+        <form className="relative mt-6 space-y-4" onSubmit={handleSignup}>
+          {error && <p className={authErrorClass}>{error}</p>}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AuthField
+              id={`signup-first-name-${role}`}
+              label="First name"
+              value={firstName}
+              onChange={(v) => updateForm('firstName', v)}
+              placeholder={placeholders.first}
+              required
+              autoComplete="given-name"
+            />
+            <AuthField
+              id={`signup-last-name-${role}`}
+              label="Last name"
+              value={lastName}
+              onChange={(v) => updateForm('lastName', v)}
+              placeholder={placeholders.last}
+              required
+              autoComplete="family-name"
+            />
+          </div>
+
+          {role === 'parent' && (
+            <AuthField
+              id={`signup-child-name-${role}`}
+              label="Child's name"
+              value={childName}
+              onChange={(v) => updateForm('childName', v)}
+              placeholder="e.g. Lily"
+              autoComplete="off"
+            />
           )}
 
-          <form
-            key={role}
-            onSubmit={handleSignup}
-            className={`space-y-5 ${error ? 'mt-4' : 'mt-8'}`}
-          >
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <AuthField
-                id={`signup-first-name-${role}`}
-                label="First name"
-                value={firstName}
-                onChange={(v) => updateForm('firstName', v)}
-                placeholder={placeholders.first}
-                required
-                autoComplete="given-name"
-              />
-              <AuthField
-                id={`signup-last-name-${role}`}
-                label="Last name"
-                value={lastName}
-                onChange={(v) => updateForm('lastName', v)}
-                placeholder={placeholders.last}
-                required
-                autoComplete="family-name"
-              />
-            </div>
+          <div>
+            <AuthSelect
+              id={`signup-sex-${role}`}
+              label={UK_SEX_FIELD_LABEL}
+              value={sex}
+              onChange={(v) => updateForm('sex', v as UserSex | '')}
+              options={UK_SEX_OPTIONS}
+              placeholder="Select sex"
+              required
+            />
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-gray-400">{UK_SEX_FIELD_HINT}</p>
+          </div>
 
-            {role === 'parent' && (
+          <div>
+            <AuthSelect
+              id={`signup-gender-${role}`}
+              label={UK_GENDER_FIELD_LABEL}
+              value={gender}
+              onChange={(v) => updateForm('gender', v as UserGender | '')}
+              options={UK_GENDER_OPTIONS}
+              placeholder="Select gender identity"
+              required
+            />
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-gray-400">{UK_GENDER_FIELD_HINT}</p>
+          </div>
+
+          {isLearnerRole(role) && (
+            <div>
               <AuthField
-                id={`signup-child-name-${role}`}
-                label="Child's name"
-                value={childName}
-                onChange={(v) => updateForm('childName', v)}
-                placeholder="e.g. Lily"
+                id={`signup-age-${role}`}
+                label={isAdultLane ? 'Age (18+)' : 'Age'}
+                type="number"
+                value={age}
+                onChange={(v) => updateForm('age', v)}
+                placeholder={`${ageBounds.min}–${ageBounds.max}`}
+                required
+                min={ageBounds.min}
+                max={ageBounds.max}
                 autoComplete="off"
               />
-            )}
-
-            <div>
-              <AuthSelect
-                id={`signup-sex-${role}`}
-                label={UK_SEX_FIELD_LABEL}
-                value={sex}
-                onChange={(v) => updateForm('sex', v as UserSex | '')}
-                options={UK_SEX_OPTIONS}
-                placeholder="Select sex"
-                required
-              />
-              <p className="mt-1.5 text-xs text-slate-500 dark:text-gray-400">{UK_SEX_FIELD_HINT}</p>
-            </div>
-
-            <div>
-              <AuthSelect
-                id={`signup-gender-${role}`}
-                label={UK_GENDER_FIELD_LABEL}
-                value={gender}
-                onChange={(v) => updateForm('gender', v as UserGender | '')}
-                options={UK_GENDER_OPTIONS}
-                placeholder="Select gender identity"
-                required
-              />
-              <p className="mt-1.5 text-xs text-slate-500 dark:text-gray-400">{UK_GENDER_FIELD_HINT}</p>
-            </div>
-
-            {role === 'child' && (
-              <div>
-                <AuthField
-                  id={`signup-age-${role}`}
-                  label="Age"
-                  type="number"
-                  value={age}
-                  onChange={(v) => updateForm('age', v)}
-                  placeholder={`${CHILD_MIN_AGE}–${CHILD_MAX_AGE}`}
-                  required
-                  min={CHILD_MIN_AGE}
-                  max={CHILD_MAX_AGE}
-                  autoComplete="off"
-                />
-                {childAgeInvalid && (
-                  <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
-                    Please enter an age between {CHILD_MIN_AGE} and {CHILD_MAX_AGE}.
+              {suggestAdult && (
+                <div className="mt-3 rounded-2xl border border-teal-200 bg-teal-50/90 p-3 dark:border-teal-500/30 dark:bg-teal-950/40">
+                  <p className="text-sm font-semibold text-teal-900 dark:text-teal-100">
+                    Age {parsedAge} fits Independent Buddy
                   </p>
-                )}
-              </div>
-            )}
-
-            <AuthField
-              id={`signup-email-${role}`}
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(v) => updateForm('email', v)}
-              placeholder="you@adaptbuddy.com"
-              required
-              autoComplete="email"
-            />
-
-            <div>
-              <PasswordField
-                id={`signup-password-${role}`}
-                label="Password"
-                value={password}
-                onChange={(v) => updateForm('password', v)}
-                placeholder="Create a strong password"
-                showPassword={showPassword}
-                onToggleShow={() => setShowPassword((v) => !v)}
-                required
-                autoComplete="new-password"
-              />
-              <PasswordRequirements password={password} />
-            </div>
-
-            <div>
-              <PasswordField
-                id={`signup-confirm-password-${role}`}
-                label="Confirm password"
-                value={confirmPassword}
-                onChange={(v) => updateForm('confirmPassword', v)}
-                placeholder="Re-enter your password"
-                showPassword={showConfirmPassword}
-                onToggleShow={() => setShowConfirmPassword((v) => !v)}
-                required
-                autoComplete="new-password"
-                invalid={confirmMismatch}
-              />
-              {confirmTouched && (
-                <p
-                  className={`mt-2 flex items-center gap-2 text-xs transition-colors duration-200 ${
-                    passwordsMatch
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-slate-500 dark:text-gray-400'
-                  }`}
-                  aria-live="polite"
-                >
-                  {passwordsMatch ? (
-                    <>
-                      <Check className="h-4 w-4 shrink-0" strokeWidth={2.5} aria-hidden />
-                      Passwords match
-                    </>
-                  ) : (
-                    <>
-                      <X className="h-4 w-4 shrink-0 text-slate-400" strokeWidth={2.5} aria-hidden />
-                      Passwords do not match
-                    </>
-                  )}
+                  <p className="mt-1 text-xs leading-relaxed text-teal-800/90 dark:text-teal-100/80">
+                    Child signup is for ages {CHILD_MIN_AGE}–{CHILD_MAX_AGE}. Continue as an adult learner to keep the
+                    same tools with adult-paced language and optional support.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={switchToAdultLane}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-teal-500"
+                  >
+                    Continue as adult learner
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </div>
+              )}
+              {ageInvalid && !suggestAdult && (
+                <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
+                  Please enter an age between {ageBounds.min} and {ageBounds.max}.
                 </p>
               )}
             </div>
+          )}
 
-            <button type="submit" disabled={!canSubmit} className={authPrimaryBtnClass}>
-              {loading ? 'Sending verification code…' : 'Create account'}
-              {!loading && <ArrowRight className="h-4 w-4" aria-hidden />}
-            </button>
-          </form>
-
-          <OtpVerificationModal
-            isOpen={otpModalOpen}
-            email={pendingSignup?.email ?? ''}
-            loading={otpLoading}
-            error={otpError}
-            onClose={handleCloseOtpModal}
-            onVerify={handleVerifyOtp}
-            onResend={handleResendOtp}
+          <AuthField
+            id={`signup-email-${role}`}
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(v) => updateForm('email', v)}
+            placeholder="you@adaptbuddy.com"
+            required
+            autoComplete="email"
           />
 
-          <p className="mt-8 text-center text-sm text-slate-600 dark:text-gray-400">
-            Already have an account?{' '}
-            <Link
-              to={ROUTES.LOGIN}
-              className="font-semibold text-adapt-indigo transition-colors hover:text-adapt-purple dark:text-adapt-cyan"
-            >
-              Sign in
-            </Link>
-          </p>
+          <div>
+            <PasswordField
+              id={`signup-password-${role}`}
+              label="Password"
+              value={password}
+              onChange={(v) => updateForm('password', v)}
+              placeholder="Create a strong password"
+              showPassword={showPassword}
+              onToggleShow={() => setShowPassword((v) => !v)}
+              required
+              autoComplete="new-password"
+            />
+            <PasswordRequirements password={password} />
+          </div>
+
+          <div>
+            <PasswordField
+              id={`signup-confirm-password-${role}`}
+              label="Confirm password"
+              value={confirmPassword}
+              onChange={(v) => updateForm('confirmPassword', v)}
+              placeholder="Re-enter your password"
+              showPassword={showConfirmPassword}
+              onToggleShow={() => setShowConfirmPassword((v) => !v)}
+              required
+              autoComplete="new-password"
+              invalid={confirmMismatch}
+            />
+            {confirmTouched && (
+              <p
+                className={`mt-2 flex items-center gap-1.5 text-xs ${
+                  passwordsMatch ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                }`}
+              >
+                {passwordsMatch ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                {passwordsMatch ? 'Passwords match' : 'Passwords do not match'}
+              </p>
+            )}
+          </div>
+
+          <button type="submit" disabled={!canSubmit} className={authPrimaryBtnClass}>
+            {loading ? 'Creating account…' : isAdultLane ? 'Start Independent Buddy' : 'Create account'}
+            {!loading && <ArrowRight className="h-4 w-4" aria-hidden />}
+          </button>
+        </form>
         </div>
       </div>
+
+      <OtpVerificationModal
+        isOpen={otpModalOpen}
+        email={pendingSignup?.email || email}
+        loading={otpLoading}
+        error={otpError}
+        onVerify={handleVerifyOtp}
+        onResend={handleResendOtp}
+        onClose={() => {
+          setOtpModalOpen(false);
+          setPendingSignup(null);
+          setOtpError('');
+        }}
+      />
     </AuthBackground>
   );
 };

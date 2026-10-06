@@ -625,7 +625,7 @@ async function buildAssignmentHelp(
 }
 
 async function buildChildAdultResponses(ctx: NotificationContext): Promise<SupportNotification[]> {
-  if (ctx.role !== 'child') return [];
+  if (ctx.role !== 'child' && ctx.role !== 'adult') return [];
 
   const rows = await safeRows<AdultResponseReceiptRow>(
     getSupabaseClient()
@@ -675,7 +675,7 @@ export class NotificationService {
     let classMap = new Map<string, TeacherClassRow>();
     let assignments: TeacherAssignmentRow[] = [];
 
-    if (role === 'child') {
+    if (role === 'child' || role === 'adult') {
       childIds = [userId];
     } else if (role === 'parent') {
       childIds = await getParentChildIds(userId);
@@ -731,12 +731,12 @@ export class NotificationService {
       childAdultResponses,
     ] = await Promise.all([
       buildAlerts(ctx, childIds),
-      role === 'child' ? Promise.resolve([]) : buildJournalSignals(ctx, childIds),
-      role === 'child' ? Promise.resolve([]) : buildMessages(ctx, childIds),
-      role === 'child' ? Promise.resolve([]) : buildMeetings(ctx, childIds),
-      role === 'child' ? Promise.resolve([]) : buildClassRequests(ctx, childIds, classIds, classMap),
+      role === 'child' || role === 'adult' ? Promise.resolve([]) : buildJournalSignals(ctx, childIds),
+      role === 'child' || role === 'adult' ? Promise.resolve([]) : buildMessages(ctx, childIds),
+      role === 'child' || role === 'adult' ? Promise.resolve([]) : buildMeetings(ctx, childIds),
+      role === 'child' || role === 'adult' ? Promise.resolve([]) : buildClassRequests(ctx, childIds, classIds, classMap),
       buildAssignmentHelp(ctx, childIds, assignments),
-      role === 'child' ? buildChildAdultResponses(ctx) : Promise.resolve([]),
+      role === 'child' || role === 'adult' ? buildChildAdultResponses(ctx) : Promise.resolve([]),
     ]);
 
     return [...alerts, ...journalSignals, ...messages, ...meetings, ...classRequests, ...assignmentHelp, ...childAdultResponses]

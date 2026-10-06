@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from 'hooks/useAuth';
+import { isLearnerRole } from 'constants/roles';
 import { DIRECT_ADULT_GUIDANCE, TRUSTED_ADULT_INVITATIONS_ENABLED } from 'constants/releaseCapabilities';
 import { acknowledgeSupportRequest, fetchAdultSupportInvitations, fetchSupportRequests, fetchTrustedAdultsForChild, respondToSupportInvitation, revokeSupportContact, saveTrustedAdultForChild, SupportRequestRecord, TrustedAdultRecord } from 'services/supabase/autismProfileService';
 
@@ -101,6 +102,6 @@ export default function SupportConnectionsPanel() {
   const { user, profile, isGuest } = useAuth();
   if (!TRUSTED_ADULT_INVITATIONS_ENABLED) return <section className="rounded-2xl border p-5"><h2 className="font-bold">Trusted adult</h2><p>Trusted-adult connections are temporarily unavailable. {DIRECT_ADULT_GUIDANCE}</p></section>;
   if (!user?.id || isGuest) return <p>Sign in to manage real support invitations and requests. {DIRECT_ADULT_GUIDANCE}</p>;
-  if (profile?.role !== 'child' && profile?.role !== 'parent') return null;
-  return <Connections key={`${user.id}:${profile.role}`} userId={user.id} child={profile.role === 'child'} />;
+  if (profile?.role !== 'child' && profile?.role !== 'adult' && profile?.role !== 'parent') return null;
+  return <Connections key={`${user.id}:${profile.role}`} userId={user.id} child={isLearnerRole(profile.role)} />;
 }

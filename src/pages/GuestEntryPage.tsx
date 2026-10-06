@@ -9,6 +9,7 @@ type GuestRole = Exclude<UserRole, 'admin'>;
 
 const guestDestinations: Record<GuestRole, string> = {
   child: ROUTES.NEURO_SELECTOR,
+  adult: ROUTES.NEURO_SELECTOR,
   parent: ROUTES.PARENT_HUB,
   teacher: ROUTES.TEACHER_DASHBOARD,
 };
@@ -30,6 +31,14 @@ const guestRoles: Array<{
     iconStyle: 'bg-purple-100 text-adapt-purple dark:bg-purple-950/50 dark:text-purple-200',
   },
   {
+    role: 'adult',
+    title: 'Continue as an adult learner',
+    description: 'Preview Independent Buddy — adult-paced tools with the same calm supports.',
+    icon: Sparkles,
+    accent: 'hover:border-teal-500/50 hover:bg-teal-50/70 dark:hover:bg-teal-950/20',
+    iconStyle: 'bg-teal-100 text-teal-700 dark:bg-teal-950/50 dark:text-teal-200',
+  },
+  {
     role: 'parent',
     title: 'Continue as a parent',
     description: 'Preview the family dashboard using sample information created for guest mode.',
@@ -48,13 +57,13 @@ const guestRoles: Array<{
 ];
 
 const parseGuestRole = (value: string | null): GuestRole | null => {
-  if (value === 'child' || value === 'parent' || value === 'teacher') return value;
+  if (value === 'child' || value === 'adult' || value === 'parent' || value === 'teacher') return value;
   return null;
 };
 
 const GuestRoleSelector: React.FC = () => (
   <main className="min-h-screen bg-gradient-to-b from-adapt-cloud via-white to-adapt-mist px-4 py-10 dark:from-gray-950 dark:via-gray-950 dark:to-gray-900 sm:py-16">
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-5xl">
       <div className="text-center">
         <span className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white/80 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-adapt-indigo shadow-soft dark:border-gray-800 dark:bg-gray-900/80 dark:text-adapt-cyan">
           <ShieldCheck className="h-4 w-4" aria-hidden />
@@ -69,7 +78,7 @@ const GuestRoleSelector: React.FC = () => (
         </p>
       </div>
 
-      <div className="mt-10 grid gap-4 md:grid-cols-3">
+      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {guestRoles.map(({ role, title, description, icon: Icon, accent, iconStyle }) => (
           <Link
             key={role}
@@ -150,7 +159,7 @@ const GuestEntryPage: React.FC = () => {
           Guest mode
         </p>
         <h1 className="mt-3 text-2xl font-black text-adapt-navy dark:text-gray-100">
-          Opening your {role} demo...
+          Opening your {role === 'adult' ? 'adult learner' : role} demo...
         </h1>
         <p className="mt-2 text-sm text-slate-500 dark:text-gray-400">
           {error || 'Securely clearing any signed-in session first…'}

@@ -40,7 +40,7 @@ interface UserFormModalProps {
   onResetPassword?: (password: string) => void;
 }
 
-const ROLES: UserRole[] = ['child', 'parent', 'teacher', 'admin'];
+const ROLES: UserRole[] = ['child', 'adult', 'parent', 'teacher', 'admin'];
 const STATUSES: UserStatus[] = ['active', 'suspended', 'pending'];
 
 function emptyForm(): UserFormValues {
@@ -311,7 +311,7 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
               <p className="text-xs font-bold uppercase tracking-wider text-indigo-300">
                 Platform profile
               </p>
-              {user.role === 'child' && (
+              {(user.role === 'child' || user.role === 'adult') && (
                 <div className="mt-3">
                   <p className={labelClass}>Buddy ID</p>
                   <p className="font-mono text-sm font-bold text-cyan-300">
@@ -339,7 +339,7 @@ const UserFormModal: React.FC<UserFormModalProps> = ({
                   <span className="text-sm text-gray-200">Companion onboarding completed</span>
                 </label>
               </div>
-              {(form.role === 'child' || form.role === 'parent') && (
+              {(form.role === 'child' || form.role === 'adult' || form.role === 'parent') && (
                 <div className="mt-4">
                   <p className={labelClass}>Neuro profiles</p>
                   <div className="flex flex-wrap gap-2">

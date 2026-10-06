@@ -90,7 +90,9 @@ const ADULT_FEATURES: Omit<SurveyFeatureRating, 'score'>[] = [
 ];
 
 export function surveyFeaturesForRole(role: UserRole): Omit<SurveyFeatureRating, 'score'>[] {
-  return role === 'child' ? CHILD_FEATURES : ADULT_FEATURES;
+  if (role === 'child') return CHILD_FEATURES;
+  if (role === 'adult') return CHILD_FEATURES; // same tool areas; copy differs in the modal
+  return ADULT_FEATURES;
 }
 
 export function readSurveyState(userId: string): ExperienceSurveyState {
@@ -126,7 +128,7 @@ export function shouldOfferExperienceSurvey(
 ): boolean {
   if (!profile) return false;
   if (profile.role === 'admin' && !isGuest) return false;
-  if (!['child', 'parent', 'teacher'].includes(profile.role)) return false;
+  if (!['child', 'adult', 'parent', 'teacher'].includes(profile.role)) return false;
 
   const state = readSurveyState(surveyStorageId(profile, isGuest, visitorKey));
   const now = Date.now();

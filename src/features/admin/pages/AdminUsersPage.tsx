@@ -26,6 +26,7 @@ import { useAuth } from 'hooks/useAuth';
 
 const ROLE_BADGE: Record<UserRole, string> = {
   child: 'bg-cyan-500/15 text-cyan-300',
+  adult: 'bg-teal-500/15 text-teal-300',
   parent: 'bg-violet-500/15 text-violet-300',
   teacher: 'bg-emerald-500/15 text-emerald-300',
   admin: 'bg-amber-500/15 text-amber-300',
@@ -202,6 +203,7 @@ const AdminUsersPage: React.FC = () => {
           >
             <option value="all">All roles</option>
             <option value="child">Child</option>
+            <option value="adult">Adult learner</option>
             <option value="parent">Parent</option>
             <option value="teacher">Teacher</option>
             <option value="admin">Admin</option>

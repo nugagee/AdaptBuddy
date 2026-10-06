@@ -22,6 +22,7 @@ import {
 import { useAuth } from 'hooks/useAuth';
 import { useAuthStore } from 'store/authStore';
 import { ROUTES } from 'constants/routes';
+import { isLearnerRole } from 'constants/roles';
 import { completeCompanionOnboarding } from 'services/supabase/profileService';
 import { saveAutismProfile } from 'services/supabase/autismProfileService';
 import AuthBackground, { AuthLogo } from 'pages/auth/AuthBackground';
@@ -46,7 +47,7 @@ interface OwnedOnboardingAnswers {
 
 const getCurrentOnboardingOwner = (): OnboardingOwner | null => {
   const { user, profile, isGuest } = useAuthStore.getState();
-  if (profile?.role !== 'child') return null;
+  if (!profile || !isLearnerRole(profile.role)) return null;
 
   if (isGuest) {
     return {
@@ -248,7 +249,7 @@ const CompanionOnboardingPage: React.FC = () => {
         !isSameOwnerAttempt()
         || !currentAuth.isGuest
         || currentAuth.profile?.id !== initiatingOwner.childId
-        || currentAuth.profile.role !== 'child'
+        || !isLearnerRole(currentAuth.profile.role)
         || autismStore.ownerId !== initiatingOwner.childId
         || autismStore.hydrationStatus !== 'ready'
         || autismStore.profile.childId !== initiatingOwner.childId
@@ -310,7 +311,7 @@ const CompanionOnboardingPage: React.FC = () => {
       initiatingOwner.childId !== ownedAnswers.ownerId ||
       initiatingOwner.childId !== currentAuth.user?.id ||
       currentAuth.isGuest ||
-      currentAuth.profile?.role !== 'child' ||
+      !isLearnerRole(currentAuth.profile?.role) ||
       initiatingOwner.childId !== autismStore.ownerId ||
       autismStore.hydrationStatus !== 'ready' ||
       !isCurrentAttempt()

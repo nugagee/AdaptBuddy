@@ -1,6 +1,7 @@
 import { AuthError, type Session, type User } from '@supabase/supabase-js';
 import { ROUTES } from 'constants/routes';
 import type { Profile, UserGender, UserSex } from './client';
+import { isLearnerRole } from 'constants/roles';
 import { getSupabaseClient, type UserRole } from './client';
 import { resolveAuthSession } from './sessionUtils';
 
@@ -109,7 +110,7 @@ async function persistVerifiedAuth(data: {
 
 export function getRoleFromUser(user: User): UserRole {
   const role = user.user_metadata?.role;
-  if (role === 'child' || role === 'parent' || role === 'teacher' || role === 'admin') {
+  if (role === 'child' || role === 'adult' || role === 'parent' || role === 'teacher' || role === 'admin') {
     return role;
   }
   return 'parent';
@@ -127,15 +128,17 @@ export function getRouteForProfile(profile: Profile): string {
     return ROUTES.ADMIN_DASHBOARD;
   }
 
+  if (isLearnerRole(profile.role)) {
+    if (profile.companion_onboarding_completed && profile.neuro_types.length > 0) {
+      return ROUTES.CHILD_DASHBOARD;
+    }
+    if (profile.neuro_types.length > 0) {
+      return ROUTES.COMPANION_ONBOARDING;
+    }
+    return ROUTES.NEURO_SELECTOR;
+  }
+
   switch (profile.role) {
-    case 'child':
-      if (profile.companion_onboarding_completed && profile.neuro_types.length > 0) {
-        return ROUTES.CHILD_DASHBOARD;
-      }
-      if (profile.neuro_types.length > 0) {
-        return ROUTES.COMPANION_ONBOARDING;
-      }
-      return ROUTES.NEURO_SELECTOR;
     case 'parent':
       return ROUTES.PARENT_HUB;
     case 'teacher':
@@ -326,6 +329,7 @@ export function buildFallbackProfile(details: SignupDetails, userId: string): Pr
 export function getPostSignupRoute(role: UserRole): string {
   switch (role) {
     case 'child':
+    case 'adult':
       return ROUTES.NEURO_SELECTOR;
     case 'parent':
       return ROUTES.PARENT_HUB;

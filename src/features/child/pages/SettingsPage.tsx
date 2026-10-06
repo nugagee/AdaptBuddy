@@ -254,7 +254,7 @@ const SettingsPage: React.FC = () => {
                   id="settings-age"
                   type="number"
                   min={4}
-                  max={18}
+                  max={99}
                   value={age}
                   onChange={(e) => setAge(e.target.value)}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-adapt-indigo focus:ring-2 focus:ring-adapt-indigo/20 dark:border-gray-700 dark:bg-gray-800"

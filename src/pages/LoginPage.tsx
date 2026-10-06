@@ -17,6 +17,7 @@ import {
 
 const demoRoles: { role: UserRole; label: string }[] = [
   { role: 'child', label: 'Child demo' },
+  { role: 'adult', label: 'Adult learner demo' },
   { role: 'parent', label: 'Parent demo' },
   { role: 'teacher', label: 'Teacher demo' },
 ];

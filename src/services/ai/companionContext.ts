@@ -52,9 +52,10 @@ export function companionContextPrompt(ctx: CompanionContext): string {
 }
 
 export function ageAwareTone(age: number | null): string {
-  if (age == null) return 'Use clear, friendly language suitable for a child or teenager.';
+  if (age == null) return 'Use clear, friendly language suitable for a neurodiverse learner of any age.';
   if (age <= 7) return 'Use very simple words, short sentences, and a gentle playful tone for a young child (ages 4–7).';
   if (age <= 11) return 'Use simple, encouraging language for a child aged 8–11.';
   if (age <= 14) return 'Use friendly, respectful language for a young teenager.';
-  return 'Use warm, respectful language for a teenager aged 15–17.';
+  if (age <= 17) return 'Use warm, respectful language for a teenager aged 15–17.';
+  return 'Use calm, respectful, adult-to-adult language for an independent learner aged 18+. Avoid talking down. Offer optional support, not parental control. Prefer clarity, agency, and low sensory load.';
 }

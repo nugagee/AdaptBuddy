@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useAuth } from 'hooks/useAuth';
 import { useChildSessionStore } from 'features/child/store/childSessionStore';
+import { isLearnerRole } from 'constants/roles';
 
-/** Tracks active visit time per child — resets on logout (sessionStorage cleared). */
+/** Tracks active visit time per learner — resets on logout (sessionStorage cleared). */
 const ChildSessionTracker: React.FC = () => {
   const { user, profile } = useAuth();
   const initSession = useChildSessionStore((s) => s.initSession);
@@ -10,10 +11,10 @@ const ChildSessionTracker: React.FC = () => {
   const flushVisitForUser = useChildSessionStore((s) => s.flushVisitForUser);
 
   const userId = user?.id;
-  const isChild = profile?.role === 'child';
+  const isLearner = isLearnerRole(profile?.role);
 
   useEffect(() => {
-    if (!userId || !isChild) return undefined;
+    if (!userId || !isLearner) return undefined;
 
     initSession(userId);
 
@@ -34,7 +35,7 @@ const ChildSessionTracker: React.FC = () => {
       window.clearInterval(intervalId);
       window.removeEventListener('pagehide', handlePageHide);
     };
-  }, [userId, isChild, initSession, tick, flushVisitForUser]);
+  }, [userId, isLearner, initSession, tick, flushVisitForUser]);
 
   return null;
 };

@@ -1,0 +1,675 @@
+[
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "annotations",
+        "importPath": "__future__",
+        "description": "__future__",
+        "isExtraImport": true,
+        "detail": "__future__",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "Image",
+        "importPath": "PIL",
+        "description": "PIL",
+        "isExtraImport": true,
+        "detail": "PIL",
+        "documentation": {}
+    },
+    {
+        "label": "ImageDraw",
+        "importPath": "PIL",
+        "description": "PIL",
+        "isExtraImport": true,
+        "detail": "PIL",
+        "documentation": {}
+    },
+    {
+        "label": "ImageFont",
+        "importPath": "PIL",
+        "description": "PIL",
+        "isExtraImport": true,
+        "detail": "PIL",
+        "documentation": {}
+    },
+    {
+        "label": "Image",
+        "importPath": "PIL",
+        "description": "PIL",
+        "isExtraImport": true,
+        "detail": "PIL",
+        "documentation": {}
+    },
+    {
+        "label": "Presentation",
+        "importPath": "pptx",
+        "description": "pptx",
+        "isExtraImport": true,
+        "detail": "pptx",
+        "documentation": {}
+    },
+    {
+        "label": "RGBColor",
+        "importPath": "pptx.dml.color",
+        "description": "pptx.dml.color",
+        "isExtraImport": true,
+        "detail": "pptx.dml.color",
+        "documentation": {}
+    },
+    {
+        "label": "PP_ALIGN",
+        "importPath": "pptx.enum.text",
+        "description": "pptx.enum.text",
+        "isExtraImport": true,
+        "detail": "pptx.enum.text",
+        "documentation": {}
+    },
+    {
+        "label": "Inches",
+        "importPath": "pptx.util",
+        "description": "pptx.util",
+        "isExtraImport": true,
+        "detail": "pptx.util",
+        "documentation": {}
+    },
+    {
+        "label": "Pt",
+        "importPath": "pptx.util",
+        "description": "pptx.util",
+        "isExtraImport": true,
+        "detail": "pptx.util",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "importPath": "generate_assets",
+        "description": "generate_assets",
+        "isExtraImport": true,
+        "detail": "generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "importPath": "generate_qr",
+        "description": "generate_qr",
+        "isExtraImport": true,
+        "detail": "generate_qr",
+        "documentation": {}
+    },
+    {
+        "label": "qrcode",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "qrcode",
+        "description": "qrcode",
+        "detail": "qrcode",
+        "documentation": {}
+    },
+    {
+        "label": "svg",
+        "importPath": "qrcode.image",
+        "description": "qrcode.image",
+        "isExtraImport": true,
+        "detail": "qrcode.image",
+        "documentation": {}
+    },
+    {
+        "label": "StyledPilImage",
+        "importPath": "qrcode.image.styledpil",
+        "description": "qrcode.image.styledpil",
+        "isExtraImport": true,
+        "detail": "qrcode.image.styledpil",
+        "documentation": {}
+    },
+    {
+        "label": "SolidFillColorMask",
+        "importPath": "qrcode.image.styles.colormasks",
+        "description": "qrcode.image.styles.colormasks",
+        "isExtraImport": true,
+        "detail": "qrcode.image.styles.colormasks",
+        "documentation": {}
+    },
+    {
+        "label": "RoundedModuleDrawer",
+        "importPath": "qrcode.image.styles.moduledrawers",
+        "description": "qrcode.image.styles.moduledrawers",
+        "isExtraImport": true,
+        "detail": "qrcode.image.styles.moduledrawers",
+        "documentation": {}
+    },
+    {
+        "label": "json",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "json",
+        "description": "json",
+        "detail": "json",
+        "documentation": {}
+    },
+    {
+        "label": "sys",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "sys",
+        "description": "sys",
+        "detail": "sys",
+        "documentation": {}
+    },
+    {
+        "label": "os",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "os",
+        "description": "os",
+        "detail": "os",
+        "documentation": {}
+    },
+    {
+        "label": "save_problem_gap_diagram",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "def save_problem_gap_diagram() -> Path:\n    out = ASSETS / \"problem-gap-diagram.png\"\n    w, h = 900, 560\n    img = Image.new(\"RGB\", (w, h), SOFT)\n    draw = ImageDraw.Draw(img)\n    title_font = _font(28, True)\n    label_font = _font(22, True)\n    small_font = _font(16)\n    draw.text((36, 24), \"The support gap in England\", fill=NAVY, font=title_font)\n    nodes = [",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "save_neuro_profiles_grid",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "def save_neuro_profiles_grid() -> Path:\n    out = ASSETS / \"neuro-profiles-grid.png\"\n    profiles = [\n        (\"Autism\", True),\n        (\"ADHD\", False),\n        (\"Dyslexia\", False),\n        (\"Dysgraphia\", False),\n        (\"Dyscalculia\", False),\n        (\"Dyspraxia / DCD\", False),\n        (\"Tourette / Tics\", False),",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "save_journey_diagram",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "def save_journey_diagram() -> Path:\n    out = ASSETS / \"product-journey.png\"\n    w, h = 920, 260\n    img = Image.new(\"RGB\", (w, h), SOFT)\n    draw = ImageDraw.Draw(img)\n    font = _font(14, True)\n    small = _font(12)\n    steps = [\n        \"Neuro\\nonboarding\",\n        \"Buddy ID\\nlinking\",",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "save_roles_diagram",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "def save_roles_diagram() -> Path:\n    out = ASSETS / \"roles-ecosystem.png\"\n    w, h = 880, 520\n    img = Image.new(\"RGB\", (w, h), SOFT)\n    draw = ImageDraw.Draw(img)\n    title = _font(24, True)\n    label = _font(18, True)\n    small = _font(14)\n    draw.text((36, 24), \"One child · Three trusted adults\", fill=NAVY, font=title)\n    draw.ellipse((360, 180, 520, 340), fill=INDIGO, outline=WHITE, width=4)",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "save_support_loop_gif",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "def save_support_loop_gif() -> Path:\n    out = ASSETS / \"support-loop.gif\"\n    frames = []\n    w, h = 640, 220\n    positions = [(90, 110), (320, 110), (550, 110)]\n    labels = [\"Child\", \"Parent\", \"Teacher\"]\n    for phase in range(24):\n        img = Image.new(\"RGB\", (w, h), SOFT)\n        draw = ImageDraw.Draw(img)\n        font = _font(18, True)",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "def main() -> None:\n    paths = [\n        save_problem_gap_diagram(),\n        save_neuro_profiles_grid(),\n        save_journey_diagram(),\n        save_roles_diagram(),\n        save_support_loop_gif(),\n    ]\n    for path in paths:\n        print(f\"Created {path}\")",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "ASSETS",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "ASSETS = Path(__file__).parent / \"assets\"\nASSETS.mkdir(exist_ok=True)\nINDIGO = (79, 70, 229)\nNAVY = (15, 23, 42)\nTEAL = (20, 184, 166)\nSLATE = (100, 116, 139)\nWHITE = (255, 255, 255)\nSOFT = (248, 250, 252)\nAMBER = (245, 158, 11)\nPINK = (236, 72, 153)",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "INDIGO",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "INDIGO = (79, 70, 229)\nNAVY = (15, 23, 42)\nTEAL = (20, 184, 166)\nSLATE = (100, 116, 139)\nWHITE = (255, 255, 255)\nSOFT = (248, 250, 252)\nAMBER = (245, 158, 11)\nPINK = (236, 72, 153)\nRED = (239, 68, 68)\nGREEN = (34, 197, 94)",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "NAVY",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "NAVY = (15, 23, 42)\nTEAL = (20, 184, 166)\nSLATE = (100, 116, 139)\nWHITE = (255, 255, 255)\nSOFT = (248, 250, 252)\nAMBER = (245, 158, 11)\nPINK = (236, 72, 153)\nRED = (239, 68, 68)\nGREEN = (34, 197, 94)\ndef _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "TEAL",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "TEAL = (20, 184, 166)\nSLATE = (100, 116, 139)\nWHITE = (255, 255, 255)\nSOFT = (248, 250, 252)\nAMBER = (245, 158, 11)\nPINK = (236, 72, 153)\nRED = (239, 68, 68)\nGREEN = (34, 197, 94)\ndef _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:\n    candidates = [",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "SLATE",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "SLATE = (100, 116, 139)\nWHITE = (255, 255, 255)\nSOFT = (248, 250, 252)\nAMBER = (245, 158, 11)\nPINK = (236, 72, 153)\nRED = (239, 68, 68)\nGREEN = (34, 197, 94)\ndef _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:\n    candidates = [\n        \"/System/Library/Fonts/Supplemental/Arial Bold.ttf\" if bold else \"/System/Library/Fonts/Supplemental/Arial.ttf\",",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "WHITE",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "WHITE = (255, 255, 255)\nSOFT = (248, 250, 252)\nAMBER = (245, 158, 11)\nPINK = (236, 72, 153)\nRED = (239, 68, 68)\nGREEN = (34, 197, 94)\ndef _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:\n    candidates = [\n        \"/System/Library/Fonts/Supplemental/Arial Bold.ttf\" if bold else \"/System/Library/Fonts/Supplemental/Arial.ttf\",\n        \"/Library/Fonts/Arial.ttf\",",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "SOFT",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "SOFT = (248, 250, 252)\nAMBER = (245, 158, 11)\nPINK = (236, 72, 153)\nRED = (239, 68, 68)\nGREEN = (34, 197, 94)\ndef _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:\n    candidates = [\n        \"/System/Library/Fonts/Supplemental/Arial Bold.ttf\" if bold else \"/System/Library/Fonts/Supplemental/Arial.ttf\",\n        \"/Library/Fonts/Arial.ttf\",\n        \"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf\" if bold else \"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf\",",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "AMBER",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "AMBER = (245, 158, 11)\nPINK = (236, 72, 153)\nRED = (239, 68, 68)\nGREEN = (34, 197, 94)\ndef _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:\n    candidates = [\n        \"/System/Library/Fonts/Supplemental/Arial Bold.ttf\" if bold else \"/System/Library/Fonts/Supplemental/Arial.ttf\",\n        \"/Library/Fonts/Arial.ttf\",\n        \"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf\" if bold else \"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf\",\n    ]",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "PINK",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "PINK = (236, 72, 153)\nRED = (239, 68, 68)\nGREEN = (34, 197, 94)\ndef _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:\n    candidates = [\n        \"/System/Library/Fonts/Supplemental/Arial Bold.ttf\" if bold else \"/System/Library/Fonts/Supplemental/Arial.ttf\",\n        \"/Library/Fonts/Arial.ttf\",\n        \"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf\" if bold else \"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf\",\n    ]\n    for path in candidates:",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "RED",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "RED = (239, 68, 68)\nGREEN = (34, 197, 94)\ndef _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:\n    candidates = [\n        \"/System/Library/Fonts/Supplemental/Arial Bold.ttf\" if bold else \"/System/Library/Fonts/Supplemental/Arial.ttf\",\n        \"/Library/Fonts/Arial.ttf\",\n        \"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf\" if bold else \"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf\",\n    ]\n    for path in candidates:\n        if Path(path).exists():",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "GREEN",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_assets",
+        "description": "docs.presentation.generate_assets",
+        "peekOfCode": "GREEN = (34, 197, 94)\ndef _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:\n    candidates = [\n        \"/System/Library/Fonts/Supplemental/Arial Bold.ttf\" if bold else \"/System/Library/Fonts/Supplemental/Arial.ttf\",\n        \"/Library/Fonts/Arial.ttf\",\n        \"/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf\" if bold else \"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf\",\n    ]\n    for path in candidates:\n        if Path(path).exists():\n            return ImageFont.truetype(path, size)",
+        "detail": "docs.presentation.generate_assets",
+        "documentation": {}
+    },
+    {
+        "label": "set_bg",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "def set_bg(slide, color=SOFT):\n    fill = slide.background.fill\n    fill.solid()\n    fill.fore_color.rgb = color\ndef add_title_slide(prs, title, subtitle=\"\", note=\"\", show_logo=True):\n    slide = prs.slides.add_slide(prs.slide_layouts[6])\n    set_bg(slide)\n    if show_logo and LOGO.exists():\n        slide.shapes.add_picture(str(LOGO), Inches(0.75), Inches(0.75), height=Inches(1.1))\n    bar = slide.shapes.add_shape(1, Inches(0), Inches(0), Inches(0.18), prs.slide_height)",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "add_title_slide",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "def add_title_slide(prs, title, subtitle=\"\", note=\"\", show_logo=True):\n    slide = prs.slides.add_slide(prs.slide_layouts[6])\n    set_bg(slide)\n    if show_logo and LOGO.exists():\n        slide.shapes.add_picture(str(LOGO), Inches(0.75), Inches(0.75), height=Inches(1.1))\n    bar = slide.shapes.add_shape(1, Inches(0), Inches(0), Inches(0.18), prs.slide_height)\n    bar.fill.solid()\n    bar.fill.fore_color.rgb = INDIGO\n    bar.line.fill.background()\n    top = 2.0 if show_logo and LOGO.exists() else 2.2",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "add_thank_you_slide",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "def add_thank_you_slide(prs, note=\"\"):\n    \"\"\"Closing slide with logo, CTA text, and scannable website QR code.\"\"\"\n    # Always refresh QR assets before embedding\n    generate_qr()\n    slide = prs.slides.add_slide(prs.slide_layouts[6])\n    set_bg(slide)\n    bar = slide.shapes.add_shape(1, Inches(0), Inches(0), Inches(0.18), prs.slide_height)\n    bar.fill.solid()\n    bar.fill.fore_color.rgb = INDIGO\n    bar.line.fill.background()",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "add_content_slide",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "def add_content_slide(prs, title, bullets, note=\"\", accent=INDIGO, image_path=None, image_right=True):\n    slide = prs.slides.add_slide(prs.slide_layouts[6])\n    set_bg(slide)\n    accent_bar = slide.shapes.add_shape(1, Inches(0.7), Inches(0.55), Inches(1.2), Inches(0.08))\n    accent_bar.fill.solid()\n    accent_bar.fill.fore_color.rgb = accent\n    accent_bar.line.fill.background()\n    text_width = 5.0 if image_path and Path(image_path).exists() else 8.8\n    title_box = slide.shapes.add_textbox(Inches(0.7), Inches(0.75), Inches(text_width), Inches(0.9))\n    ttf = title_box.text_frame",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "add_problem_stats_slide",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "def add_problem_stats_slide(prs, title, stats, footer, note=\"\", image_path=None):\n    slide = prs.slides.add_slide(prs.slide_layouts[6])\n    set_bg(slide)\n    accent_bar = slide.shapes.add_shape(1, Inches(0.7), Inches(0.55), Inches(1.2), Inches(0.08))\n    accent_bar.fill.solid()\n    accent_bar.fill.fore_color.rgb = RED\n    accent_bar.line.fill.background()\n    title_box = slide.shapes.add_textbox(Inches(0.7), Inches(0.75), Inches(5.2), Inches(0.8))\n    title_box.text_frame.paragraphs[0].text = title\n    title_box.text_frame.paragraphs[0].font.size = Pt(30)",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "add_neuro_slide",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "def add_neuro_slide(prs, note=\"\", image_path=None):\n    slide = prs.slides.add_slide(prs.slide_layouts[6])\n    set_bg(slide)\n    accent_bar = slide.shapes.add_shape(1, Inches(0.7), Inches(0.55), Inches(1.2), Inches(0.08))\n    accent_bar.fill.solid()\n    accent_bar.fill.fore_color.rgb = TEAL\n    accent_bar.line.fill.background()\n    title_box = slide.shapes.add_textbox(Inches(0.7), Inches(0.75), Inches(8.8), Inches(0.8))\n    title_box.text_frame.paragraphs[0].text = \"Neurodiversity on AdaptBuddy\"\n    title_box.text_frame.paragraphs[0].font.size = Pt(30)",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "add_visual_slide",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "def add_visual_slide(prs, title, bullets, media_path, note=\"\", accent=INDIGO):\n    slide = prs.slides.add_slide(prs.slide_layouts[6])\n    set_bg(slide)\n    accent_bar = slide.shapes.add_shape(1, Inches(0.7), Inches(0.55), Inches(1.2), Inches(0.08))\n    accent_bar.fill.solid()\n    accent_bar.fill.fore_color.rgb = accent\n    accent_bar.line.fill.background()\n    title_box = slide.shapes.add_textbox(Inches(0.7), Inches(0.75), Inches(4.8), Inches(0.8))\n    title_box.text_frame.paragraphs[0].text = title\n    title_box.text_frame.paragraphs[0].font.size = Pt(28)",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "add_demo_slide",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "def add_demo_slide(prs, gif_path=None):\n    slide = prs.slides.add_slide(prs.slide_layouts[6])\n    fill = slide.background.fill\n    fill.solid()\n    fill.fore_color.rgb = INDIGO\n    if gif_path and Path(gif_path).exists():\n        slide.shapes.add_picture(str(gif_path), Inches(2.85), Inches(0.65), width=Inches(4.3))\n    box = slide.shapes.add_textbox(Inches(0.8), Inches(2.35 if gif_path else 2.4), Inches(8.4), Inches(1.2))\n    tf = box.text_frame\n    p = tf.paragraphs[0]",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "build",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "def build():\n    generate_assets()\n    generate_qr()\n    prs = Presentation()\n    prs.slide_width = Inches(10)\n    prs.slide_height = Inches(7.5)\n    problem_note = (\n        \"0:30–2:15 | Cite UK sources in Q&A if asked.\\n\"\n        \"Sources:\\n\"\n        \"• DfE SEN in England 2023/24 — 1.7m pupils with SEN; 576,474 EHC plans (Jan 2024)\\n\"",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "OUT",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "OUT = Path(__file__).parent / \"AdaptBuddy_15min_Conference_Deck.pptx\"\nASSETS = Path(__file__).parent / \"assets\"\nQR_CODE = ASSETS / \"adaptbuddy-website-qr-branded.png\"\nWEBSITE_URL = \"https://www.adaptbuddy.com/\"\nLOGO = Path(__file__).resolve().parents[2] / \"src\" / \"assets\" / \"Adaptbuddy_logo.png\"\nHERO = Path(__file__).resolve().parents[2] / \"src\" / \"assets\" / \"FullAdaptBuddy.png\"\nINDIGO = RGBColor(79, 70, 229)\nNAVY = RGBColor(15, 23, 42)\nTEAL = RGBColor(20, 184, 166)\nSLATE = RGBColor(100, 116, 139)",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "ASSETS",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "ASSETS = Path(__file__).parent / \"assets\"\nQR_CODE = ASSETS / \"adaptbuddy-website-qr-branded.png\"\nWEBSITE_URL = \"https://www.adaptbuddy.com/\"\nLOGO = Path(__file__).resolve().parents[2] / \"src\" / \"assets\" / \"Adaptbuddy_logo.png\"\nHERO = Path(__file__).resolve().parents[2] / \"src\" / \"assets\" / \"FullAdaptBuddy.png\"\nINDIGO = RGBColor(79, 70, 229)\nNAVY = RGBColor(15, 23, 42)\nTEAL = RGBColor(20, 184, 166)\nSLATE = RGBColor(100, 116, 139)\nWHITE = RGBColor(255, 255, 255)",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "QR_CODE",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "QR_CODE = ASSETS / \"adaptbuddy-website-qr-branded.png\"\nWEBSITE_URL = \"https://www.adaptbuddy.com/\"\nLOGO = Path(__file__).resolve().parents[2] / \"src\" / \"assets\" / \"Adaptbuddy_logo.png\"\nHERO = Path(__file__).resolve().parents[2] / \"src\" / \"assets\" / \"FullAdaptBuddy.png\"\nINDIGO = RGBColor(79, 70, 229)\nNAVY = RGBColor(15, 23, 42)\nTEAL = RGBColor(20, 184, 166)\nSLATE = RGBColor(100, 116, 139)\nWHITE = RGBColor(255, 255, 255)\nSOFT = RGBColor(248, 250, 252)",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "WEBSITE_URL",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "WEBSITE_URL = \"https://www.adaptbuddy.com/\"\nLOGO = Path(__file__).resolve().parents[2] / \"src\" / \"assets\" / \"Adaptbuddy_logo.png\"\nHERO = Path(__file__).resolve().parents[2] / \"src\" / \"assets\" / \"FullAdaptBuddy.png\"\nINDIGO = RGBColor(79, 70, 229)\nNAVY = RGBColor(15, 23, 42)\nTEAL = RGBColor(20, 184, 166)\nSLATE = RGBColor(100, 116, 139)\nWHITE = RGBColor(255, 255, 255)\nSOFT = RGBColor(248, 250, 252)\nRED = RGBColor(220, 38, 38)",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "LOGO",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "LOGO = Path(__file__).resolve().parents[2] / \"src\" / \"assets\" / \"Adaptbuddy_logo.png\"\nHERO = Path(__file__).resolve().parents[2] / \"src\" / \"assets\" / \"FullAdaptBuddy.png\"\nINDIGO = RGBColor(79, 70, 229)\nNAVY = RGBColor(15, 23, 42)\nTEAL = RGBColor(20, 184, 166)\nSLATE = RGBColor(100, 116, 139)\nWHITE = RGBColor(255, 255, 255)\nSOFT = RGBColor(248, 250, 252)\nRED = RGBColor(220, 38, 38)\ndef set_bg(slide, color=SOFT):",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "HERO",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "HERO = Path(__file__).resolve().parents[2] / \"src\" / \"assets\" / \"FullAdaptBuddy.png\"\nINDIGO = RGBColor(79, 70, 229)\nNAVY = RGBColor(15, 23, 42)\nTEAL = RGBColor(20, 184, 166)\nSLATE = RGBColor(100, 116, 139)\nWHITE = RGBColor(255, 255, 255)\nSOFT = RGBColor(248, 250, 252)\nRED = RGBColor(220, 38, 38)\ndef set_bg(slide, color=SOFT):\n    fill = slide.background.fill",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "INDIGO",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "INDIGO = RGBColor(79, 70, 229)\nNAVY = RGBColor(15, 23, 42)\nTEAL = RGBColor(20, 184, 166)\nSLATE = RGBColor(100, 116, 139)\nWHITE = RGBColor(255, 255, 255)\nSOFT = RGBColor(248, 250, 252)\nRED = RGBColor(220, 38, 38)\ndef set_bg(slide, color=SOFT):\n    fill = slide.background.fill\n    fill.solid()",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "NAVY",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "NAVY = RGBColor(15, 23, 42)\nTEAL = RGBColor(20, 184, 166)\nSLATE = RGBColor(100, 116, 139)\nWHITE = RGBColor(255, 255, 255)\nSOFT = RGBColor(248, 250, 252)\nRED = RGBColor(220, 38, 38)\ndef set_bg(slide, color=SOFT):\n    fill = slide.background.fill\n    fill.solid()\n    fill.fore_color.rgb = color",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "TEAL",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "TEAL = RGBColor(20, 184, 166)\nSLATE = RGBColor(100, 116, 139)\nWHITE = RGBColor(255, 255, 255)\nSOFT = RGBColor(248, 250, 252)\nRED = RGBColor(220, 38, 38)\ndef set_bg(slide, color=SOFT):\n    fill = slide.background.fill\n    fill.solid()\n    fill.fore_color.rgb = color\ndef add_title_slide(prs, title, subtitle=\"\", note=\"\", show_logo=True):",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "SLATE",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "SLATE = RGBColor(100, 116, 139)\nWHITE = RGBColor(255, 255, 255)\nSOFT = RGBColor(248, 250, 252)\nRED = RGBColor(220, 38, 38)\ndef set_bg(slide, color=SOFT):\n    fill = slide.background.fill\n    fill.solid()\n    fill.fore_color.rgb = color\ndef add_title_slide(prs, title, subtitle=\"\", note=\"\", show_logo=True):\n    slide = prs.slides.add_slide(prs.slide_layouts[6])",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "WHITE",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "WHITE = RGBColor(255, 255, 255)\nSOFT = RGBColor(248, 250, 252)\nRED = RGBColor(220, 38, 38)\ndef set_bg(slide, color=SOFT):\n    fill = slide.background.fill\n    fill.solid()\n    fill.fore_color.rgb = color\ndef add_title_slide(prs, title, subtitle=\"\", note=\"\", show_logo=True):\n    slide = prs.slides.add_slide(prs.slide_layouts[6])\n    set_bg(slide)",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "SOFT",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "SOFT = RGBColor(248, 250, 252)\nRED = RGBColor(220, 38, 38)\ndef set_bg(slide, color=SOFT):\n    fill = slide.background.fill\n    fill.solid()\n    fill.fore_color.rgb = color\ndef add_title_slide(prs, title, subtitle=\"\", note=\"\", show_logo=True):\n    slide = prs.slides.add_slide(prs.slide_layouts[6])\n    set_bg(slide)\n    if show_logo and LOGO.exists():",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "RED",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_deck",
+        "description": "docs.presentation.generate_deck",
+        "peekOfCode": "RED = RGBColor(220, 38, 38)\ndef set_bg(slide, color=SOFT):\n    fill = slide.background.fill\n    fill.solid()\n    fill.fore_color.rgb = color\ndef add_title_slide(prs, title, subtitle=\"\", note=\"\", show_logo=True):\n    slide = prs.slides.add_slide(prs.slide_layouts[6])\n    set_bg(slide)\n    if show_logo and LOGO.exists():\n        slide.shapes.add_picture(str(LOGO), Inches(0.75), Inches(0.75), height=Inches(1.1))",
+        "detail": "docs.presentation.generate_deck",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "docs.presentation.generate_qr",
+        "description": "docs.presentation.generate_qr",
+        "peekOfCode": "def main() -> None:\n    ASSETS.mkdir(parents=True, exist_ok=True)\n    qr = qrcode.QRCode(\n        error_correction=qrcode.constants.ERROR_CORRECT_H,\n        box_size=12,\n        border=4,\n    )\n    qr.add_data(URL)\n    qr.make(fit=True)\n    png_path = ASSETS / \"adaptbuddy-website-qr.png\"",
+        "detail": "docs.presentation.generate_qr",
+        "documentation": {}
+    },
+    {
+        "label": "URL",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_qr",
+        "description": "docs.presentation.generate_qr",
+        "peekOfCode": "URL = \"https://www.adaptbuddy.com/\"\nROOT = Path(__file__).parent\nASSETS = ROOT / \"assets\"\nPUBLIC = ROOT.parents[1] / \"public\"\ndef main() -> None:\n    ASSETS.mkdir(parents=True, exist_ok=True)\n    qr = qrcode.QRCode(\n        error_correction=qrcode.constants.ERROR_CORRECT_H,\n        box_size=12,\n        border=4,",
+        "detail": "docs.presentation.generate_qr",
+        "documentation": {}
+    },
+    {
+        "label": "ROOT",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_qr",
+        "description": "docs.presentation.generate_qr",
+        "peekOfCode": "ROOT = Path(__file__).parent\nASSETS = ROOT / \"assets\"\nPUBLIC = ROOT.parents[1] / \"public\"\ndef main() -> None:\n    ASSETS.mkdir(parents=True, exist_ok=True)\n    qr = qrcode.QRCode(\n        error_correction=qrcode.constants.ERROR_CORRECT_H,\n        box_size=12,\n        border=4,\n    )",
+        "detail": "docs.presentation.generate_qr",
+        "documentation": {}
+    },
+    {
+        "label": "ASSETS",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_qr",
+        "description": "docs.presentation.generate_qr",
+        "peekOfCode": "ASSETS = ROOT / \"assets\"\nPUBLIC = ROOT.parents[1] / \"public\"\ndef main() -> None:\n    ASSETS.mkdir(parents=True, exist_ok=True)\n    qr = qrcode.QRCode(\n        error_correction=qrcode.constants.ERROR_CORRECT_H,\n        box_size=12,\n        border=4,\n    )\n    qr.add_data(URL)",
+        "detail": "docs.presentation.generate_qr",
+        "documentation": {}
+    },
+    {
+        "label": "PUBLIC",
+        "kind": 5,
+        "importPath": "docs.presentation.generate_qr",
+        "description": "docs.presentation.generate_qr",
+        "peekOfCode": "PUBLIC = ROOT.parents[1] / \"public\"\ndef main() -> None:\n    ASSETS.mkdir(parents=True, exist_ok=True)\n    qr = qrcode.QRCode(\n        error_correction=qrcode.constants.ERROR_CORRECT_H,\n        box_size=12,\n        border=4,\n    )\n    qr.add_data(URL)\n    qr.make(fit=True)",
+        "detail": "docs.presentation.generate_qr",
+        "documentation": {}
+    },
+    {
+        "label": "_Known",
+        "kind": 6,
+        "importPath": "node_modules.flatted.python.flatted",
+        "description": "node_modules.flatted.python.flatted",
+        "peekOfCode": "class _Known:\n    def __init__(self):\n        self.key = []\n        self.value = []\nclass _String:\n    def __init__(self, value):\n        self.value = value\ndef _array_keys(value):\n    for i in range(len(value)):\n        yield i",
+        "detail": "node_modules.flatted.python.flatted",
+        "documentation": {}
+    },
+    {
+        "label": "_String",
+        "kind": 6,
+        "importPath": "node_modules.flatted.python.flatted",
+        "description": "node_modules.flatted.python.flatted",
+        "peekOfCode": "class _String:\n    def __init__(self, value):\n        self.value = value\ndef _array_keys(value):\n    for i in range(len(value)):\n        yield i\ndef _object_keys(value):\n    for key in value:\n        yield key\ndef _is_array(value):",
+        "detail": "node_modules.flatted.python.flatted",
+        "documentation": {}
+    },
+    {
+        "label": "parse",
+        "kind": 2,
+        "importPath": "node_modules.flatted.python.flatted",
+        "description": "node_modules.flatted.python.flatted",
+        "peekOfCode": "def parse(value, *args, **kwargs):\n    json = _json.loads(value, *args, **kwargs)\n    wrapped = []\n    for value in json:\n        wrapped.append(_wrap(value))\n    input = []\n    for value in wrapped:\n        if isinstance(value, _String):\n            input.append(value.value)\n        else:",
+        "detail": "node_modules.flatted.python.flatted",
+        "documentation": {}
+    },
+    {
+        "label": "stringify",
+        "kind": 2,
+        "importPath": "node_modules.flatted.python.flatted",
+        "description": "node_modules.flatted.python.flatted",
+        "peekOfCode": "def stringify(value, *args, **kwargs):\n    known = _Known()\n    input = []\n    output = []\n    i = int(_index(known, input, value))\n    while i < len(input):\n        output.append(_transform(known, input, input[i]))\n        i += 1\n    return _json.dumps(output, *args, **kwargs)",
+        "detail": "node_modules.flatted.python.flatted",
+        "documentation": {}
+    },
+    {
+        "label": "fit_square",
+        "kind": 2,
+        "importPath": "scripts.generate-favicons",
+        "description": "scripts.generate-favicons",
+        "peekOfCode": "def fit_square(source: Image.Image, size: int, padding_ratio: float = 0.08) -> Image.Image:\n    w, h = source.size\n    scale = min((size * (1 - 2 * padding_ratio)) / w, (size * (1 - 2 * padding_ratio)) / h)\n    nw, nh = int(w * scale), int(h * scale)\n    resized = source.resize((nw, nh), Image.Resampling.LANCZOS)\n    canvas = Image.new(\"RGBA\", (size, size), (0, 0, 0, 0))\n    canvas.paste(resized, ((size - nw) // 2, (size - nh) // 2), resized)\n    return canvas\ndef main() -> None:\n    img = Image.open(SRC).convert(\"RGBA\")",
+        "detail": "scripts.generate-favicons",
+        "documentation": {}
+    },
+    {
+        "label": "main",
+        "kind": 2,
+        "importPath": "scripts.generate-favicons",
+        "description": "scripts.generate-favicons",
+        "peekOfCode": "def main() -> None:\n    img = Image.open(SRC).convert(\"RGBA\")\n    for name, size in {\n        \"favicon-16x16.png\": 16,\n        \"favicon-32x32.png\": 32,\n        \"apple-touch-icon.png\": 180,\n        \"logo192.png\": 192,\n        \"logo512.png\": 512,\n    }.items():\n        fit_square(img, size).save(os.path.join(PUBLIC, name), \"PNG\", optimize=True)",
+        "detail": "scripts.generate-favicons",
+        "documentation": {}
+    },
+    {
+        "label": "ROOT",
+        "kind": 5,
+        "importPath": "scripts.generate-favicons",
+        "description": "scripts.generate-favicons",
+        "peekOfCode": "ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))\nSRC = os.path.join(ROOT, \"src/assets/Adaptbuddy_logo.png\")\nPUBLIC = os.path.join(ROOT, \"public\")\ndef fit_square(source: Image.Image, size: int, padding_ratio: float = 0.08) -> Image.Image:\n    w, h = source.size\n    scale = min((size * (1 - 2 * padding_ratio)) / w, (size * (1 - 2 * padding_ratio)) / h)\n    nw, nh = int(w * scale), int(h * scale)\n    resized = source.resize((nw, nh), Image.Resampling.LANCZOS)\n    canvas = Image.new(\"RGBA\", (size, size), (0, 0, 0, 0))\n    canvas.paste(resized, ((size - nw) // 2, (size - nh) // 2), resized)",
+        "detail": "scripts.generate-favicons",
+        "documentation": {}
+    },
+    {
+        "label": "SRC",
+        "kind": 5,
+        "importPath": "scripts.generate-favicons",
+        "description": "scripts.generate-favicons",
+        "peekOfCode": "SRC = os.path.join(ROOT, \"src/assets/Adaptbuddy_logo.png\")\nPUBLIC = os.path.join(ROOT, \"public\")\ndef fit_square(source: Image.Image, size: int, padding_ratio: float = 0.08) -> Image.Image:\n    w, h = source.size\n    scale = min((size * (1 - 2 * padding_ratio)) / w, (size * (1 - 2 * padding_ratio)) / h)\n    nw, nh = int(w * scale), int(h * scale)\n    resized = source.resize((nw, nh), Image.Resampling.LANCZOS)\n    canvas = Image.new(\"RGBA\", (size, size), (0, 0, 0, 0))\n    canvas.paste(resized, ((size - nw) // 2, (size - nh) // 2), resized)\n    return canvas",
+        "detail": "scripts.generate-favicons",
+        "documentation": {}
+    },
+    {
+        "label": "PUBLIC",
+        "kind": 5,
+        "importPath": "scripts.generate-favicons",
+        "description": "scripts.generate-favicons",
+        "peekOfCode": "PUBLIC = os.path.join(ROOT, \"public\")\ndef fit_square(source: Image.Image, size: int, padding_ratio: float = 0.08) -> Image.Image:\n    w, h = source.size\n    scale = min((size * (1 - 2 * padding_ratio)) / w, (size * (1 - 2 * padding_ratio)) / h)\n    nw, nh = int(w * scale), int(h * scale)\n    resized = source.resize((nw, nh), Image.Resampling.LANCZOS)\n    canvas = Image.new(\"RGBA\", (size, size), (0, 0, 0, 0))\n    canvas.paste(resized, ((size - nw) // 2, (size - nh) // 2), resized)\n    return canvas\ndef main() -> None:",
+        "detail": "scripts.generate-favicons",
+        "documentation": {}
+    }
+]

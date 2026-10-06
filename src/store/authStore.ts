@@ -125,7 +125,7 @@ type GuestRole = Exclude<UserRole, 'admin'>;
 
 const createGuestProfile = (role: UserRole = 'child'): Profile => {
   const guestRole: GuestRole =
-    role === 'parent' || role === 'teacher' ? role : 'child';
+    role === 'parent' || role === 'teacher' || role === 'adult' ? role : 'child';
   const now = new Date().toISOString();
   const names: Record<GuestRole, { first: string; last: string; full: string; email: string }> = {
     child: {
@@ -133,6 +133,12 @@ const createGuestProfile = (role: UserRole = 'child'): Profile => {
       last: 'Guest',
       full: 'Alex Guest',
       email: 'guest-child@adaptbuddy.local',
+    },
+    adult: {
+      first: 'Jordan',
+      last: 'Guest',
+      full: 'Jordan Guest',
+      email: 'guest-adult@adaptbuddy.local',
     },
     parent: {
       first: 'Parent',
@@ -157,10 +163,10 @@ const createGuestProfile = (role: UserRole = 'child'): Profile => {
     last_name: name.last,
     full_name: name.full,
     child_name: guestRole === 'parent' ? 'Alex' : null,
-    buddy_id: guestRole === 'child' ? 'AB-GEST-01' : null,
+    buddy_id: guestRole === 'child' || guestRole === 'adult' ? 'AB-GEST-01' : null,
     avatar_url: null,
     bio: null,
-    age: guestRole === 'child' ? 10 : null,
+    age: guestRole === 'child' ? 10 : guestRole === 'adult' ? 22 : null,
     sex: null,
     gender: null,
     neuro_types: [],

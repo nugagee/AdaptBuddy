@@ -15,7 +15,8 @@
 .DS_Store
 .venv-img/
 
-# Local-only env overrides. The project .env is tracked on purpose.
+# Environment files stay local.
+.env
 .env.*
 !.env.example
 
